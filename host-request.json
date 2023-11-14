@@ -1,0 +1,1 @@
+{"fields": ["hostname", "kernel", "python_major", "cpu_count"], "mutations_allowed": false}
