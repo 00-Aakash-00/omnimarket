@@ -1,0 +1,5 @@
+collecting ... collected 203 items
+PASSED tests/test_control.py::test_control
+FAILED tests/test_lane.py::test_docs_only_floor_matches_runtime - AssertionError: expected refusal
+1 failed, 202 passed
+warning: optional telemetry unavailable
