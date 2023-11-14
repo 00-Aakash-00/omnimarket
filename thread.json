@@ -1,0 +1,1 @@
+{"thread_id": "thread-1", "path": "subject.py", "finding": "disabled backend admitted", "fixed_head": "fixture-head-1", "test": "test_disabled_backend_refused", "observed": "1 passed"}
