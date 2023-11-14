@@ -1,0 +1,2 @@
+Routing tier bindability failed: provider catalogue does not list openrouter-nemotron-super: nvidia/nemotron-3-super-120b-a12b:free
+Base reproduces red. Provider withdrawal exposed a stale declaration.
