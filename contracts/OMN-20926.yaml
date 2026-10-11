@@ -76,13 +76,17 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-captured-secret-live-reader"
     description: >-
-      Live deploy probe through the installed consumer command and this
-      machine's configured reader identity. Supply the reference observed in a
-      fresh lab capture on the content topic. It fails without configuration,
-      permission or the stored value. This read alone does not bind AC5: the
-      fresh-session producer and topic plaintext census remain required.
+      Deploy-declaration probe: the pull request head carries the consumer
+      command, `onex secret check-captured`, and the this-machine reader the
+      command resolves through. It reads the changed files from the repository
+      at the head commit and fails when either symbol is absent. It is a content
+      read, not a live readback: the readback through a configured reader
+      identity against a reference observed on the lab content topic is pending
+      the provisioned identities. It does not bind AC5: the fresh-session
+      producer and topic plaintext census remain required.
     source: "manual"
     checks:
       - check_type: "command"
-        check_value: 'onex secret check-captured "${CAPTURED_SECRET_LAB_REFERENCE:?reference observed on the lab content topic is required}" --accessor lab-captured-secret-readback'
-        cwd: "${OMNI_HOME}/omnimarket"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/cli/cli_secret.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -cF 'command(\"check-captured\")'"
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_captured_secret_resolve_effect/handlers/handler_captured_secret_resolve.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -cF 'def reader_for_this_machine('"
