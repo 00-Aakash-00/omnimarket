@@ -9,6 +9,7 @@ import os
 import shlex
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -441,7 +442,13 @@ def test_contention_is_retried_then_given_up_with_the_attempt_count(
     writer = _writer(tmp_path, "import sys\nsys.exit(75)\n")
     monkeypatch.setenv(adapters.APPEND_COMMAND_ENV, writer)
     sleeps: list[float] = []
-    monkeypatch.setattr(adapters.time, "sleep", sleeps.append)
+
+    def record_sleep(seconds: float) -> None:
+        # time.sleep is patched process-wide: ignore sleeps from other threads.
+        if threading.current_thread() is threading.main_thread():
+            sleeps.append(seconds)
+
+    monkeypatch.setattr(adapters.time, "sleep", record_sleep)
     error = LedgerWriterAppender().append(tmp_path / "ledger.md", "row")
     assert error == "exit 75 (contention) after 5 attempts"
     assert sleeps == [2.0, 4.0, 6.0, 8.0]
