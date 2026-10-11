@@ -87,4 +87,5 @@ dod_evidence:
     checks:
       - check_type: "command"
         check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_github_schedule_observer_effect/handlers/handler_github_schedule_observer.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c '^class HandlerGithubScheduleObserver'"
+        cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
