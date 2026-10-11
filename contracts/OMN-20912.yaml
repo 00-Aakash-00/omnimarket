@@ -74,7 +74,7 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/nodes/node_github_repo_write_effect/test_source_control_github_conformance.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC3"]
-  - id: "dod-omn20912-ac3-source-control-adapter-deploy-probe"
+  - id: "dod-omn20912-ac3-adapter-deploy-probe"
     description: "AC3 deploy probe: the adapter module GitHub serves at the checked-out commit declares HandlerSourceControlGithub."
     source: "manual"
     checks:
