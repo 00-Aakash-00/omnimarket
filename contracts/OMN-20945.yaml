@@ -53,6 +53,14 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/nodes/node_dod_verify/test_contract_duplicate_key_omn20945.py -q -p no:randomly -k test_clean_contract_is_unchanged"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
+  - id: "dod-omn20945-ac2-parse-error-reason-unchanged"
+    description: "AC2: a contract that fails to parse for a reason other than a duplicate key is still a FAILED result whose message is the YAML parse error, and records no load error."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_dod_verify/test_contract_duplicate_key_omn20945.py -q -p no:randomly -k test_unparseable_contract_keeps_the_yaml_parse_error_reason"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC2"]
   - id: "dod-omn20945-ac2-node-dod-verify-suite"
     description: "AC2: the whole node_dod_verify test directory passes with the strict loader in place. It takes minutes, beyond the hosted per-check budget of 30 s, so only the local Done gate runs it; the hosted tests job runs the same directory on every pull request."
     source: "manual"
@@ -84,4 +92,3 @@ dod_evidence:
       - check_type: "command"
         check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_dod_verify/services/evidence_collector.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c 'load_yaml_mapping_no_duplicates(content, source=str(path))'"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC1"]

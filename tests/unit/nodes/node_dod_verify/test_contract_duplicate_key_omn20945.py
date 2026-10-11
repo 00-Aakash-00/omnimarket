@@ -92,6 +92,27 @@ class TestContractDuplicateKey:
         assert results[0].status == EnumEvidenceCheckStatus.VERIFIED
         assert collector.contract_load_error is None
 
+    def test_unparseable_contract_keeps_the_yaml_parse_error_reason(
+        self, tmp_path: Path
+    ) -> None:
+        path = _write(tmp_path, "ticket_id: [unclosed\n  - : :")
+        collector = EvidenceCollector()
+        results = collector.collect("OMN-20945", contract_path=str(path))
+
+        assert [r.evidence_id for r in results] == ["contract"]
+        assert results[0].status == EnumEvidenceCheckStatus.FAILED
+        assert results[0].message == f"YAML parse error in {path}"
+        assert collector.contract_load_error is None
+
+    def test_duplicate_key_reason_is_its_own(self, tmp_path: Path) -> None:
+        path = _write(tmp_path, _DUPLICATED)
+        collector = EvidenceCollector()
+        results = collector.collect("OMN-20945", contract_path=str(path))
+
+        assert results[0].message == collector.contract_load_error
+        assert not results[0].message.startswith("YAML parse error")
+        assert results[0].message.startswith(f"{path}:7:")
+
     def test_sweep_receipt_exists_refuses_duplicate_key(self, tmp_path: Path) -> None:
         clean = _check_receipt_exists("OMN-20945", _write(tmp_path, _CLEAN))
         assert clean.status == "pass"

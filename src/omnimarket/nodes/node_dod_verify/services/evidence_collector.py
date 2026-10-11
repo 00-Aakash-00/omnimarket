@@ -43,6 +43,9 @@ from omnibase_core.enums.ticket.enum_dod_evidence_execution_scope import (
     EnumDodEvidenceExecutionScope,
 )
 from omnibase_core.enums.ticket.enum_receipt_status import EnumReceiptStatus
+from omnibase_core.errors.error_duplicate_yaml_mapping_key import (
+    DuplicateYamlMappingKeyError,
+)
 from omnibase_core.models.contracts.ticket.model_dod_receipt import ModelDodReceipt
 from omnibase_core.models.dispatch.model_handler_output import ModelHandlerOutput
 from omnibase_core.models.ticket.model_contract_dod_item import ModelContractDodItem
@@ -4633,9 +4636,10 @@ class EvidenceCollector:
         """Load and return YAML content, or None on error.
 
         OMN-20945: parsed with the strict omnibase_core loader, so a duplicate
-        mapping key is an error rather than a silent last-key-wins. The error
-        text (file, line, key) is kept on ``contract_load_error`` for the
-        caller that reports the failure.
+        mapping key is an error rather than a silent last-key-wins. A duplicate
+        key's error text (file, line, key) is kept on ``contract_load_error``
+        for the caller that reports the failure; any other parse failure leaves
+        it unset, so that caller reports the plain YAML parse error.
         """
         try:
             content = path.read_text(encoding="utf-8")
@@ -4643,9 +4647,12 @@ class EvidenceCollector:
                 "dict[str, Any]",
                 load_yaml_mapping_no_duplicates(content, source=str(path)),
             )
-        except Exception as exc:
+        except DuplicateYamlMappingKeyError as exc:
             logger.error("Failed to parse %s: %s", path, exc)
             self.contract_load_error = str(exc)
+            return None
+        except Exception as exc:
+            logger.error("Failed to parse %s: %s", path, exc)
             return None
 
     def _check_evidence_item(
