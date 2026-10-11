@@ -47,7 +47,7 @@ WATCH_FIXTURE = [
     "# Rolling work ledger",
     "",
     # Landing the PR leaves the watch step open until the lane writes again.
-    "2026-09-22T10:00:00Z | CLAIM | lane=watcher | ticket=OMN-1 | scope=land omnimarket#13 and watch the first dev-lane rebuild through to its compose-dev receipt",
+    "2026-09-22T10:00:00Z | CLAIM | lane=watcher | ticket=OMN-1 | scope=land omnimarket#13 and watch the first rebuild through to its pass receipt",
     "2026-09-22T10:05:00Z | CLAIM | lane=resumed-watcher | ticket=OMN-1 | scope=land omnimarket#13 and monitor the lab pass",
     "2026-09-22T12:30:00Z | STATUS | lane=resumed-watcher | ticket=OMN-1 | rebuild still converging",
     # Receipt Gate is a check; OUT OF SCOPE lists work the lane will not do.

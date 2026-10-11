@@ -66,3 +66,11 @@ dod_evidence:
         check_value: "uv run pytest tests/nodes/node_ledger_reconcile_orchestrator/test_bus_cycle.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
+  - id: "dod-omn20677-deploy-probe"
+    description: "Deploy probe. The reconcile orchestrator contract at the checked-out commit declares its terminal event; the probe reads it from GitHub at that commit and exits nonzero on a tree without it, so it fails at the merge base."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_ledger_reconcile_orchestrator/contract.yaml?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c '^terminal_event:'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]

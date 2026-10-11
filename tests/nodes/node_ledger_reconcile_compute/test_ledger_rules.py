@@ -42,14 +42,14 @@ def test_parse_ts_rejects_junk() -> None:
 
 CLAIM_ROW = (
     "| 2026-08-31T23:15:00Z | wave2-omn17350-check8 | OMN-17350 | CLAIM | "
-    "**Owning OMN-17350.** Scope: omninode_infra#1122 only. |"
+    "**Owning OMN-17350.** Scope: examplerepo#1122 only. |"
 )
 
 
 TERMINAL_ROW = (
     "| 2026-09-01T08:37:14Z | wave2-omn17350-check8 | OMN-17350 | TERMINAL | "
     "**LATE TERMINAL** — closes the CLAIM row at 2026-08-31T23:15:00Z. "
-    "omninode_infra#1122 MERGED squash 6f1b394771575c0f. |"
+    "examplerepo#1122 MERGED squash 6f1b394771575c0f. |"
 )
 
 
@@ -60,7 +60,7 @@ def test_parse_pipe_row_claim() -> None:
     assert row.lane == "wave2-omn17350-check8"
     assert row.tickets == frozenset({"OMN-17350"})
     assert row.ts == datetime(2026, 8, 31, 23, 15, tzinfo=UTC)
-    assert "omninode_infra#1122" in row.body
+    assert "examplerepo#1122" in row.body
 
 
 def test_parse_pipe_row_terminal_with_qualifier_suffix() -> None:
@@ -285,7 +285,7 @@ def test_bind_excludes_pr_merged_before_the_claim_even_when_its_ticket_matches()
     # 13:33:10Z and was auto-closed on omnibase_infra#3681, merged 12:30:04Z,
     # a PR its scope cited as a precondition. The ticket match used to skip
     # the time guard; a PR that landed before the claim is never its work.
-    handle = pr("omninode_infra", 1109, "MERGED", "20e02ac1")
+    handle = pr("examplerepo", 1109, "MERGED", "20e02ac1")
     handle.title = "fix(OMN-17350): same ticket, earlier work"
     handle.merged_at = "2026-08-31T21:44:51Z"  # before the 23:15 claim stamp
     ev = evidence.Evidence(prs=[handle])
@@ -296,7 +296,7 @@ def test_bind_excludes_pr_merged_before_the_claim_even_when_its_ticket_matches()
 
 
 def test_bind_keeps_a_same_ticket_pr_merged_after_the_claim() -> None:
-    handle = pr("omninode_infra", 1122, "MERGED", "6f1b3947")
+    handle = pr("examplerepo", 1122, "MERGED", "6f1b3947")
     handle.title = "fix(OMN-17350): the claimed work itself"
     handle.merged_at = "2026-09-01T08:30:00Z"
     ev = evidence.Evidence(prs=[handle])
@@ -385,7 +385,7 @@ def make_finding(verdict: str) -> findings.Finding:
         claim,
         9.5,
         verdict,
-        "omninode_infra#1122 MERGED x merge 6f1b3947",
+        "examplerepo#1122 MERGED x merge 6f1b3947",
         evidence.Evidence(),
     )
 
@@ -638,7 +638,7 @@ DONE_FIXTURE = [
     "# Rolling work ledger",
     "",
     # ledger:678 and ledger:739, verbatim apart from truncation.
-    "2026-09-18T14:54:26Z | CLAIM | lane=omniclaude-release-cut-after-18702-1500 | ticket=OMN-18652 | scope=omniclaude version bump + tag + release.yml main fast-forward after OMN-18702 merges; then rerun the parity job on omninode_infra#1556",  # 3
+    "2026-09-18T14:54:26Z | CLAIM | lane=omniclaude-release-cut-after-18702-1500 | ticket=OMN-18652 | scope=omniclaude version bump + tag + release.yml main fast-forward after OMN-18702 merges; then rerun the parity job on examplerepo#1556",  # 3
     "2026-09-18T16:24:08Z | DONE | lane=omniclaude-release-cut-after-18702-1500 | ticket=OMN-18652 | omniclaude v0.26.0 cut after OMN-18702 (omniclaude#2237, squash ccaf4b29a, merged 15:36:19Z)",  # 4
     # A DONE row of another lane and ticket closes nothing.
     "2026-09-18T15:00:00Z | CLAIM | lane=still-open | ticket=OMN-1 | scope=unrelated work",  # 5
@@ -648,7 +648,7 @@ DONE_FIXTURE = [
 
 def test_done_rows_close_like_terminal_rows() -> None:
     # RED before round 3: DONE was a non-claim class, so ledger:678 read as
-    # dangling and the morning run closed it a second time on omninode_infra#1556.
+    # dangling and the morning run closed it a second time on examplerepo#1556.
     parsed = ledger_rows.load_rows((LEDGER_NAME, "\n".join(DONE_FIXTURE)), [])
     done = next(r for r in parsed.rows if r.lineno == 4)
     assert done.kind == "TERMINAL"

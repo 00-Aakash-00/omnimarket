@@ -73,8 +73,8 @@
   },
   {
    "id": "real-pipe-led",
-   "row": "| 2026-08-31T23:15:00Z | wave2-omn17350-check8 | OMN-17350 | CLAIM | **Owning OMN-17350.** Scope: omninode_infra#1122 only. |",
-   "digest": "ce7cf9b55d79"
+   "row": "| 2026-08-31T23:15:00Z | wave2-omn17350-check8 | OMN-17350 | CLAIM | **Owning OMN-17350.** Scope: examplerepo#1122 only. |",
+   "digest": "910c27b3c0a1"
   }
  ]
 }
