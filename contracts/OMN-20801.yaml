@@ -88,5 +88,5 @@ dod_evidence:
     source: manual
     checks:
       - check_type: command
-        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_automation_run_observer_effect/handlers/handler_automation_run_observer.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -q '^class HandlerAutomationRunObserver:'"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_automation_run_observer_effect/handlers/handler_automation_run_observer.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c '^class HandlerAutomationRunObserver:' | grep -qx 1"
         cwd: "${OMNI_HOME}/omnimarket"
