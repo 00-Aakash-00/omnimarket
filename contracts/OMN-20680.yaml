@@ -64,3 +64,11 @@ dod_evidence:
         check_value: "uv run pytest tests/nodes/node_linear_comments_sweep_orchestrator/test_golden_chain_linear_comments_sweep_orchestrator.py tests/nodes/node_linear_comments_sweep_orchestrator/test_error_chain_linear_comments_sweep_orchestrator.py tests/nodes/node_linear_comments_sweep_orchestrator/test_bus_cycle.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC4"]
+  - id: "dod-omn20680-deploy-probe"
+    description: "Deploy probe. The handler at the checked-out commit defines HandlerLinearCommentsSweep, the sweep orchestrator handler this change adds; the probe reads it from GitHub at that commit and exits nonzero on a tree without it, so it fails at the merge base."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_linear_comments_sweep_orchestrator/handlers/handler_linear_comments_sweep.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c '^class HandlerLinearCommentsSweep'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC4"]
