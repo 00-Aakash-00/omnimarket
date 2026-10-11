@@ -26,11 +26,11 @@ from omnimarket.github_landing.model_github_http_exchange import (
     ModelGithubHttpRequest,
     ModelGithubHttpResponse,
 )
-from omnimarket.models.github_quota_floor import (
-    ModelGithubQuotaFloor,
-)
 from omnimarket.models.liveness.model_automation_liveness import (
     EnumAutomationLivenessReason,
+)
+from omnimarket.models.model_github_quota_floor import (
+    ModelGithubQuotaFloor,
 )
 from omnimarket.nodes.node_github_schedule_observer_effect.protocols.protocol_github_schedule_transport import (
     ProtocolGithubScheduleTransport,

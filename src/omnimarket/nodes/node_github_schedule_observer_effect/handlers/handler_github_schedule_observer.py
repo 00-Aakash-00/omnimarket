@@ -48,9 +48,6 @@ from omnimarket.github_landing.github_landing_transport import (
     UrllibGithubLandingTransport,
 )
 from omnimarket.inference.secret_store_resolver import resolve_api_key_async
-from omnimarket.models.github_quota_floor import (
-    ModelGithubQuotaFloor,
-)
 from omnimarket.models.liveness.model_automation_liveness import (
     EnumAutomationLivenessReason,
     EnumAutomationLivenessVerdict,
@@ -64,6 +61,9 @@ from omnimarket.models.liveness.model_automation_liveness import (
     ModelAutomationRunObserved,
     load_automation_liveness_overlay,
     load_default_automation_liveness_overlay,
+)
+from omnimarket.models.model_github_quota_floor import (
+    ModelGithubQuotaFloor,
 )
 from omnimarket.nodes.contract_topics import contract_secret_ref
 from omnimarket.nodes.node_github_schedule_observer_effect.handlers.git_schedule_clone_reader import (

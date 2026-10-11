@@ -1,10 +1,11 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""The contract-declared GitHub quota floor, shared by the nodes that read GitHub.
+"""The contract-declared GitHub quota floor (OMN-19826).
 
-OMN-19826 defined it for node_pr_landing_github_effect; it lives here so the
-GitHub schedule observer reads the same floor without importing that node's
-private models package.
+First declared by node_pr_landing_github_effect; promoted here (OMN-20912) so
+node_github_repo_write_effect reads its own contract's ``quota_floor`` block
+with the same rule, without reaching into the landing node's models package
+(OMN-9263).
 """
 
 from __future__ import annotations
