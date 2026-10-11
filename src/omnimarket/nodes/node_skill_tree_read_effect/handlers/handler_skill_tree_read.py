@@ -7,7 +7,10 @@ compute nodes are pure over what it returns. It reads, never writes, and makes
 the same filesystem queries the change-control validators made, in the same
 order: the sorted root listing, each top-level directory's sorted listing,
 SKILL.md and prompt.md presence and text, every ``*.py`` and every
-``topics.yaml`` found by ``rglob``.
+``topics.yaml`` found by ``rglob``. It skips exactly what the validators skip:
+a ``_``-prefixed entry of the root or of a skill directory is neither listed
+nor read, and no ``*.py`` or ``topics.yaml`` below a ``_``-prefixed directory
+is recorded.
 """
 
 from __future__ import annotations
@@ -19,6 +22,8 @@ from omnimarket.models.skill_tree import (
     ModelSkillTreeEntry,
     ModelSkillTreeSnapshot,
     ModelSkillTreeTopicsFile,
+    is_infrastructure_name,
+    is_under_infrastructure,
 )
 from omnimarket.nodes.node_skill_tree_read_effect.models import (
     ModelSkillTreeReadRequest,
@@ -26,6 +31,22 @@ from omnimarket.nodes.node_skill_tree_read_effect.models import (
 
 _SKILL_MD = "SKILL.md"
 _PROMPT_MD = "prompt.md"
+
+
+def _listing(path: Path) -> list[Path]:
+    return [
+        child
+        for child in sorted(path.iterdir())
+        if not is_infrastructure_name(child.name)
+    ]
+
+
+def _judged(root: Path, pattern: str) -> list[Path]:
+    return [
+        path
+        for path in sorted(root.rglob(pattern))
+        if not is_under_infrastructure(str(path.relative_to(root)))
+    ]
 
 
 def _text(path: Path) -> str | None:
@@ -57,7 +78,7 @@ def _entry(path: Path) -> ModelSkillTreeEntry:
         has_prompt_md=prompt_md.exists(),
         skill_md_text=_text(skill_md),
         prompt_md_text=_text(prompt_md),
-        children=tuple(_child(child) for child in sorted(path.iterdir())),
+        children=tuple(_child(child) for child in _listing(path)),
     )
 
 
@@ -70,16 +91,16 @@ class HandlerSkillTreeRead:
             raise NotADirectoryError(f"skills root not found: {root}")
         return ModelSkillTreeSnapshot(
             skills_root=str(root),
-            entries=tuple(_entry(entry) for entry in sorted(root.iterdir())),
+            entries=tuple(_entry(entry) for entry in _listing(root)),
             python_files=tuple(
-                str(path.relative_to(root)) for path in sorted(root.rglob("*.py"))
+                str(path.relative_to(root)) for path in _judged(root, "*.py")
             ),
             topics_files=tuple(
                 ModelSkillTreeTopicsFile(
                     path=str(path.relative_to(root)),
                     parent_has_skill_md=(path.parent / _SKILL_MD).exists(),
                 )
-                for path in sorted(root.rglob("topics.yaml"))
+                for path in _judged(root, "topics.yaml")
             ),
         )
 

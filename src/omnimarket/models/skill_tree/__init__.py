@@ -7,6 +7,8 @@ from omnimarket.models.skill_tree.model_skill_tree_snapshot import (
     ModelSkillTreeEntry,
     ModelSkillTreeSnapshot,
     ModelSkillTreeTopicsFile,
+    is_infrastructure_name,
+    is_under_infrastructure,
 )
 
 __all__ = [
@@ -14,4 +16,6 @@ __all__ = [
     "ModelSkillTreeEntry",
     "ModelSkillTreeSnapshot",
     "ModelSkillTreeTopicsFile",
+    "is_infrastructure_name",
+    "is_under_infrastructure",
 ]

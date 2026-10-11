@@ -29,6 +29,8 @@ from omnimarket.models.skill_tree import (
     ModelSkillTreeChild,
     ModelSkillTreeEntry,
     ModelSkillTreeSnapshot,
+    is_infrastructure_name,
+    is_under_infrastructure,
 )
 from omnimarket.nodes.node_skill_hygiene_validate_compute.models import (
     EnumSkillHygieneCheck,
@@ -36,10 +38,6 @@ from omnimarket.nodes.node_skill_hygiene_validate_compute.models import (
     ModelSkillHygieneValidateResult,
     ModelSkillHygieneViolation,
 )
-
-
-def _is_infrastructure_dir(name: str) -> bool:
-    return name.startswith("_")
 
 
 def _violation(
@@ -58,7 +56,7 @@ def _skill_entries(tree: ModelSkillTreeSnapshot) -> list[ModelSkillTreeEntry]:
     return [
         entry
         for entry in tree.entries
-        if entry.is_dir and not _is_infrastructure_dir(entry.name)
+        if entry.is_dir and not is_infrastructure_name(entry.name)
     ]
 
 
@@ -66,7 +64,7 @@ def _child_skill_dirs(entry: ModelSkillTreeEntry) -> list[ModelSkillTreeChild]:
     return [
         child
         for child in entry.children
-        if child.is_dir and not _is_infrastructure_dir(child.name)
+        if child.is_dir and not is_infrastructure_name(child.name)
     ]
 
 
@@ -220,17 +218,14 @@ def _check_name_matches_dir(
     return violations
 
 
-def _under_infrastructure(rel: PurePath) -> bool:
-    return any(_is_infrastructure_dir(part) for part in rel.parts[:-1])
-
-
 def _check_no_python_in_skills(
     tree: ModelSkillTreeSnapshot, strict: bool
 ) -> list[ModelSkillHygieneViolation]:
     violations: list[ModelSkillHygieneViolation] = []
     for py_file in tree.python_files:
-        rel = PurePath(py_file)
-        if _under_infrastructure(rel) or rel.parts == ("__init__.py",):
+        if is_under_infrastructure(py_file) or PurePath(py_file).parts == (
+            "__init__.py",
+        ):
             continue
         violations.append(
             _violation(
@@ -248,10 +243,9 @@ def _check_no_orphan_topics(
 ) -> list[ModelSkillHygieneViolation]:
     violations: list[ModelSkillHygieneViolation] = []
     for topics_file in tree.topics_files:
-        rel = PurePath(topics_file.path)
-        if _under_infrastructure(rel) or topics_file.parent_has_skill_md:
+        if is_under_infrastructure(topics_file.path) or topics_file.parent_has_skill_md:
             continue
-        parent_name = (PurePath(tree.skills_root) / rel).parent.name
+        parent_name = (PurePath(tree.skills_root) / topics_file.path).parent.name
         violations.append(
             _violation(
                 topics_file.path,

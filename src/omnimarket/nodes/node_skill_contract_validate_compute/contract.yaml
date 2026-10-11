@@ -24,16 +24,16 @@ handler:
   input_model: omnimarket.nodes.node_skill_contract_validate_compute.models.model_skill_contract_validate_request.ModelSkillContractValidateRequest
 descriptor:
   node_archetype: compute
-  purity: pure  # read-only deterministic over the skills tree on disk
+  purity: pure  # deterministic over the skills-tree snapshot; no I/O
   idempotent: true
   timeout_ms: 30000
   runtime_profiles:
   - main
 inputs:
-  skills_root:
-    type: str
+  tree:
+    type: ModelSkillTreeSnapshot
     required: true
-    description: Directory whose child directories are skills.
+    description: Skills-tree snapshot node_skill_tree_read_effect reads from the skills root.
   strict:
     type: bool
     required: false

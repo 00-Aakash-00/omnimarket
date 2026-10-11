@@ -26,7 +26,11 @@ import re
 
 from omnibase_core.enums.enum_severity import EnumSeverity
 
-from omnimarket.models.skill_tree import ModelSkillTreeEntry, ModelSkillTreeSnapshot
+from omnimarket.models.skill_tree import (
+    ModelSkillTreeEntry,
+    ModelSkillTreeSnapshot,
+    is_infrastructure_name,
+)
 from omnimarket.nodes.node_skill_contract_validate_compute.models import (
     EnumSkillContractCheck,
     ModelSkillContractValidateRequest,
@@ -368,7 +372,7 @@ class HandlerSkillContractValidate:
         tree = request.tree
         found: list[ModelSkillContractViolation] = []
         for entry in tree.entries:
-            if not entry.is_dir or entry.name.startswith("_"):
+            if not entry.is_dir or is_infrastructure_name(entry.name):
                 continue
             found.extend(_check_args_parity(entry))
             found.extend(_check_sub_skill_exists(entry, tree))

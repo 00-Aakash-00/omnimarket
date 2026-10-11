@@ -81,6 +81,40 @@ def test_snapshot_records_what_the_validators_read(tmp_path: Path) -> None:
     ]
 
 
+def test_snapshot_skips_what_the_validators_exclude(tmp_path: Path) -> None:
+    plain = tmp_path / "plain"
+    _tree(plain)
+    root = tmp_path / "skills"
+    _tree(root)
+    # Infrastructure the validators never judge: a _-prefixed top-level entry,
+    # a _-prefixed child of a skill, and any file below a _-prefixed dir. The
+    # text is not UTF-8, so reading it at all fails the read.
+    (root / "_lib" / "sub").mkdir(parents=True)
+    (root / "_lib" / "SKILL.md").write_bytes(b"\xff\xfe not utf-8")
+    (root / "_lib" / "prompt.md").write_bytes(b"\xff")
+    (root / "_lib" / "helper.py").write_text("", "utf-8")
+    (root / "_lib" / "sub" / "topics.yaml").write_text("{}\n", "utf-8")
+    (root / "_notes.md").write_bytes(b"\xff")
+    (root / "b_skill" / "_private").mkdir()
+    (root / "b_skill" / "_private" / "SKILL.md").write_bytes(b"\xff")
+    (root / "b_skill" / "_private" / "x.py").write_text("", "utf-8")
+    (root / "b_skill" / "_private" / "topics.yaml").write_text("{}\n", "utf-8")
+    # A _-prefixed file directly in a skill dir is not under infrastructure:
+    # no-python-in-skills still judges it, so the snapshot keeps it.
+    (root / "b_skill" / "_helper.py").write_text("", "utf-8")
+
+    snapshot = HandlerSkillTreeRead().handle(
+        ModelSkillTreeReadRequest(skills_root=root)
+    )
+    expected = HandlerSkillTreeRead().handle(
+        ModelSkillTreeReadRequest(skills_root=plain)
+    )
+
+    assert snapshot.entries == expected.entries
+    assert snapshot.topics_files == expected.topics_files
+    assert snapshot.python_files == (*expected.python_files, "b_skill/_helper.py")
+
+
 def test_entrypoint_writes_the_snapshot_and_refuses_a_missing_root(
     tmp_path: Path,
 ) -> None:
