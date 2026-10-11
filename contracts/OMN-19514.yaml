@@ -49,3 +49,11 @@ dod_evidence:
         check_value: "uv run pytest tests/nodes/node_delegation_dod_verify_request_compute/test_wiring.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
+  - id: "dod-omn19514-deploy-probe"
+    description: "Deploy probe. The delegation dod-verify request handler at the checked-out commit defines HandlerDelegationDodVerifyRequest; the probe reads the file from GitHub at that commit and exits nonzero on a tree without it, so it fails at the merge base."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_delegation_dod_verify_request_compute/handlers/handler_delegation_dod_verify_request.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c 'class HandlerDelegationDodVerifyRequest:'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC2"]
