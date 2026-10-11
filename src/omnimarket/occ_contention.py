@@ -130,14 +130,13 @@ _MACHINE_BRANCH_RE = re.compile(r"auto/.+-occ-autobind")
 _MAX_CANDIDATES = 10
 
 
-# An evidence id the gate binds a product PR by: ``dod-<repo-slug>-pr-<n>`` or its
-# ``-ci`` sibling, where the slug is the repo with ``/`` turned into ``-``. The
-# same shape ``OccCompanionEmitter`` mints and ``ci_check_evidence_id`` extends.
-# OMN-20899: a hand-authored companion appends what the evidence is
-# (``dod-omnibase-core-pr-1938-cosmetic-lint-tests``), so any ``-<suffix>`` is
-# accepted after the number; the number still ends at a ``-`` or the id's end.
+# An evidence id the gate binds a product PR by: ``dod-<repo-slug>-pr-<n>`` plus
+# any suffix, such as the ``-ci`` sibling ``ci_check_evidence_id`` extends or a
+# hand-authored ``-cosmetic-lint-tests``. The machine slug is the repo with ``/``
+# turned into ``-``; a hand-authored one is often the bare repo name. Same suffix
+# grammar as the emitter's ``_PR_ENCODING_EVIDENCE_ID_RE`` (OMN-18853).
 _EVIDENCE_ID_RE = re.compile(
-    r"dod-(?P<slug>.+?)-pr-(?P<number>\d+)(?:-[A-Za-z0-9][A-Za-z0-9._-]*)?"
+    r"dod-(?P<slug>.+?)-pr-(?P<number>\d+)(?:-[A-Za-z0-9_.]+)*"
 )
 _EVIDENCE_ID_PREFIX = "dod-"
 
@@ -313,6 +312,9 @@ def companion_may_cover_pr(
     ``drift/dod_receipts/<ticket>/<evidence-id>/…`` it changes, and the ids it
     ADDS to ``contracts/<ticket>.yaml`` (the ``patch`` of that file entry).
     Whole-id comparison, never a substring: ``…-pr-3210`` is not ``…-pr-321``.
+    A descriptive suffix after the number (``…-pr-2656-runnerip-tests``) still
+    names that PR, under the full ``<owner>-<repo>`` slug or the bare repo name;
+    reading such an id as unreadable deferred every PR on the ticket (OMN-20074).
 
     OMN-20899: hand-authored ids carry a descriptive suffix after the number
     and a slug that is not always the full repo slug (``omnibase-core``,
@@ -327,8 +329,11 @@ def companion_may_cover_pr(
     needless defer is recoverable on the next ``synchronize``; a wrong mint over
     a hand-authored companion is not.
     """
-    subject_slug = repo.replace("/", "-").casefold()
-    owner_prefix = f"{repo.split('/', 1)[0].casefold()}-"
+    subjects = {
+        _slug_key(repo.replace("/", "-")),
+        _slug_key(repo.rsplit("/", 1)[-1]),
+    }
+    owner_prefix = f"{_slug_key(repo.split('/', 1)[0])}-"
     contract_path = f"contracts/{ticket_id}.yaml"
     receipt_prefix = f"drift/dod_receipts/{ticket_id}/"
     evidence_ids: set[str] = set()
@@ -353,15 +358,21 @@ def companion_may_cover_pr(
         match = _EVIDENCE_ID_RE.fullmatch(evidence_id)
         if match is None:
             return True  # a dod id naming no PR could be this PR's evidence
-        named.append((match.group("slug").casefold(), int(match.group("number"))))
+        named.append((_slug_key(match.group("slug")), int(match.group("number"))))
     if not named:
         return True
     for slug, number in named:
         if number != pr_number:
             continue  # evidence for another PR
-        if slug == subject_slug or not slug.startswith(owner_prefix):
+        if slug in subjects or not slug.startswith(owner_prefix):
             return True
     return False
+
+
+def _slug_key(slug: str) -> str:
+    """Compare slugs case- and ``_``/``-``-insensitively (``omnibase_core`` is
+    written ``omnibase-core`` in hand-authored ids)."""
+    return slug.casefold().replace("_", "-")
 
 
 def decide_contention(
