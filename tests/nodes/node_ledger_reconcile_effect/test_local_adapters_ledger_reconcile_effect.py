@@ -428,7 +428,8 @@ def test_a_row_is_appended_by_the_ledger_writer(
         f"import json, sys\nopen({str(out)!r}, 'w').write(json.dumps(sys.argv[1:]))\n",
     )
     monkeypatch.setenv(adapters.APPEND_COMMAND_ENV, writer)
-    assert LedgerWriterAppender().append(tmp_path / "ledger.md", "the row") == ""
+    error = LedgerWriterAppender().append(tmp_path / "ledger.md", "the row")
+    assert error == ""
     assert json.loads(out.read_text()) == [
         str(tmp_path / "ledger.md"),
         "--append",
@@ -468,7 +469,8 @@ def test_contention_that_clears_is_a_success(
     )
     monkeypatch.setenv(adapters.APPEND_COMMAND_ENV, writer)
     monkeypatch.setattr(adapters.time, "sleep", lambda *_args: None)
-    assert LedgerWriterAppender().append(tmp_path / "ledger.md", "row") == ""
+    error = LedgerWriterAppender().append(tmp_path / "ledger.md", "row")
+    assert error == ""
     assert counter.read_text() == "3"
 
 
@@ -480,10 +482,8 @@ def test_a_refusal_is_returned_with_its_exit_code_and_message(
         "import sys\nsys.stderr.write('row refused: bad grammar\\n')\nsys.exit(2)\n",
     )
     monkeypatch.setenv(adapters.APPEND_COMMAND_ENV, writer)
-    assert (
-        LedgerWriterAppender().append(tmp_path / "ledger.md", "row")
-        == "ledger_lock exit 2: row refused: bad grammar"
-    )
+    error = LedgerWriterAppender().append(tmp_path / "ledger.md", "row")
+    assert error == "ledger_lock exit 2: row refused: bad grammar"
 
 
 def test_a_writer_that_cannot_start_is_named(
