@@ -59,10 +59,24 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC4"]
   - id: "dod-omn20991-deploy-probe-migration"
-    description: "The projection test exercises the event write, SQLite re-delivery and snapshot exposure, and checks that migration 0006 adds exactly the nullable expiry column. The same test file fails against the merge-base projection implementation."
+    description: "The projection test exercises the event write, SQLite re-delivery and snapshot exposure, and checks that migration 0006 adds exactly the nullable expiry column. The same test file fails against the merge-base projection implementation. Deploy probe: the migration file GitHub serves at the checked-out commit adds the expires_at column; the file does not exist at the merge base, so the content read fails there."
     source: "manual"
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/test_omn16316_tenant_credentials_projection.py -k expires_at -q"
         cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_projection_tenant_credentials/migrations/0006_tenant_credentials_expires_at.sql?ref=$(git rev-parse HEAD)\" --jq '.content | gsub(\"\\n\";\"\") | @base64d | contains(\"ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ\")' | grep -qx true"
+        cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC3"]
+  - id: "dod-omn20991-deploy-probe-publisher"
+    description: "The publisher test covers the expiry validation and the response warning. Deploy probe: the credential publisher GitHub serves at the checked-out commit defines credential_expiry_warning, the function that returns EXPIRY_ABSENT or EXPIRY_NOT_JANUARY_1; the symbol is absent at the merge base, so the content read answers false there."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_credential_publisher.py -k 'expires_at or expiry_warning' -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/projection/credential_publisher.py?ref=$(git rev-parse HEAD)\" --jq '.content | gsub(\"\\n\";\"\") | @base64d | contains(\"def credential_expiry_warning(\")' | grep -qx true"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1", "AC2"]
