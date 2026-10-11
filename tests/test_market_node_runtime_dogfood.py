@@ -84,11 +84,6 @@ EXPECTED_MISSING_ENTRY_POINTS = {
     # to no topic and has no onex.nodes entry point until the registration
     # hand-over (nodes-to-market plan step B).
     "node_lab_disk_hygiene_effect",
-    # OMN-20674: hosted from the operator tooling repository, whose copy is
-    # still registered; its briefs, paths and lanes arrive through a deployment
-    # overlay, so it has no onex.nodes entry point until the registration
-    # hand-over (nodes-to-market plan step B).
-    "node_morning_friction_sweep_orchestrator",
     # OMN-19970: the dev seed runs from `onex seed` against the store or broker
     # it names; it publishes fixture terminals but subscribes to no topic and
     # has no onex.nodes entry point.
@@ -314,7 +309,10 @@ def test_market_node_runtime_dogfood_inventory_classifies_all_entry_points() -> 
     # process, not by a runtime, so it has no handler_routing: 18 -> 19.
     # OMN-20541's node_work_ledger_seq_gap_effect is run by `python -m` and its
     # reader is used in process by the branch claim check, so it has no bus route: 19 -> 20.
-    assert summary["skipped"] == 20
+    # node_operator_capture_effect is hosted by the work-ledger serve process
+    # on the ledger host (--operator-capture), not by a runtime, so it has no
+    # handler_routing: 20 -> 21.
+    assert summary["skipped"] == 21
     assert summary["failed"] == 0
     assert summary["failure_buckets"] == {}
     assert {
