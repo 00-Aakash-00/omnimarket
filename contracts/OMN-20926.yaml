@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+---
+schema_version: "1.0.0"
+ticket_id: "OMN-20926"
+title: "Captured secrets become secret store references"
+summary: >-
+  Repository-owned evidence for the captured-secret writer, consumer resolver
+  and reference-preserving fan-out scrub. The acceptance criteria below are
+  transcribed verbatim from the ticket. Producer capture and journal evidence
+  belongs to the companion producer change. The live content-topic round trip
+  is pending provisioned writer and reader identities; fake-store tests do not
+  establish that criterion.
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: "req-captured-secret-references"
+    statement: "Store detected secrets and carry references, preserving capture on store failure and resolving through the caller's store."
+    acceptance:
+      - id: "AC1"
+        statement: "AC1: tests with a fake store show a detected secret is stored once and the record carries secret://onex/captured/<hex> in its place, equal values store once, and no emitted record contains the planted value -- falsifier: uv run pytest tests/hooks/test_captured_secret_refs.py -q"
+      - id: "AC2"
+        statement: "AC2: tests show a store that is unreachable, refuses the login or refuses the write falls back to the contract marker, stamps secret_store with the fallback count and reason, and still journals the record -- falsifier: uv run pytest tests/hooks/test_captured_secret_refs.py -q -k fallback"
+      - id: "AC3"
+        statement: "AC3: tests show the fan-out scrub in omnimarket leaves a secret reference span unchanged and still scrubs a credential next to it -- falsifier: uv run pytest tests/unit/nodes/node_event_emit_effect -q -k secret_reference"
+      - id: "AC4"
+        statement: "AC4: tests show the consumer resolver returns the stored value for a valid reference, refuses a malformed one, and logs the reference and accessor without the value -- falsifier: uv run pytest tests/unit/test_captured_secret_reference.py -q"
+      - id: "AC5"
+        statement: "AC5: with the write identity granted, a planted fake secret in a fresh session on the lab dev lane arrives on the content topic as a reference that resolves through the store to the planted value, and the topic holds zero copies of it -- falsifier: rpk topic consume on the dev lane for the session, grep count of the planted value expecting 0, then the resolver run on the reference"
+# AC1 and AC2 are intentionally unbound: the writer checks below prove the
+# store half, not the producer's emitted record or its journal fallback.
+# AC5 is intentionally unbound: a fake-store round trip cannot replace the
+# ticket's fresh-session dev-lane topic and authorized store readback.
+evidence_requirements:
+  - kind: "tests"
+    description: "Writer store-side behavior, including deduplication, typed refusals and no plaintext in returned records or logs."
+    command: "uv run pytest tests/unit/nodes/test_golden_chain_captured_secret_store_effect.py -q"
+  - kind: "tests"
+    description: "Reference-preserving fan-out scrub, including an adjacent credential."
+    command: "uv run pytest tests/unit/nodes/node_event_emit_effect/test_secret_reference_omn20926.py -q"
+  - kind: "tests"
+    description: "Consumer resolution, malformed references, store refusals and access logs without the value."
+    command: "uv run pytest tests/unit/nodes/test_golden_chain_captured_secret_resolve_effect.py -q"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-captured-secret-store-side"
+    description: >-
+      The writer stores before returning a reference, deduplicates equal values,
+      returns no reference on login/write/transport refusal, and never returns
+      or logs the planted plaintext. This is supporting evidence for the store
+      half of AC1 and AC2; it does not bind the producer or journal criteria.
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/test_golden_chain_captured_secret_store_effect.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-captured-secret-fan-out"
+    description: "The fan-out scrub preserves a valid reference and redacts an adjacent credential; reference overlap and lookalikes fail closed."
+    source: "manual"
+    binds_ac: ["AC3"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_event_emit_effect/test_secret_reference_omn20926.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-captured-secret-consumer"
+    description: "The resolver reads through the store, refuses malformed references before any read, and logs the reference and accessor without the value."
+    source: "manual"
+    binds_ac: ["AC4"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/test_golden_chain_captured_secret_resolve_effect.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-captured-secret-live-reader"
+    description: >-
+      Live deploy probe through the installed consumer command and this
+      machine's configured reader identity. Supply the reference observed in a
+      fresh lab capture on the content topic. It fails without configuration,
+      permission or the stored value. This read alone does not bind AC5: the
+      fresh-session producer and topic plaintext census remain required.
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: 'onex secret check-captured "${CAPTURED_SECRET_LAB_REFERENCE:?reference observed on the lab content topic is required}" --accessor lab-captured-secret-readback'
+        cwd: "${OMNI_HOME}/omnimarket"
