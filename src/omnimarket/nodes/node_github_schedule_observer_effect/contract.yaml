@@ -59,7 +59,7 @@ descriptor:
     - effects
 
 runtime_profiles:
-  - main
+  - effects
 
 secrets:
   GITHUB_TOKEN:
