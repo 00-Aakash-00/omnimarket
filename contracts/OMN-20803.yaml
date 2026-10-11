@@ -82,10 +82,10 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC5"]
   - id: "dod-omn20803-deployed-handler"
-    description: "The GitHub schedule observer handler class is defined in the handler source at the checked-out commit."
+    description: "The deployed GitHub schedule observer handler chain passes its golden-chain test at the checked-out commit."
     source: "manual"
     checks:
-      - check_type: "command"
-        check_value: "grep -c '^class HandlerGithubScheduleObserver' src/omnimarket/nodes/node_github_schedule_observer_effect/handlers/handler_github_schedule_observer.py"
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_golden_chain_github_schedule_observer_effect.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]

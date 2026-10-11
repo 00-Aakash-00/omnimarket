@@ -55,6 +55,8 @@ descriptor:
   purity: impure
   idempotent: true
   timeout_ms: 600000
+  runtime_profiles:
+    - effects
 
 runtime_profiles:
   - main
