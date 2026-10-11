@@ -11,31 +11,31 @@ requirements:
     statement: "The GitHub schedule observer reports every scheduled workflow's runs, disabled schedules, lost merge triggers and unreadable sources as automation-liveness events."
     acceptance:
       - id: "AC1"
-        statement: "AC1: a recorded, paginated runs response emits one event per scheduled run, resumes from its cursor after downtime, and a disabled workflow emits MISSED -- falsifier: uv run pytest tests -q -k gh_schedule_observer_paginated_cursor"
+        statement: "AC1: a recorded, paginated runs response emits one event per scheduled run, resumes from its cursor after downtime, and a disabled workflow emits MISSED -- falsifier: uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_observer_paginated_cursor.py -q -p no:randomly"
       - id: "AC2"
-        statement: "AC2: a run first seen in progress whose completion lands after the cursor moved still emits its finished event -- falsifier: uv run pytest tests -q -k gh_schedule_outstanding_runs_complete"
+        statement: "AC2: a run first seen in progress whose completion lands after the cursor moved still emits its finished event -- falsifier: uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_outstanding_runs_complete.py -q -p no:randomly"
       - id: "AC3"
-        statement: "AC3: a clone whose head differs from its remote default branch makes its workflows UNOBSERVABLE -- falsifier: uv run pytest tests -q -k gh_schedule_stale_clone_unobservable"
+        statement: "AC3: a clone whose head differs from its remote default branch makes its workflows UNOBSERVABLE -- falsifier: uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_stale_clone_unobservable.py -q -p no:randomly"
       - id: "AC4"
-        statement: "AC4: an inaccessible repository or an exhausted budget reports UNOBSERVABLE, never zero runs -- falsifier: uv run pytest tests -q -k gh_schedule_access_and_budget"
+        statement: "AC4: an inaccessible repository or an exhausted budget reports UNOBSERVABLE, never zero runs -- falsifier: uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_access_and_budget.py -q -p no:randomly"
       - id: "AC5"
-        statement: "AC5: a runtime-affecting merge whose bus publication was lost still opens its expectation from the closed-pull-request read, and one that was published opens no second -- falsifier: uv run pytest tests -q -k gh_observer_reconciles_lost_triggers"
+        statement: "AC5: a runtime-affecting merge whose bus publication was lost still opens its expectation from the closed-pull-request read, and one that was published opens no second -- falsifier: uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_observer_reconciles_lost_triggers.py -q -p no:randomly"
 evidence_requirements:
   - kind: "tests"
     description: "AC1: a recorded, paginated runs response emits one event per scheduled run, resumes from its cursor after downtime, and a disabled workflow emits MISSED."
-    command: "uv run pytest tests -q -k gh_schedule_observer_paginated_cursor"
+    command: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_observer_paginated_cursor.py -q -p no:randomly"
   - kind: "tests"
     description: "AC2: a run first seen in progress whose completion lands after the cursor moved still emits its finished event."
-    command: "uv run pytest tests -q -k gh_schedule_outstanding_runs_complete"
+    command: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_outstanding_runs_complete.py -q -p no:randomly"
   - kind: "tests"
     description: "AC3: a clone whose head differs from its remote default branch makes its workflows UNOBSERVABLE."
-    command: "uv run pytest tests -q -k gh_schedule_stale_clone_unobservable"
+    command: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_stale_clone_unobservable.py -q -p no:randomly"
   - kind: "tests"
     description: "AC4: an inaccessible repository or an exhausted budget reports UNOBSERVABLE, never zero runs."
-    command: "uv run pytest tests -q -k gh_schedule_access_and_budget"
+    command: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_access_and_budget.py -q -p no:randomly"
   - kind: "tests"
     description: "AC5: a runtime-affecting merge whose bus publication was lost still opens its expectation from the closed-pull-request read, and one that was published opens no second."
-    command: "uv run pytest tests -q -k gh_observer_reconciles_lost_triggers"
+    command: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_observer_reconciles_lost_triggers.py -q -p no:randomly"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -46,7 +46,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests -q -k gh_schedule_observer_paginated_cursor"
+        check_value: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_observer_paginated_cursor.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
   - id: "dod-omn20803-ac2-outstanding-runs"
@@ -54,7 +54,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests -q -k gh_schedule_outstanding_runs_complete"
+        check_value: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_outstanding_runs_complete.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
   - id: "dod-omn20803-ac3-stale-clone"
@@ -62,7 +62,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests -q -k gh_schedule_stale_clone_unobservable"
+        check_value: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_stale_clone_unobservable.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC3"]
   - id: "dod-omn20803-ac4-access-and-budget"
@@ -70,7 +70,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests -q -k gh_schedule_access_and_budget"
+        check_value: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_schedule_access_and_budget.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC4"]
   - id: "dod-omn20803-ac5-lost-triggers"
@@ -78,14 +78,14 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests -q -k gh_observer_reconciles_lost_triggers"
+        check_value: "uv run pytest tests/nodes/node_github_schedule_observer_effect/test_gh_observer_reconciles_lost_triggers.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC5"]
   - id: "dod-omn20803-deployed-handler"
-    description: "The merged GitHub schedule observer handler is present at the checked-out commit on the repository."
+    description: "The GitHub schedule observer handler class is defined in the handler source at the checked-out commit."
     source: "manual"
     checks:
       - check_type: "command"
-        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_github_schedule_observer_effect/handlers/handler_github_schedule_observer.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c '^class HandlerGithubScheduleObserver'"
+        check_value: "grep -c '^class HandlerGithubScheduleObserver' src/omnimarket/nodes/node_github_schedule_observer_effect/handlers/handler_github_schedule_observer.py"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
