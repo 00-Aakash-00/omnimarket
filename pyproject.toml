@@ -384,6 +384,7 @@ node_skill_hygiene_validate_compute = "omnimarket.nodes.node_skill_hygiene_valid
 node_skill_contract_validate_compute = "omnimarket.nodes.node_skill_contract_validate_compute"
 node_skill_tree_read_effect = "omnimarket.nodes.node_skill_tree_read_effect"
 node_contract_projection_check_effect = "omnimarket.nodes.node_contract_projection_check_effect"
+node_branch_protection_audit_effect = "omnimarket.nodes.node_branch_protection_audit_effect"
 node_delegation_output_extract_compute = "omnimarket.nodes.node_delegation_output_extract_compute"
 node_delegation_hook_followup_compute = "omnimarket.nodes.node_delegation_hook_followup_compute"
 node_delegation_output_materialize_effect = "omnimarket.nodes.node_delegation_output_materialize_effect"
