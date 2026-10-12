@@ -38,6 +38,25 @@ outputs:
     type: int
     description: 200 when a key on this host would serve, else 503.
 
+# The CLI builds the handler with these; no runtime profile hosts it.
+dependencies:
+  - name: catalog
+    dependency_type: protocol
+    description: ProtocolKeyCatalog, this machine's tenant_inference_credentials catalog.
+    required: true
+  - name: key_values
+    dependency_type: protocol
+    description: ProtocolKeyValues, this machine's tenant key store.
+    required: true
+  - name: call
+    dependency_type: node
+    description: ProtocolReviewCall, node_llm_delegation_call_effect's handler.
+    required: true
+  - name: endpoint_url
+    dependency_type: service
+    description: The BYOK catalogue's anthropic chat endpoint.
+    required: true
+
 handler:
   name: HandlerClaudeReviewGateway
   module: omnimarket.nodes.node_claude_review_gateway_effect.handlers.handler_claude_review_gateway

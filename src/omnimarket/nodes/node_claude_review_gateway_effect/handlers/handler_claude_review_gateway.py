@@ -397,9 +397,7 @@ class ClaudeReviewGateway:
         for key in keys:
             if not await self._key_values.get_secret(key.api_key_ref):
                 logger.warning(
-                    "review gateway: key %s (%s) does not resolve; set aside",
-                    key.name,
-                    key.api_key_ref,
+                    "review gateway: key %s does not resolve; set aside", key.name
                 )
                 self._set_aside.add(key.api_key_ref)
                 continue
@@ -408,10 +406,9 @@ class ClaudeReviewGateway:
                 return 200, _completion(self._request.model, outcome)
             if _is_key_failure(outcome):
                 logger.warning(
-                    "review gateway: key %s (%s) refused or out of credit (%s); "
+                    "review gateway: key %s refused or out of credit (%s); "
                     "set aside, trying the next key on host %s",
                     key.name,
-                    key.api_key_ref,
                     outcome.failure_class.value if outcome.failure_class else "unknown",
                     self._request.host,
                 )

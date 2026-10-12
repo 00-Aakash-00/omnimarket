@@ -6,9 +6,7 @@ summary: "Operator rulings 2026-10-11T14:41:11Z, 17:57:01Z, 17:58:45Z and 23:55:
 is_seam_ticket: false
 interface_change: true
 interfaces_touched:
-  - "onex models review-gateway"
-  - "omnimarket.nodes.node_claude_review_gateway_effect"
-  - "onex secret register-tenant-key (folds the registered row into the local catalog)"
+  - "public_api"
 requirements:
   - id: "req-omn21014-key-choice"
     statement: |-
@@ -41,7 +39,7 @@ requirements:
 evidence_requirements:
   - kind: "tests"
     description: "The gateway suite passes at the head; on the base the node does not exist and the module fails to import."
-    command: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect -q"
+    command: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect/test_claude_review_gateway.py -q"
   - kind: "tests"
     description: "The register-tenant-key suites still pass with the local catalog fold."
     command: "uv run pytest tests/unit/cli -q"
@@ -55,7 +53,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect -k key_choice -q"
+        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect/test_claude_review_gateway.py -k key_choice -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
   - id: "dod-omn21014-ac2-fail-over"
@@ -63,7 +61,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect -k fails_over -q"
+        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect/test_claude_review_gateway.py -k fails_over -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
   - id: "dod-omn21014-ac3-signature"
@@ -71,7 +69,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect -k signature -q"
+        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect/test_claude_review_gateway.py -k signature -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC3"]
   - id: "dod-omn21014-ac4-dry-run"
@@ -79,7 +77,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect -k dry_run -q"
+        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect/test_claude_review_gateway.py -k dry_run -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC4"]
   - id: "dod-omn21014-deploy-probe-node"
@@ -87,7 +85,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect -q"
+        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect/test_claude_review_gateway.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
       - check_type: "command"
         check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_claude_review_gateway_effect/handlers/handler_claude_review_gateway.py?ref=$(git rev-parse HEAD)\" --jq '.content | gsub(\"\\n\";\"\") | @base64d | contains(\"def select_host_keys(\")' | grep -qx true"

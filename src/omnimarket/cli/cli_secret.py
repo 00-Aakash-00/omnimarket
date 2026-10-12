@@ -1146,15 +1146,13 @@ def remove_model(provider: str) -> None:
     handler.handle(ModelModelSetupRequest(operation="forget", provider=name))
 
 
-#: OMN-21014: the review a dry run plans. Its sampling field shows what the
-#: gateway drops before the provider sees the call.
+#: OMN-21014: the review a dry run plans. It carries no sampling fields: the
+#: plan shows the gateway's own temperature and default max_tokens.
 _REVIEW_GATEWAY_DRY_RUN_PAYLOAD: dict[str, object] = {
     "messages": [
         {"role": "system", "content": "You are a hostile code reviewer."},
         {"role": "user", "content": "Dry run: no diff is sent."},
     ],
-    "max_tokens": 16,
-    "temperature": 0.3,
 }
 
 
