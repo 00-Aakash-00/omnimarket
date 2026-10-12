@@ -9,4 +9,3 @@
 - feat: one secret store effect node, with the Infisical API behind its adapters boundary (#3750)
 - feat: landing orchestrator reads ledger HOLD rows and the head's lab pass before an arm (#3721)
 - chore(release): open dev for v0.4.311 (#3757)
-
