@@ -258,8 +258,8 @@ class ModelLandingAction(BaseModel):
     dedupe_key: str | None = Field(
         default=None,
         description=(
-            "escalate_operator and file_cause_ticket: <cause key>@<parked_until>, "
-            "one per park."
+            "escalate_operator and file_cause_ticket: <cause key>@<stuck_since>; "
+            "one question per episode, one ticket per cause."
         ),
     )
     attempts: tuple[ModelLandingCauseAttempt, ...] = Field(

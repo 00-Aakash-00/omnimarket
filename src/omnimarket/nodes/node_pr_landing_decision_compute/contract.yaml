@@ -45,6 +45,18 @@
 # Effects must collect these new optional facts; absent facts keep the
 # previous behavior. This compute performs no collection or GitHub effects.
 #
+# 0.5.0 (OMN-20890) removes timed parks. A cause whose attempts are spent is
+# stuck (stuck_since), with no end time and one ticket the first time; each
+# base head it was not tried against brings its open red members up to the
+# base once (update_branch), and after that first retest it holds the members
+# red only on its own checks off per-PR workers. It ends on a RELEASE row or
+# when no member is open; the operator escalation row covers an episode until
+# a RELEASE, never by age. cause_park_hours is gone, and a state file written
+# with parked_until/parked_base_head is read once as the stuck episode. The
+# snapshot may carry after_requests (needs=rerun after=<pr> handoff MSGs): the
+# PR waits with no worker until the named PR merges, then is updated (same
+# repo) or rerun (other repo) once per base head, up to max_after_retries.
+#
 # The landing controller calls it in process, so it has no event_bus; it is
 # addressable through runtime_dispatch like the other directly-invoked compute
 # nodes. Experimental until the controller runs it (observe-only first).
@@ -55,11 +67,11 @@ lifecycle: experimental
 node_type: "COMPUTE_GENERIC"
 contract_version:
   major: 0
-  minor: 4
+  minor: 5
   patch: 0
 node_version:
   major: 0
-  minor: 4
+  minor: 5
   patch: 0
 description: >
   Pure definition-B decision of one landing-controller tick. Reads one
@@ -68,7 +80,7 @@ description: >
   controller's last state) and returns the tick's actions (merge pinned to a
   head, rerun, update-branch, eligibility rerun, companion rebuild or close,
   dispatch of a fixed worker brief or of one cause brief per shared red cause,
-  kill, discard, observe-only, operator escalation of a parked cause), the
+  kill, discard, observe-only, operator escalation of a stuck cause), the
   outcomes recorded, DEGRADED reasons, violations, the named gate of every
   gated PR, the named reason every green, CLEAN PR was not merged, and the
   next state to write ahead of acting. Deterministic in any input order.

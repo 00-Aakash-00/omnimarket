@@ -258,6 +258,11 @@ class CauseWorld:
                     "created_at": self.now.isoformat(),
                 }
             )
+        elif kind == "update_branch":  # the base merged in: a new head, fresh CI
+            pr = self.prs[action.subject]
+            if pr.head_sha == action.head_sha:
+                pr.head += 1
+                pr.ci = "pending"
         elif kind == "merge":
             pr = self.prs[action.subject]
             if pr.ci == "green" and pr.head_sha == action.head_sha:
@@ -602,8 +607,8 @@ def test_cause_scenario_s23_three_failed_attempts_park_with_one_ticket_then_fall
     assert actions_of(decision, "escalate_operator") == []
     rec = world.cause(key)
     assert rec.attempts == 3
-    assert rec.parked_until == world.now + timedelta(hours=12)
-    assert tickets[0].dedupe_key == f"{key}@{rec.parked_until.isoformat()}"
+    assert rec.stuck_since == world.now
+    assert tickets[0].dedupe_key == f"{key}@{rec.stuck_since.isoformat()}"
     assert [m.pr for m in tickets[0].members] == [p.key for p in three()]
     assert len(tickets[0].attempts) == 3
     assert cause_dispatched(decision) == []
@@ -808,12 +813,16 @@ def test_budget_release_row_ends_the_park_early_and_a_stale_one_does_not() -> No
 
 
 @pytest.mark.unit
-def test_budget_park_ends_after_twelve_hours() -> None:
+def test_budget_a_stuck_cause_never_lapses_by_the_clock() -> None:
+    """Timed parks are gone: twelve hours, or forty, end nothing."""
     world = CauseWorld(three())
     key = key_for()
     _park_by_spawn_failures(world, key)
-    assert dispatched(world.step(advance=timedelta(hours=11))) == []
-    assert dispatched(world.step(advance=timedelta(hours=1))) == [key]
+    since = world.cause(key).stuck_since
+    for hours in (11, 1, 28):
+        assert cause_dispatched(world.step(advance=timedelta(hours=hours))) == []
+        assert world.cause(key).stuck_since == since
+    assert len(_tickets(world)) == 1
 
 
 # ----------------------------------------------------------------- fixer hold
@@ -1072,7 +1081,7 @@ def test_lc_f2_a_worker_that_keeps_dying_mid_run_parks_after_three_attempts() ->
     assert len(actions_of(third, "file_cause_ticket")) == 1
     rec = world.cause(key)
     assert (rec.attempts, rec.spawn_failures) == (3, 0)
-    assert rec.parked_until == world.now + timedelta(hours=12)
+    assert rec.stuck_since == world.now
     for _ in range(4):
         later = world.step()
         assert cause_dispatched(later) == []
@@ -1148,7 +1157,7 @@ def test_lc_f3_a_crash_between_the_msg_and_the_state_write_escalates_once() -> N
     assert actions_of(decision, "escalate_operator") == []
     assert cause_dispatched(decision) == []
     rec = world.cause(key)
-    assert rec.parked_until == datetime.fromisoformat(row["at"]) + timedelta(hours=12)
+    assert rec.stuck_since == datetime.fromisoformat(row["at"])
     assert rec.escalated == row["dedupe_key"]
     total = sum(len(actions_of(d, "escalate_operator")) for d in world.decisions)
     assert total == 1  # the model's P14: one MSG for the park episode
@@ -1178,15 +1187,22 @@ def test_lc_f3_two_crashes_in_a_row_still_escalate_once() -> None:
 
 
 @pytest.mark.unit
-def test_lc_f3_a_row_older_than_the_park_does_not_cover_a_new_episode() -> None:
+def test_lc_f3_a_row_of_any_age_covers_its_episode_until_a_release() -> None:
+    """No repeat operator MSG: a row never ages out of its episode."""
     world = CauseWorld(three())
     key = key_for()
     before, action = _park_tick(world, key)
-    stale = _ledger_row(world, key, action)
-    stale["at"] = (world.now - timedelta(hours=13)).isoformat()
+    old = _ledger_row(world, key, action)
+    old["at"] = (world.now - timedelta(hours=13)).isoformat()
     world.state = before
-    world.extra["cause_escalations"] = [stale]
-    assert len(actions_of(world.step(), "escalate_operator")) == 1
+    world.extra["cause_escalations"] = [old]
+    assert actions_of(world.step(), "escalate_operator") == []
+    for hours in (12, 48):
+        assert (
+            actions_of(world.step(advance=timedelta(hours=hours)), "escalate_operator")
+            == []
+        )
+    assert world.cause(key).escalated == old["dedupe_key"]
 
 
 @pytest.mark.unit
@@ -1255,7 +1271,7 @@ def _assert_fallback_once(
         assert action.brief is not None
         assert action.brief.engine.value == "claude_sonnet"
         assert action.brief.brief_class.value == "real_red"
-    assert world.cause(key).parked_until is not None
+    assert world.cause(key).stuck_since is not None
     for _ in range(3):  # parked, members working: no cause worker, no second ticket
         later = world.step()
         assert dispatched(later) == []
@@ -1292,7 +1308,7 @@ def test_fallback_positive_control_a_live_cause_lease_still_holds_its_members() 
         assert world.lease(key).revoked is False
         assert per_pr_dispatched(decision) == []
         assert decision.actions == ()
-    assert world.cause(key).parked_until is None
+    assert world.cause(key).stuck_since is None
 
 
 def _parked_world(
@@ -1317,7 +1333,7 @@ def test_fallback_a_parked_cause_with_an_owner_still_holds_its_members() -> None
     world.extra["cause_owners"] = [{"lane": "cause-lane", "repo": REPO, "cause": key}]
     decision = world.step()
     assert decision.actions == ()
-    assert world.cause(key).parked_until is not None
+    assert world.cause(key).stuck_since is not None
 
 
 @pytest.mark.unit
@@ -1348,7 +1364,7 @@ def test_fallback_a_release_row_ends_the_park_and_the_cause_holds_members_again(
     decision = world.step(advance=timedelta(seconds=900))
     assert dispatched(decision) == [key]
     assert per_pr_dispatched(decision) == []
-    assert world.cause(key).parked_until is None
+    assert world.cause(key).stuck_since is None
     assert decision.actions[0].cause_brief is not None
     assert decision.actions[0].cause_brief.attempt == 1
 
@@ -1424,9 +1440,10 @@ def test_fallback_a_parked_pr_stays_parked() -> None:
 # ------------------------------------------------------------ park default ladder
 # A cause that fails two attempts gets one more attempt from the strongest
 # engine with a diagnosis brief; a third failure files one ticket carrying the
-# attempts and leaves the cause parked, with no operator question; the park ends
-# when the base branch head moves; only a blocker that needs a decision, an
-# approval or a credential asks the operator, once.
+# attempts and leaves the cause stuck, with no operator question and no end
+# time; each base branch head it was not tried against retests its members;
+# only a blocker that needs a decision, an approval or a credential asks the
+# operator, once.
 BASE_A = "a" * 40
 BASE_B = "b" * 40
 
@@ -1484,7 +1501,7 @@ def test_park_default_third_attempt_is_one_opus_diagnosis_with_no_operator_msg()
     assert {a.outcome.value for a in brief.prior_attempts} == {"external_blocker"}
     assert actions_of(third, "escalate_operator") == []
     assert actions_of(third, "file_cause_ticket") == []
-    assert world.cause(key).parked_until is None
+    assert world.cause(key).stuck_since is None
     assert _asks_operator(world) == 0
     assert _tickets(world) == []
 
@@ -1498,7 +1515,7 @@ def test_park_default_third_attempt_needs_the_opus_engine() -> None:
     world.extra["available_engines"] = ["claude_sonnet", "codex_high"]
     waiting = _fail_attempt(world, key)
     assert cause_dispatched(waiting) == []
-    assert world.cause(key).parked_until is None
+    assert world.cause(key).stuck_since is None
     world.extra["available_engines"] = ["claude_sonnet", "claude_opus"]
     assert cause_dispatched(world.step()) == [key]
 
@@ -1516,8 +1533,8 @@ def test_park_default_files_ticket_after_a_third_failure_and_asks_nobody() -> No
     ticket = tickets[0]
     assert ticket.subject == key
     rec = world.cause(key)
-    assert rec.parked_until is not None
-    assert ticket.dedupe_key == f"{key}@{rec.parked_until.isoformat()}"
+    assert rec.stuck_since is not None
+    assert ticket.dedupe_key == f"{key}@{rec.stuck_since.isoformat()}"
     assert [m.pr for m in ticket.members] == [p.key for p in three()]
     assert [a.engine.value for a in ticket.attempts] == [
         "claude_opus",
@@ -1550,45 +1567,67 @@ def test_park_default_files_ticket_for_a_cause_whose_workers_never_start() -> No
     assert _asks_operator(world) == 0
 
 
+def _stuck_by_spent_attempts(world: CauseWorld, key: str) -> ModelLandingDecision:
+    """Three failed attempts stick the cause; its fallback workers then exit.
+
+    Later per-PR workers never start, so the members sit idle between ticks
+    the way they do once their own ladder is spent.
+    """
+    world.step()
+    _fail_attempt(world, key)
+    _fail_attempt(world, key)
+    stuck = _fail_attempt(world, key)
+    assert world.cause(key).stuck_since == world.now
+    for pr in per_pr_dispatched(stuck):
+        world.exit(pr)
+    world.crash_spawn = True
+    return stuck
+
+
+def _retested(world: CauseWorld, key: str) -> dict[str, str]:
+    return {r.pr: r.base_head for r in world.cause(key).retested}
+
+
+def _updated(decision: ModelLandingDecision) -> list[str]:
+    return sorted(a.subject for a in actions_of(decision, "update_branch"))
+
+
 @pytest.mark.unit
 def test_park_retry_on_base_head_waits_for_the_head_to_move() -> None:
     world = CauseWorld(three(), base_heads=_base(BASE_A))
     key = key_for()
-    world.step()
-    _fail_attempt(world, key)
-    _fail_attempt(world, key)
-    _fail_attempt(world, key)
-    assert world.cause(key).parked_until is not None
-    assert world.cause(key).parked_base_head == BASE_A
-    for hours in (1, 11, 24, 48):  # the clock alone never ends the park
-        assert cause_dispatched(world.step(advance=timedelta(hours=hours))) == []
-        assert world.cause(key).parked_until is not None
+    _stuck_by_spent_attempts(world, key)
+    assert world.cause(key).stuck_base_head == BASE_A
+    for hours in (1, 11, 24, 48):  # no clock ends or retries a stuck cause
+        later = world.step(advance=timedelta(hours=hours))
+        assert cause_dispatched(later) == []
+        assert _updated(later) == []
+        assert world.cause(key).stuck_since is not None
     world.extra["base_heads"] = _base(BASE_B)
     retry = world.step()
-    assert dispatched(retry) == [key]
-    brief = retry.actions[0].cause_brief
-    assert brief is not None
-    assert brief.engine.value == "claude_opus"
-    assert brief.brief_class.value == "cause_diagnosis"
-    assert world.cause(key).parked_until is None
+    assert _updated(retry) == [p.key for p in three()]
+    assert dispatched(retry) == []  # a retest, not another worker
+    rec = world.cause(key)
+    assert rec.stuck_since is not None
+    assert rec.stuck_base_head == BASE_A
+    assert _retested(world, key) == {p.key: BASE_B for p in three()}
 
 
 @pytest.mark.unit
-def test_park_retry_on_base_head_spends_one_attempt_and_files_no_second_ticket() -> (
-    None
-):
+def test_park_retry_on_base_head_once_per_head_and_no_second_ticket() -> None:
     world = CauseWorld(three(), base_heads=_base(BASE_A))
     key = key_for()
-    world.step()
-    _fail_attempt(world, key)
-    _fail_attempt(world, key)
-    _fail_attempt(world, key)
+    _stuck_by_spent_attempts(world, key)
     world.extra["base_heads"] = _base(BASE_B)
-    assert dispatched(world.step()) == [key]
-    parked_again = _fail_attempt(world, key)
-    assert cause_dispatched(parked_again) == []
-    assert actions_of(parked_again, "file_cause_ticket") == []
-    assert world.cause(key).parked_base_head == BASE_B
+    assert _updated(world.step()) == [p.key for p in three()]
+    for p in world.prs.values():  # the base did not fix them: red again
+        p.ci = "red"
+    for _ in range(3):  # the same base head: no second retest, no per-PR worker
+        later = world.step()
+        assert later.actions == ()
+    world.extra["base_heads"] = _base("c" * 40)
+    assert _updated(world.step()) == [p.key for p in three()]
+    assert _retested(world, key) == {p.key: "c" * 40 for p in three()}
     assert len(_tickets(world)) == 1
     assert _asks_operator(world) == 0
 
@@ -1597,26 +1636,146 @@ def test_park_retry_on_base_head_spends_one_attempt_and_files_no_second_ticket()
 def test_park_retry_on_base_head_unread_head_keeps_the_park() -> None:
     world = CauseWorld(three(), base_heads=_base(BASE_A))
     key = key_for()
-    world.step()
-    _fail_attempt(world, key)
-    _fail_attempt(world, key)
-    _fail_attempt(world, key)
+    _stuck_by_spent_attempts(world, key)
     world.extra["base_heads"] = []  # the base head is unreadable this tick
-    assert cause_dispatched(world.step(advance=timedelta(hours=2))) == []
-    assert world.cause(key).parked_until is not None
+    later = world.step(advance=timedelta(hours=2))
+    assert cause_dispatched(later) == []
+    assert _updated(later) == []
+    assert world.cause(key).stuck_since is not None
+    assert world.cause(key).stuck_base_head == BASE_A
 
 
 @pytest.mark.unit
-def test_park_retry_on_base_head_without_a_head_falls_back_to_the_park_window() -> None:
+def test_park_retry_on_base_head_without_a_head_stays_stuck_then_adopts_one() -> None:
     world = CauseWorld(three())  # the snapshot carries no base heads
     key = key_for()
+    _stuck_by_spent_attempts(world, key)
+    assert world.cause(key).stuck_base_head is None
+    for hours in (11, 1, 36):  # no park window: nothing lapses
+        assert cause_dispatched(world.step(advance=timedelta(hours=hours))) == []
+        assert world.cause(key).stuck_since is not None
+    world.extra["base_heads"] = _base(BASE_A)  # first read: adopted, no retest
+    assert _updated(world.step()) == []
+    assert world.cause(key).stuck_base_head == BASE_A
+    world.extra["base_heads"] = _base(BASE_B)
+    assert _updated(world.step()) == [p.key for p in three()]
+
+
+# ------------------------------------------- a fix lands: the stuck cause releases
+@pytest.mark.unit
+def test_stuck_fix_merges_to_base_members_update_go_green_and_merge() -> None:
+    """omnibase_core 2026-10-11: a fix merged and the members sat held for hours.
+
+    Now the base move the fix makes retests every member; each takes the fix
+    with an update-branch, goes green on its new head and merges, and the
+    stuck cause ends when no member is left.
+    """
+    world = CauseWorld(three(), base_heads=_base(BASE_A))
+    key = key_for()
+    _stuck_by_spent_attempts(world, key)
+    world.extra["base_heads"] = _base(BASE_B)  # the fix PR merged to the base
+    retest = world.step()
+    assert _updated(retest) == [p.key for p in three()]
+    for p in world.prs.values():
+        assert (p.head, p.ci) == (2, "pending")
+        p.ci = "green"  # fresh CI on the new base
+    landed = world.step()
+    assert sorted(a.subject for a in actions_of(landed, "merge")) == [
+        p.key for p in three()
+    ]
+    assert all(p.state == "merged" for p in world.prs.values())
+    world.prs = {}  # merged PRs leave the snapshot
     world.step()
-    _fail_attempt(world, key)
-    _fail_attempt(world, key)
-    _fail_attempt(world, key)
-    assert world.cause(key).parked_base_head is None
-    assert cause_dispatched(world.step(advance=timedelta(hours=11))) == []
-    assert cause_dispatched(world.step(advance=timedelta(hours=1))) == [key]
+    assert world.state.causes == ()
+    assert len(_tickets(world)) == 1
+    assert _asks_operator(world) == 0
+
+
+@pytest.mark.unit
+def test_stuck_without_a_base_move_the_members_stay_red() -> None:
+    """Control for the fix-lands test: the same world with no base move retests nothing."""
+    world = CauseWorld(three(), base_heads=_base(BASE_A))
+    key = key_for()
+    _stuck_by_spent_attempts(world, key)
+    for _ in range(3):
+        later = world.step()
+        assert _updated(later) == []
+        assert actions_of(later, "merge") == []
+    assert all(p.head == 1 and p.ci == "red" for p in world.prs.values())
+
+
+@pytest.mark.unit
+def test_stuck_a_member_red_on_its_own_check_is_not_held() -> None:
+    world = CauseWorld(three(), base_heads=_base(BASE_A))
+    key = key_for()
+    _stuck_by_spent_attempts(world, key)
+    world.extra["base_heads"] = _base(BASE_B)
+    world.step()
+    own = world.prs[f"{REPO}#1"]
+    for p in world.prs.values():
+        p.ci = "red"
+    own.red_checks = (CHECK, "build / unit")
+    own.annotations = {CHECK: ANN, "build / unit": "a failure of its own"}
+    decision = world.step()
+    assert per_pr_dispatched(decision) == [own.key]
+
+
+@pytest.mark.unit
+def test_stuck_retest_skips_pending_held_and_leased_members_until_they_free() -> None:
+    prs = three()
+    world = CauseWorld(prs, base_heads=_base(BASE_A))
+    key = key_for()
+    stuck = _stuck_by_spent_attempts(world, key)
+    workers = per_pr_dispatched(stuck)
+    world.alive[world.lease(workers[0]).lease_id] = True  # its worker still runs
+    prs[1].ci = "pending"
+    prs[2].suspensions = ("hold",)
+    world.extra["base_heads"] = _base(BASE_B)
+    assert _updated(world.step()) == []
+    assert _retested(world, key) == {}
+    world.exit(workers[0])  # the worker ends, CI grades red, the hold lifts
+    prs[1].ci = "red"
+    prs[2].suspensions = ()
+    assert _updated(world.step()) == [p.key for p in prs]  # the same base head
+    assert _retested(world, key) == {p.key: BASE_B for p in prs}
+
+
+@pytest.mark.unit
+def test_stuck_operator_need_is_never_retested() -> None:
+    world = CauseWorld(three(), base_heads=_base(BASE_A))
+    key = key_for()
+    _park_tick(world, key)
+    world.extra["base_heads"] = _base(BASE_B)
+    for _ in range(2):
+        assert _updated(world.step()) == []
+    assert _retested(world, key) == {}
+
+
+@pytest.mark.unit
+def test_stuck_state_written_with_a_timed_park_reads_as_stuck() -> None:
+    """The controller's state file from the timed-park node loads, once."""
+    until = EPOCH + timedelta(hours=12)
+    legacy = {
+        "key": key_for(),
+        "repo": REPO,
+        "members": [{"pr": p.key, "head_sha": p.head_sha} for p in three()],
+        "attempts": 3,
+        "parked_until": until.isoformat(),
+        "parked_base_head": BASE_A,
+        "ticketed": f"{key_for()}@{until.isoformat()}",
+    }
+    idle = {**legacy, "key": key_for(check="lint"), "attempts": 1}
+    idle.update(parked_until=None, parked_base_head=None, ticketed=None)
+    state = ModelLandingControllerState.model_validate({"causes": [legacy, idle]})
+    stuck, live = sorted(state.causes, key=lambda c: c.attempts, reverse=True)
+    assert (stuck.stuck_since, stuck.stuck_base_head) == (EPOCH, BASE_A)
+    assert (live.stuck_since, live.stuck_base_head) == (None, None)
+    dumped = state.model_dump(mode="json")["causes"][0]
+    assert not {"parked_until", "parked_base_head"} & dumped.keys()
+    world = CauseWorld(three(), base_heads=_base(BASE_B))
+    world.state = ModelLandingControllerState.model_validate({"causes": [legacy]})
+    assert _updated(world.step()) == [p.key for p in three()]  # B differs from A
+    assert _tickets(world) == []  # the old node filed its one ticket
 
 
 @pytest.mark.unit
@@ -1651,9 +1810,9 @@ def test_park_operator_only_needs_ask_the_operator_exactly_once(kind: str) -> No
     assert len(questions) == 1
     assert questions[0].subject == key
     rec = world.cause(key)
-    assert rec.parked_until is not None
+    assert rec.stuck_since is not None
     assert rec.attempts == 1  # no second or diagnosis attempt is spent on it
-    assert questions[0].dedupe_key == f"{key}@{rec.parked_until.isoformat()}"
+    assert questions[0].dedupe_key == f"{key}@{rec.stuck_since.isoformat()}"
     assert cause_dispatched(park) == []
     assert actions_of(park, "file_cause_ticket") == []
     world.extra["base_heads"] = _base(BASE_B)  # the base moving does not re-ask
@@ -1675,7 +1834,7 @@ def test_park_operator_only_needs_end_on_the_operators_release_row() -> None:
     )
     for _ in range(3):
         world.step()
-    assert world.cause(key).parked_until is not None
+    assert world.cause(key).stuck_since is not None
     world.extra["cause_releases"] = [{"cause": key, "at": world.now.isoformat()}]
     answered = world.step()
     assert dispatched(answered) == [key]
@@ -1694,3 +1853,125 @@ def test_park_operator_only_needs_other_blockers_never_ask() -> None:
             world.step()
         assert _asks_operator(world) == 0, kind
         assert world.cause(key).operator_need is None, kind
+
+
+# ------------------------------------------------- needs=rerun after=<repo>#<n>
+# A handoff MSG names the PR whose merge clears this one. Before the named PR
+# merges the PR waits with no worker; after, a red PR is brought up to its base
+# (the named PR in its own repo) or rerun (in another repo), once per base head.
+FIX = f"{REPO}#900"
+DEP = f"{OTHER}#77"
+
+
+def _after(pr: Pr, after: str = FIX, state: str | None = "open") -> dict[str, Any]:
+    return {
+        "pr": pr.key,
+        "after": after,
+        "after_state": state,
+        "at": (EPOCH - timedelta(hours=1)).isoformat(),
+    }
+
+
+def _lone(number: int = 42) -> Pr:
+    return Pr(number, annotations={CHECK: f"a failure only #{number} has"})
+
+
+@pytest.mark.unit
+def test_after_waits_with_no_worker_while_the_named_pr_is_open() -> None:
+    pr = _lone()
+    control = CauseWorld([pr])
+    assert per_pr_dispatched(control.step()) == [pr.key]  # positive control
+    for state in ("open", None):  # open, or unread
+        world = CauseWorld([_lone()], base_heads=_base(BASE_A))
+        world.extra["after_requests"] = [_after(world.prs[pr.key], state=state)]
+        for _ in range(3):
+            assert world.step().actions == ()
+
+
+@pytest.mark.unit
+def test_after_the_named_pr_merges_the_pr_is_updated_once_per_base_head() -> None:
+    world = CauseWorld([_lone()], base_heads=_base(BASE_A))
+    pr = world.prs[f"{REPO}#42"]
+    world.extra["after_requests"] = [_after(pr)]
+    assert world.step().actions == ()
+    world.extra["after_requests"] = [_after(pr, state="merged")]
+    world.extra["base_heads"] = _base(BASE_B)  # the fix merged to the base
+    released = world.step()
+    assert [(a.kind.value, a.subject) for a in released.actions] == [
+        ("update_branch", pr.key)
+    ]
+    assert (pr.head, pr.ci) == (2, "pending")
+    record = next(r for r in world.state.records if r.pr == pr.key)
+    assert [(r.after, r.base_head) for r in record.after_retries] == [(FIX, BASE_B)]
+    pr.ci = "red"  # still red on the new base: the per-PR path owns it now
+    later = world.step()
+    assert actions_of(later, "update_branch") == []
+    assert per_pr_dispatched(later) == [pr.key]
+
+
+@pytest.mark.unit
+def test_after_a_named_pr_in_another_repo_reruns_the_pr() -> None:
+    world = CauseWorld([_lone()], base_heads=_base(BASE_A))
+    pr = world.prs[f"{REPO}#42"]
+    world.extra["after_requests"] = [_after(pr, after=DEP, state="merged")]
+    decision = world.step()
+    assert [(a.kind.value, a.subject, a.head_sha) for a in decision.actions] == [
+        ("rerun", pr.key, sha(pr.key, 1))
+    ]
+    pr.ci = "red"
+    assert actions_of(world.step(), "rerun") == []  # once per base head
+
+
+@pytest.mark.unit
+def test_after_retries_are_bounded_per_named_pr() -> None:
+    world = CauseWorld([_lone()], policy={"max_after_retries": 2})
+    pr = world.prs[f"{REPO}#42"]
+    world.crash_spawn = True
+    retried = 0
+    for n in range(4):
+        world.extra["base_heads"] = _base(f"{n:x}" * 40)
+        world.extra["after_requests"] = [_after(pr, state="merged")]
+        retried += len(actions_of(world.step(), "update_branch"))
+        pr.ci = "red"
+    assert retried == 2
+
+
+@pytest.mark.unit
+def test_after_a_named_pr_closed_unmerged_ends_the_wait() -> None:
+    world = CauseWorld([_lone()], base_heads=_base(BASE_A))
+    pr = world.prs[f"{REPO}#42"]
+    world.extra["after_requests"] = [_after(pr, state="closed")]
+    decision = world.step()
+    assert actions_of(decision, "update_branch") == []
+    assert per_pr_dispatched(decision) == [pr.key]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("how", ["green", "pending", "hold", "draft"])
+def test_after_retries_only_a_red_pr_nobody_holds(how: str) -> None:
+    pr = _lone()
+    if how in ("green", "pending"):
+        pr.ci = how
+        pr.red_checks, pr.annotations = (), {}
+    else:
+        pr.suspensions = (how,)
+    world = CauseWorld([pr], base_heads=_base(BASE_A))
+    world.extra["after_requests"] = [_after(pr, state="merged")]
+    decision = world.step()
+    assert actions_of(decision, "update_branch") == []
+    assert actions_of(decision, "rerun") == []
+
+
+@pytest.mark.unit
+def test_after_requests_decide_the_same_in_any_order() -> None:
+    a, b = _lone(42), _lone(43)
+    rows = [
+        _after(a, state="merged"),
+        _after(b, after=DEP, state="merged"),
+        _after(a, after=DEP, state="open"),
+    ]
+    first = CauseWorld([a, b], base_heads=_base(BASE_A), after_requests=rows)
+    again = CauseWorld(
+        [_lone(42), _lone(43)], base_heads=_base(BASE_A), after_requests=rows[::-1]
+    )
+    assert first.step().model_dump_json() == again.step().model_dump_json()

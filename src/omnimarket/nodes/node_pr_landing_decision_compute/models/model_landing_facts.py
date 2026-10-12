@@ -11,8 +11,9 @@ deadlines and grace periods are compared against it.
 
 The shared-cause inputs (each red check's failure annotation, when a gate
 began, the fixer HOLD rows, the floor alarm's breach set, the CLAIMs that name
-a cause, RELEASE rows naming a parked cause) are all optional with empty
-defaults, so a snapshot without them decides exactly as before.
+a cause, RELEASE rows naming a stuck cause) are all optional with empty
+defaults, so a snapshot without them decides exactly as before. So are the
+handoff MSGs that ask for a rerun after a named PR merges.
 
 Typed no-new-commits update responses and external shared-check verdicts are
 also optional effect observations. Without them the node cannot infer either
@@ -297,7 +298,7 @@ class ModelLandingCauseOwner(BaseModel):
 
 
 class ModelLandingCauseRelease(BaseModel):
-    """A RELEASE row naming a parked cause; it ends a park that began before it."""
+    """A RELEASE row naming a stuck cause; it ends an episode that began before it."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -306,13 +307,14 @@ class ModelLandingCauseRelease(BaseModel):
 
 
 class ModelLandingCauseEscalation(BaseModel):
-    """An operator MSG row already on the ledger for a parked cause.
+    """An operator MSG row already on the ledger for a stuck cause.
 
-    The row carries the dedupe key ``<cause key>@<parked_until>``. The ledger
-    row, not the controller's state file, is the source of truth for "this park
+    The row carries the dedupe key ``<cause key>@<stuck_since>``. The ledger
+    row, not the controller's state file, is the source of truth for "this
     episode was escalated": a crash between the MSG append and the state write
-    loses the state file's copy of the key and not the row (model finding LC-F3,
-    omnibase_internal#144).
+    loses the state file's copy of the key and not the row (model finding
+    LC-F3). A row covers its cause until a RELEASE row naming the cause is
+    dated at or after it; it never ages out.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -320,6 +322,22 @@ class ModelLandingCauseEscalation(BaseModel):
     cause: str = Field(..., pattern=CAUSE_KEY_PATTERN)
     at: datetime
     dedupe_key: str = Field(..., min_length=1)
+
+
+class ModelLandingAfterRequest(BaseModel):
+    """A handoff MSG asking for a rerun of ``pr`` once ``after`` has merged.
+
+    The ledger row ``needs=rerun after=<repo>#<n>`` to the landing controller.
+    ``after_state`` is the named PR's state as read this tick; None is unread
+    and is read as not merged yet.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    pr: str = Field(..., pattern=PR_KEY_PATTERN)
+    after: str = Field(..., pattern=PR_KEY_PATTERN)
+    after_state: EnumLandingPrState | None = None
+    at: datetime
 
 
 class ModelLandingRepoChecks(BaseModel):
@@ -437,12 +455,19 @@ class ModelLandingPolicy(BaseModel):
         description="An exit with no result this soon after dispatch is not an attempt.",
     )
     cause_lease_seconds: int = Field(default=5400, ge=1)
-    cause_park_hours: int = Field(default=12, ge=1)
     cause_diagnosis_engine: EnumLandingEngine = Field(
         default=EnumLandingEngine.CLAUDE_OPUS,
         description=(
             "The engine of the one attempt after the budget is spent, with a "
-            "diagnosis brief, before the cause parks."
+            "diagnosis brief, before the cause sticks."
+        ),
+    )
+    max_after_retries: int = Field(
+        default=3,
+        ge=1,
+        description=(
+            "Update-branches or reruns per (PR, named PR) after the named PR "
+            "merged, at most one per base head."
         ),
     )
     cause_engine_ladder: tuple[EnumLandingEngine, ...] = Field(
@@ -501,8 +526,16 @@ class ModelLandingFacts(BaseModel):
     cause_escalations: tuple[ModelLandingCauseEscalation, ...] = Field(
         default=(),
         description=(
-            "Operator MSG rows already on the ledger for a parked cause (LC-F3): "
-            "a park whose episode a row covers emits no second escalation."
+            "Operator MSG rows already on the ledger for a stuck cause (LC-F3): "
+            "an episode a row covers emits no second escalation."
+        ),
+    )
+    after_requests: tuple[ModelLandingAfterRequest, ...] = Field(
+        default=(),
+        description=(
+            "Handoff MSGs asking for a rerun once a named PR merges: the PR waits "
+            "with no worker until it does, then is brought up to its base (same "
+            "repo) or rerun (another repo) once per base head."
         ),
     )
     base_red_checks: tuple[ModelLandingRepoChecks, ...] = Field(
@@ -511,9 +544,9 @@ class ModelLandingFacts(BaseModel):
     base_heads: tuple[ModelLandingRepoHead, ...] = Field(
         default=(),
         description=(
-            "Each repo's base branch head sha, as read this tick. A parked cause "
-            "is retried when its repo's head differs from the one it parked on; "
-            "a repo missing here is unread, never moved."
+            "Each repo's base branch head sha, as read this tick. A stuck cause "
+            "is retried each time its repo's head differs from the one it was "
+            "last tried against; a repo missing here is unread, never moved."
         ),
     )
 
@@ -547,6 +580,7 @@ def _is_repo(value: str) -> bool:
 
 __all__: list[str] = [
     "FIXER_HOLD_ALL",
+    "ModelLandingAfterRequest",
     "ModelLandingBlockerRef",
     "ModelLandingCauseOwner",
     "ModelLandingCauseRelease",

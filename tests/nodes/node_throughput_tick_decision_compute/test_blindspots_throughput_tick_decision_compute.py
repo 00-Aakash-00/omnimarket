@@ -116,6 +116,38 @@ def test_the_park_bound_is_a_request_field() -> None:
     assert "parked cause" in line
 
 
+def stuck(since: str) -> dict[str, Any]:
+    return {
+        "causes": {
+            CAUSE: {"repo": "omnibase_core", "members": [], "stuck_since": since}
+        }
+    }
+
+
+def test_a_cause_stuck_for_hours_over_a_repository_with_no_merges_is_missing() -> None:
+    """OMN-20890: a stuck cause has no end time; its age past the bound is the finding."""
+    result = run(state_json=stuck("2026-10-09T17:30:00Z"))
+    [line] = floor_lines(result)
+    assert line.startswith(
+        "MISSING floor:omnibase_core | omnibase_core merged 0 in 2h (0/h, floor 0.5/h) "
+        "with 3 PRs waiting; last merge 5.3h ago; stuck cause "
+        + CAUSE
+        + " since 2026-10-09T17:30:00Z, 6.0h stuck (> 2h)"
+    ), line
+    fix = line.split(" | FIX: ", 1)[1]
+    assert "retests it on each base move" in fix
+    assert CAUSE in fix
+    assert "the tick dispatches nothing" in fix
+    assert result.exit_code == 1
+
+
+def test_a_newly_stuck_cause_is_a_note() -> None:
+    result = run(state_json=stuck("2026-10-09T22:30:00Z"))
+    [line] = floor_lines(result)
+    assert line.startswith("NOTE floor:omnibase_core")
+    assert "stuck cause " + CAUSE + " since 2026-10-09T22:30:00Z" in line
+
+
 @pytest.mark.parametrize(
     ("until", "merged"),
     [

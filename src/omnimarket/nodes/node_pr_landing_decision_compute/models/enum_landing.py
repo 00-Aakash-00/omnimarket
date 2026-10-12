@@ -257,7 +257,7 @@ class EnumLandingExternalBlockerKind(StrEnum):
 
 # The blockers only the operator can clear: a decision, an approval or a
 # credential. A cause that returns one asks the operator once; every other
-# parked cause follows the default ladder and asks nobody.
+# stuck cause follows the default ladder and asks nobody.
 OPERATOR_NEED_BLOCKERS: frozenset[EnumLandingExternalBlockerKind] = frozenset(
     {
         EnumLandingExternalBlockerKind.OPERATOR_DECISION,
@@ -300,9 +300,9 @@ class EnumLandingActionKind(StrEnum):
 
     ``kill_worker`` and ``discard_result`` act on the controller's own
     workers; ``observe_only`` switches a drained repo to observe-only;
-    ``escalate_operator`` asks the operator once about a parked cause whose
+    ``escalate_operator`` asks the operator once about a stuck cause whose
     blocker needs a decision, an approval or a credential; ``file_cause_ticket``
-    files the one ticket of a cause parked by the default ladder.
+    files the one ticket of a cause the default ladder left stuck.
     """
 
     MERGE = "merge"

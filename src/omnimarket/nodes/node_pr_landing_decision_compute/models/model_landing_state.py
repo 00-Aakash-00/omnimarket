@@ -13,9 +13,10 @@ same lease space as a PR's.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from omnimarket.nodes.node_pr_landing_decision_compute.models.enum_landing import (
     EnumLandingBriefClass,
@@ -86,6 +87,19 @@ class ModelLandingVerdictRerun(BaseModel):
     verdict_id: str = Field(..., min_length=1)
 
 
+class ModelLandingAfterRetry(BaseModel):
+    """One update-branch or rerun spent on a PR after a PR it named merged.
+
+    ``base_head`` is the PR's base head when it was spent, None when unread:
+    one retry per (named PR, base head).
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    after: str = Field(..., pattern=PR_KEY_PATTERN)
+    base_head: str | None = Field(default=None, pattern=SHA_PATTERN)
+
+
 class ModelLandingPrRecord(BaseModel):
     """Everything the controller remembers about one PR between ticks."""
 
@@ -123,6 +137,10 @@ class ModelLandingPrRecord(BaseModel):
         default=None, description="Latest no-new-commits response already retried."
     )
     verdict_reruns: tuple[ModelLandingVerdictRerun, ...] = ()
+    after_retries: tuple[ModelLandingAfterRetry, ...] = Field(
+        default=(),
+        description="Retries spent after a PR this one named in a handoff merged.",
+    )
     stale_refreshes: int = Field(
         default=0,
         ge=0,
@@ -195,18 +213,33 @@ class ModelLandingCauseAttempt(BaseModel):
     blocker_ref: str | None = None
 
 
+class ModelLandingMemberRetest(BaseModel):
+    """A stuck cause brought this member up to this base head (an update-branch)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    pr: str = Field(..., pattern=PR_KEY_PATTERN)
+    base_head: str = Field(..., pattern=SHA_PATTERN)
+
+
+# The fixed park length of the node that wrote timed parks (cause_park_hours).
+_TIMED_PARK = timedelta(hours=12)
+
+
 class ModelLandingCauseRecord(BaseModel):
     """Everything the controller remembers about one shared cause between ticks.
 
     Upserted by cause key. ``attempts`` and ``spawn_failures`` count within one
-    park episode. A cause parked after its attempts are spent (the default
-    ladder) ends its park when its repo's base head differs from
-    ``parked_base_head``, or on a RELEASE row naming the cause; with no base
-    head read at the park it ends at ``parked_until`` instead. A cause parked on
-    a blocker only the operator can clear (``operator_need``) ends on the
-    RELEASE row alone. The next episode starts from zero. ``escalated`` is the
-    dedupe key of the one operator escalation of the current park, ``ticketed``
-    of the one ticket filed for the cause.
+    episode. A cause whose attempts are spent (the default ladder) is stuck
+    from ``stuck_since``, with no end time: it stays live, and at each base
+    head other than ``stuck_base_head`` each open red member is brought up to
+    that base once (``retested`` holds the latest per member). A stuck cause
+    ends on a RELEASE row naming it, dated at or after ``stuck_since``, or when
+    no member is still open. A cause stuck on a blocker only the operator can
+    clear (``operator_need``) ends on the RELEASE row alone. The next episode
+    starts from zero. ``escalated`` is the dedupe key of the one operator
+    escalation of the episode, ``ticketed`` of the one ticket filed the first
+    time the cause stuck; both are ``<cause key>@<stuck_since>``.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -227,25 +260,34 @@ class ModelLandingCauseRecord(BaseModel):
     rerun_heads: tuple[ModelLandingMemberRef, ...] = Field(
         default=(), description="Member heads already rerun for this cause."
     )
-    parked_until: datetime | None = Field(
+    stuck_since: datetime | None = Field(
         default=None,
         description=(
-            "Set while parked: the park's start plus cause_park_hours. It names "
-            "the park episode; the park does not lapse by the clock unless no "
-            "base head was read when it began."
+            "Set while stuck: when the attempts of this episode were spent. It "
+            "names the episode and never ends it; nothing here lapses by the clock."
         ),
     )
-    parked_base_head: str | None = Field(
+    stuck_base_head: str | None = Field(
         default=None,
         pattern=SHA_PATTERN,
-        description="The repo's base head when the cause parked; None if unread.",
+        description=(
+            "The repo's base head the cause stuck on; None until a base head is "
+            "read, then the first one read."
+        ),
+    )
+    retested: tuple[ModelLandingMemberRetest, ...] = Field(
+        default=(),
+        description=(
+            "Each member's latest retest: the base head it was brought up to. "
+            "One per member, sorted by PR."
+        ),
     )
     escalated: str | None = Field(
-        default=None, description="<cause key>@<parked_until> of the last escalation."
+        default=None, description="<cause key>@<stuck_since> of the one escalation."
     )
     ticketed: str | None = Field(
         default=None,
-        description="<cause key>@<parked_until> of the one ticket filed; kept across base-head retries.",
+        description="<cause key>@<stuck_since> of the one ticket filed; kept for the cause's life.",
     )
     operator_need: EnumLandingExternalBlockerKind | None = Field(
         default=None,
@@ -254,6 +296,33 @@ class ModelLandingCauseRecord(BaseModel):
     history: tuple[ModelLandingCauseAttempt, ...] = Field(
         default=(), description="The attempts spent, oldest first, bounded."
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_a_timed_park(cls, data: Any) -> Any:
+        """Read a cause record that a node with timed parks wrote to the state file.
+
+        That node stored ``parked_until`` (the park's start plus its 12 hours)
+        and ``parked_base_head``. The controller's state file carries them until
+        its first tick under this node rewrites it, so they are read once as the
+        stuck episode they describe and never written back.
+        """
+        if not isinstance(data, dict) or not (
+            {"parked_until", "parked_base_head"} & data.keys()
+        ):
+            return data
+        out = {
+            k: v
+            for k, v in data.items()
+            if k not in ("parked_until", "parked_base_head")
+        }
+        until = data.get("parked_until")
+        if until is not None and out.get("stuck_since") is None:
+            at = until if isinstance(until, datetime) else datetime.fromisoformat(until)
+            out["stuck_since"] = at - _TIMED_PARK
+        if out.get("stuck_base_head") is None and out.get("stuck_since") is not None:
+            out["stuck_base_head"] = data.get("parked_base_head")
+        return out
 
 
 class ModelLandingControllerState(BaseModel):
@@ -284,6 +353,7 @@ __all__: list[str] = [
     "SHA_PATTERN",
     "SIGNATURE_PATTERN",
     "SUBJECT_PATTERN",
+    "ModelLandingAfterRetry",
     "ModelLandingCauseAttempt",
     "ModelLandingCausePair",
     "ModelLandingCauseRecord",
@@ -291,6 +361,7 @@ __all__: list[str] = [
     "ModelLandingEligibilityRerun",
     "ModelLandingLease",
     "ModelLandingMemberRef",
+    "ModelLandingMemberRetest",
     "ModelLandingPrRecord",
     "ModelLandingRebuildRecord",
     "ModelLandingUncovered",

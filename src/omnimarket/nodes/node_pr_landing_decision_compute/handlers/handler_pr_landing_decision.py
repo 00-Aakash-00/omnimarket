@@ -26,20 +26,28 @@ drain T3 model-before-build prerequisite), in the order one tick applies them:
    delivery was recorded (S19, S20).
 6. Companions, before any other selection (R2 rules 1 to 5), then uncovered
    members (``CoverRequest``).
-7. Shared causes, before any per-PR dispatch: a park ends at its time or on
-   a RELEASE row; a verified fix PR that merged gets one rerun per member head,
-   and the members' next grade ends the attempt. Red PRs in one repo sharing a
-   (check, failure signature) form a cluster (3 members, 2 under the landing
-   floor), largest first, absorbing clusters mostly inside an earlier cause; a
-   parked PR no cluster covers is a cause of one. Causes dispatch in floor,
-   size and key order under the cause caps, inside the pool, with a two-attempt
-   budget per park episode. The default ladder for a spent budget: one more
-   attempt by the strongest engine with a diagnosis brief, then a park with one
-   ticket and no operator question; the park ends when the repo's base head
-   moves (one more diagnosis attempt) or on a RELEASE row. Only a cause whose
-   worker returned a decision, approval or credential blocker asks the operator,
-   once, and its park ends on the RELEASE row alone.
-8. Product PRs: chain roots only (R3), update-branch once per head (a typed
+7. Shared causes, before any per-PR dispatch: a verified fix PR that merged
+   gets one rerun per member head, and the members' next grade ends the
+   attempt. Red PRs in one repo sharing a (check, failure signature) form a
+   cluster (3 members, 2 under the landing floor), largest first, absorbing
+   clusters mostly inside an earlier cause; a parked PR no cluster covers is a
+   cause of one. Causes dispatch in floor, size and key order under the cause
+   caps, inside the pool, with a two-attempt budget per episode. The default
+   ladder for a spent budget: one more attempt by the strongest engine with a
+   diagnosis brief, then the cause is stuck, with one ticket and no operator
+   question. Nothing about a stuck cause runs on a clock: it stays live, and
+   each time its repo's base head moves its open red members are brought up to
+   the new base once each (update-branch), so a fix that lands on the base
+   releases every member it held. A member it has retested and whose only reds
+   are the cause's own checks gets no per-PR worker. It ends on a RELEASE row
+   or when no member is still open. Only a cause whose worker
+   returned a decision, approval or credential blocker asks the operator, once
+   per episode, and it ends on the RELEASE row alone.
+8. Handoff MSGs ``needs=rerun after=<repo>#<n>``: the PR gets no worker while
+   the named PR is unmerged; once it merged, a red PR is brought up to its
+   base (the named PR in its own repo) or rerun (in another repo), once per
+   base head and at most ``max_after_retries`` times.
+9. Product PRs: chain roots only (R3), update-branch once per head (a typed
    no-new-commits response permits one same-head retry after backoff), a head
    held at BLOCKED only by stale cancelled check copies refreshed once per
    head and at most ``max_stale_refreshes`` times per PR (then DEGRADED, no
@@ -49,8 +57,9 @@ drain T3 model-before-build prerequisite), in the order one tick applies them:
    live lease (``PinMerge``), and dispatch in priority order (R4) under the
    worker pool, the per-repo cap, the load pause and the available engines
    (D5). No per-PR worker is dispatched for a member of a cause that holds a
-   live lease or an open fix PR, or a park an owner's CLAIM covers; a park
-   alone releases its members to per-PR dispatch (the fallback).
+   live lease or an open fix PR, of a stuck cause an owner's CLAIM covers or
+   that has retested its members, or for a PR waiting on a named PR; a newly
+   stuck cause releases its members to per-PR dispatch (the fallback).
 
 Gates are named: every gated open PR is listed with its ``gate_reasons``, and
 every open, green, CLEAN PR left with no merge on its head carries one named
@@ -132,6 +141,7 @@ from omnimarket.nodes.node_pr_landing_decision_compute.models.model_landing_fact
     ModelLandingWorkerResult,
 )
 from omnimarket.nodes.node_pr_landing_decision_compute.models.model_landing_state import (
+    ModelLandingAfterRetry,
     ModelLandingCauseAttempt,
     ModelLandingCausePair,
     ModelLandingCauseRecord,
@@ -139,6 +149,7 @@ from omnimarket.nodes.node_pr_landing_decision_compute.models.model_landing_stat
     ModelLandingEligibilityRerun,
     ModelLandingLease,
     ModelLandingMemberRef,
+    ModelLandingMemberRetest,
     ModelLandingPrRecord,
     ModelLandingRebuildRecord,
     ModelLandingUncovered,
@@ -1010,9 +1021,9 @@ def _read_cause_result(
     t.causes[key] = rec.model_copy(update=update)
 
 
-def _parked(t: _Tick, rec: ModelLandingCauseRecord) -> bool:
-    """Parked until ``_advance_causes`` ends it; the clock alone does not."""
-    return rec.parked_until is not None
+def _stuck(rec: ModelLandingCauseRecord) -> bool:
+    """Stuck until ``_advance_causes`` ends it; no clock ends it."""
+    return rec.stuck_since is not None
 
 
 def _leased_or_fixing(t: _Tick, rec: ModelLandingCauseRecord) -> bool:
@@ -1024,17 +1035,48 @@ def _leased_or_fixing(t: _Tick, rec: ModelLandingCauseRecord) -> bool:
 
 
 def _active(t: _Tick, rec: ModelLandingCauseRecord) -> bool:
-    """A live cause: a live lease, a fix PR in flight, or a park."""
-    return _leased_or_fixing(t, rec) or _parked(t, rec)
+    """A live cause: a live lease, a fix PR in flight, or stuck."""
+    return _leased_or_fixing(t, rec) or _stuck(rec)
 
 
 def _holds_members(t: _Tick, rec: ModelLandingCauseRecord) -> bool:
-    """A cause holding its members off per-PR dispatch.
+    """A cause holding all its members off per-PR dispatch.
 
-    A live lease, a fix PR in flight, or a park that an owner's CLAIM still
-    covers. A park alone does not: its members take the per-PR path.
+    A live lease, a fix PR in flight, or a stuck cause that an owner's CLAIM
+    still covers. Stuck alone does not: see ``_retested_members``.
     """
-    return _leased_or_fixing(t, rec) or (_parked(t, rec) and _owned(t, rec))
+    return _leased_or_fixing(t, rec) or (_stuck(rec) and _owned(t, rec))
+
+
+def _retested_members(t: _Tick, rec: ModelLandingCauseRecord) -> set[str]:
+    """The open members a stuck cause holds once it has retested them.
+
+    Newly stuck, the members take the per-PR path once (the fallback). After
+    its first retest a member belongs to the cause: if its only reds (follower
+    checks aside) are the cause's own checks it gets no per-PR worker, because
+    each retest moves its head and would restart the per-PR ladder on every
+    base move. A member red on a check of its own is not held.
+    """
+    if not _stuck(rec) or rec.operator_need is not None:
+        return set()
+    checks = {pair.check for pair in rec.pairs}
+    followers = set(t.facts.policy.cluster_excluded_checks)
+    held: set[str] = set()
+    for pr in sorted({r.pr for r in rec.retested}):
+        p = t.prs.get(pr)
+        if p is None or p.state is not EnumLandingPrState.OPEN:
+            continue
+        if set(p.red_checks) - followers <= checks:
+            held.add(pr)
+    return held
+
+
+def _has_open_member(t: _Tick, rec: ModelLandingCauseRecord) -> bool:
+    """A member is still open; one missing from the snapshot has left, as in ``_blocks``."""
+    return any(
+        (p := t.prs.get(m.pr)) is not None and p.state is EnumLandingPrState.OPEN
+        for m in rec.members
+    )
 
 
 def _blocks(t: _Tick, rec: ModelLandingCauseRecord) -> bool:
@@ -1090,29 +1132,79 @@ def _base_head(t: _Tick, repo: str) -> str | None:
     return next((h.head_sha for h in t.facts.base_heads if h.repo == repo), None)
 
 
-def _base_moved(t: _Tick, rec: ModelLandingCauseRecord) -> bool:
-    """The base head read now differs from the one the cause parked on."""
-    now = _base_head(t, rec.repo)
-    return (
-        rec.parked_base_head is not None
-        and now is not None
-        and now != rec.parked_base_head
+def _retest(
+    t: _Tick, rec: ModelLandingCauseRecord, base: str
+) -> ModelLandingCauseRecord:
+    """The base moved under a stuck cause: bring each open red member up to it, once.
+
+    An update-branch merges the new base into the member and gives it fresh CI,
+    so a fix that landed on the base clears the member and it merges; a member
+    the base did not fix grades red again and stays with the cause. A pending,
+    green, conflicting, leased, held or collaborator member is left for a later
+    tick at the same base: the retest is recorded per member, not per cause.
+    """
+    latest = {r.pr: r for r in rec.retested}
+    for p in sorted(
+        (q for m in rec.members if (q := t.prs.get(m.pr)) is not None),
+        key=lambda q: q.pr,
+    ):
+        done = latest.get(p.pr)
+        if (
+            (done is not None and done.base_head == base)
+            or p.state is not EnumLandingPrState.OPEN
+            or p.ci is not EnumLandingCi.RED
+            or p.merge_state is EnumLandingMergeState.CONFLICTING
+            or p.collaborator
+            or p.pr in t.leases
+            or any(s in CAUSE_EXCLUDED_SUSPENSIONS for s in p.suspensions)
+        ):
+            continue
+        _emit_update(t, p)
+        latest[p.pr] = ModelLandingMemberRetest(pr=p.pr, base_head=base)
+    return rec.model_copy(
+        update={"retested": tuple(latest[pr] for pr in sorted(latest))}
+    )
+
+
+def _emit_update(t: _Tick, p: ModelLandingPrFacts) -> None:
+    """One update-branch on this head, recorded so no other rule spends this head."""
+    rec = t.record_of(p.pr)
+    t.put_record(
+        p.pr,
+        update_heads=tuple(sorted({*rec.update_heads, p.head_sha})),
+        rerun_heads=tuple(sorted({*rec.rerun_heads, p.head_sha})),
+    )
+    if not _emitted(t, EnumLandingActionKind.UPDATE_BRANCH, p):
+        t.emit(
+            ModelLandingAction(
+                kind=EnumLandingActionKind.UPDATE_BRANCH,
+                subject=p.pr,
+                head_sha=p.head_sha,
+            )
+        )
+
+
+def _emitted(t: _Tick, kind: EnumLandingActionKind, p: ModelLandingPrFacts) -> bool:
+    return any(
+        a.kind is kind and a.subject == p.pr and a.head_sha == p.head_sha
+        for a in (*t.actions, *t.observed)
     )
 
 
 def _advance_causes(t: _Tick) -> None:
-    """Parks end; a merged fix reruns each member head once; a re-grade ends the attempt.
+    """Stuck causes retest on a base move; a merged fix reruns each member head once.
 
-    A RELEASE row after the park began starts a fresh episode. A park left by
-    the default ladder also ends when the base head moves, into one more
-    diagnosis attempt, and with no base head read at the park, at its window. A
-    park on an operator need ends on the RELEASE row alone.
+    A RELEASE row dated at or after ``stuck_since`` starts a fresh episode; a
+    stuck cause with no open member left ends. Otherwise a stuck cause stays,
+    with no end time, and at any base head other than the one it stuck on its
+    members are retested (``_retest``). A cause stuck on an operator need is
+    not retested: it ends on the RELEASE row alone. The first base head read
+    for a cause stuck while its base was unread is adopted without a retest.
     """
-    policy = t.facts.policy
-    park = timedelta(hours=policy.cause_park_hours)
     fresh: dict[str, object] = {
-        "parked_until": None,
-        "parked_base_head": None,
+        "stuck_since": None,
+        "stuck_base_head": None,
+        "retested": (),
         "attempts": 0,
         "spawn_failures": 0,
         "outcome": None,
@@ -1122,32 +1214,26 @@ def _advance_causes(t: _Tick) -> None:
     }
     for key in sorted(t.causes):
         rec = t.causes[key]
-        if rec.parked_until is not None:
-            start = rec.parked_until - park
+        if rec.stuck_since is not None:
+            since = rec.stuck_since
             released = any(
-                r.cause == key and r.at >= start for r in t.facts.cause_releases
+                r.cause == key and r.at >= since for r in t.facts.cause_releases
             )
-            lapsed = (
-                rec.parked_base_head is None
-                and rec.operator_need is None
-                and t.now >= rec.parked_until
-            )
-            if released or lapsed:
-                rec = rec.model_copy(update={**fresh, "ticketed": None})
-            elif rec.operator_need is None and _base_moved(t, rec):
-                rec = rec.model_copy(
-                    update={
-                        **fresh,
-                        "attempts": min(rec.attempts, policy.cause_attempt_budget),
-                        "history": rec.history,
-                    }
-                )
+            if released or not _has_open_member(t, rec):
+                rec = rec.model_copy(update=fresh)
             else:
                 t.degraded.append(
                     ModelLandingDegraded(
                         reason=EnumLandingDegradedReason.CAUSE_EXHAUSTED, subject=key
                     )
                 )
+                base = _base_head(t, rec.repo)
+                if rec.operator_need is not None or base is None:
+                    pass  # an operator need waits on its RELEASE row; unread never moved
+                elif rec.stuck_base_head is None:
+                    rec = rec.model_copy(update={"stuck_base_head": base})
+                elif base != rec.stuck_base_head:
+                    rec = _retest(t, rec, base)
         if rec.outcome is EnumLandingOutcome.CAUSE_FIX_SUBMITTED and rec.fix_ref:
             fix = t.prs.get(rec.fix_ref)
             ended = False
@@ -1371,18 +1457,17 @@ def _upsert_cause(t: _Tick, cause: _Cause) -> None:
 def _covering_escalation(
     t: _Tick, rec: ModelLandingCauseRecord
 ) -> ModelLandingCauseEscalation | None:
-    """The ledger MSG that already escalates this cause's open park episode (LC-F3).
+    """The ledger MSG that already escalates this cause's open episode (LC-F3).
 
-    A row covers the episode when it is younger than a park and no RELEASE row
-    naming the cause is dated at or after it. The newest such row wins, ties by
-    key, so the choice does not depend on input order.
+    A row covers the episode while no RELEASE row naming the cause is dated at
+    or after it; it never ages out, so the operator is asked once per episode.
+    The newest such row wins, ties by key, so the choice does not depend on
+    input order.
     """
-    park = timedelta(hours=t.facts.policy.cause_park_hours)
     rows = [
         r
         for r in t.facts.cause_escalations
         if r.cause == rec.key
-        and t.now < r.at + park
         and not any(
             rel.cause == rec.key and rel.at >= r.at for rel in t.facts.cause_releases
         )
@@ -1390,28 +1475,26 @@ def _covering_escalation(
     return max(rows, key=lambda r: (r.at, r.dedupe_key), default=None)
 
 
-def _park(t: _Tick, rec: ModelLandingCauseRecord) -> None:
-    """A spent cause parks. A blocker only the operator can clear asks once; the rest file a ticket.
+def _stick(t: _Tick, rec: ModelLandingCauseRecord) -> None:
+    """A spent cause sticks. A blocker only the operator can clear asks once; the rest file a ticket.
 
     The operator question is deduped on the ledger row. When the ledger already
     holds this episode's operator MSG (the controller died between the append
-    and the state write), the park adopts that row's time and key and emits
+    and the state write), the episode adopts that row's time and key and emits
     nothing: the state file only caches the answer. Any other spent cause files
-    one ticket carrying its attempts, once for as long as the cause lives, and
-    asks nobody.
+    one ticket carrying its attempts, the first time it sticks, and asks nobody.
     """
-    park = timedelta(hours=t.facts.policy.cause_park_hours)
     ask = rec.operator_need is not None
     row = _covering_escalation(t, rec) if ask else None
     if row is not None:
-        until = row.at + park
+        since = row.at
         dedupe = row.dedupe_key
     else:
-        until = t.now + park
-        dedupe = f"{rec.key}@{until.isoformat()}"
+        since = t.now
+        dedupe = f"{rec.key}@{since.isoformat()}"
     update: dict[str, object] = {
-        "parked_until": until,
-        "parked_base_head": _base_head(t, rec.repo),
+        "stuck_since": since,
+        "stuck_base_head": _base_head(t, rec.repo),
     }
     if ask:
         update["escalated"] = dedupe
@@ -1449,7 +1532,7 @@ def _try_dispatch_cause(t: _Tick, rec: ModelLandingCauseRecord) -> bool:
     """One lease per cause key, under the cause caps and inside the pool (D5)."""
     policy = t.facts.policy
     key = rec.key
-    if key in t.leases or _parked(t, rec) or _active(t, rec) or _owned(t, rec):
+    if key in t.leases or _active(t, rec) or _owned(t, rec):
         return False
     if rec.repo in t.draining or t.held(rec.repo):
         return False
@@ -1459,7 +1542,7 @@ def _try_dispatch_cause(t: _Tick, rec: ModelLandingCauseRecord) -> bool:
         or rec.attempts > policy.cause_attempt_budget
         or rec.spawn_failures >= policy.cause_spawn_failure_budget
     ):
-        _park(t, rec)
+        _stick(t, rec)
         return False
     if t.facts.load1 > policy.load_pause_threshold:
         return False
@@ -1561,6 +1644,67 @@ def _dispatch_causes(t: _Tick) -> None:
     for rec in t.causes.values():
         if _holds_members(t, rec) or (rec.key in t.formed and _owned(t, rec)):
             t.suppressed.update(m.pr for m in rec.members)
+        t.suppressed.update(_retested_members(t, rec))
+
+
+def _after_requests(t: _Tick) -> None:
+    """``needs=rerun after=<pr>``: wait for the named PR, then retry once per base head.
+
+    While the named PR is open or unread the PR gets no worker: its own change
+    is not the fault. Once the named PR merged, a red PR is brought up to its
+    base when the named PR is in the same repo (the fix is on the base, and a
+    rerun would replay the old merge commit) and rerun when it is in another
+    repo (the base did not change; fresh CI reads the merged dependency). One
+    retry per (named PR, base head), at most ``max_after_retries`` per named
+    PR. A named PR closed unmerged ends the request. A pending or green PR, a
+    held, draft, collaborator or leased PR is not retried.
+    """
+    policy = t.facts.policy
+    for req in sorted(t.facts.after_requests, key=lambda r: (r.pr, r.after, r.at)):
+        p = t.prs.get(req.pr)
+        if p is None or p.state is not EnumLandingPrState.OPEN:
+            continue
+        if req.after_state is None or req.after_state is EnumLandingPrState.OPEN:
+            t.suppressed.add(p.pr)
+            continue
+        if req.after_state is not EnumLandingPrState.MERGED:
+            continue
+        if (
+            p.ci is not EnumLandingCi.RED
+            or p.collaborator
+            or p.pr in t.leases
+            or any(s in CAUSE_EXCLUDED_SUSPENSIONS for s in p.suspensions)
+        ):
+            continue
+        base = _base_head(t, repo_of(p.pr))
+        rec = t.record_of(p.pr)
+        spent = [r for r in rec.after_retries if r.after == req.after]
+        if any(r.base_head == base for r in spent) or len(spent) >= (
+            policy.max_after_retries
+        ):
+            continue
+        same_repo = repo_of(req.after) == repo_of(p.pr)
+        if same_repo and p.merge_state is EnumLandingMergeState.CONFLICTING:
+            continue  # an update cannot apply; the per-PR path owns a conflict
+        t.put_record(
+            p.pr,
+            after_retries=(
+                *rec.after_retries,
+                ModelLandingAfterRetry(after=req.after, base_head=base),
+            ),
+        )
+        t.suppressed.add(p.pr)
+        if same_repo:
+            _emit_update(t, p)
+            continue
+        rec = t.record_of(p.pr)
+        t.put_record(p.pr, rerun_heads=tuple(sorted({*rec.rerun_heads, p.head_sha})))
+        if not _emitted(t, EnumLandingActionKind.RERUN, p):
+            t.emit(
+                ModelLandingAction(
+                    kind=EnumLandingActionKind.RERUN, subject=p.pr, head_sha=p.head_sha
+                )
+            )
 
 
 # ----------------------------------------------------------------------- PRs
@@ -1830,7 +1974,7 @@ def _product_pr(t: _Tick, p: ModelLandingPrFacts) -> None:
             )
         )
         return
-    if pr in t.suppressed:  # a member of a leased, fixing or owned parked cause
+    if pr in t.suppressed:  # held by a cause, or waiting on a named PR
         return
     if _brief_class(p, rec.ladder_index) is None:
         return
@@ -2013,6 +2157,7 @@ def decide_landing(facts: ModelLandingFacts) -> ModelLandingDecision:
     _advance_causes(t)
     _form_causes(t)
     _dispatch_causes(t)
+    _after_requests(t)
     for p in sorted(t.prs.values(), key=lambda p: _priority(t, p)):
         _product_pr(t, p)
     # The tick is local to this call: a raise here leaves no decision, no

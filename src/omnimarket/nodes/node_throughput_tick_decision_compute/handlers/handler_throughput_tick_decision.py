@@ -82,6 +82,15 @@ PARK_FIX = (
     "(read the cause through /omni:landing-controller status first, and pr_claim_registry_cli.py list for a "
     "peer already on it); gates still decide, no bypass; the tick dispatches nothing"
 )
+# OMN-20890: a stuck cause has no end time; the controller retests its members on each base move. A
+# cause stuck for hours over a repository that has stopped landing is the same case as a long park.
+STUCK_FIX = (
+    "nothing lands in {repo} while cause {key} is stuck (since {since}; the controller retests it on each "
+    "base move): under RULING 2026-10-09T04:10:56Z lane=orchestrator-9f8a the orchestrator dispatches ONE "
+    "Codex or Opus fix lane for cause {key} now (read the cause through /omni:landing-controller status "
+    "first, and pr_claim_registry_cli.py list for a peer already on it); gates still decide, no bypass; the "
+    "tick dispatches nothing"
+)
 UNREAD_HOST_FIX = (
     "read {host}'s live capacity with `python3 <omni plugin>/scripts/onex_lab_run.py --hosts` (/omni:lab-run; "
     "it runs nothing); a free slot "
@@ -174,13 +183,14 @@ class Report:
 
 @dataclass
 class Cover:
-    """One cause that owns or parks its members."""
+    """One cause that owns, parks (a node before OMN-20890) or holds stuck its members."""
 
     key: str
     repo: str
     members: set[str]
     lease_id: str | None = None
     parked_until: str | None = None
+    stuck_since: str | None = None
 
     def note(self) -> str:
         if self.lease_id:
@@ -188,6 +198,8 @@ class Cover:
                 self.lease_id[1:] if self.lease_id.startswith("L") else self.lease_id
             )
             return f"owned by landing-L{lease} cause={self.key}"
+        if self.stuck_since:
+            return f"stuck cause {self.key} since {self.stuck_since}"
         return f"parked cause {self.key} until {self.parked_until}"
 
 
@@ -548,8 +560,19 @@ def read_covers(
                 )
             )
         for rec in causes:
-            if rec.get("key") and _stamp_after(rec.get("parked_until"), now):
-                key = str(rec["key"])
+            if not rec.get("key"):
+                continue
+            key = str(rec["key"])
+            if rec.get("stuck_since"):
+                covers.append(
+                    Cover(
+                        key,
+                        _bare_repo(rec.get("repo") or key),
+                        _members(rec.get("members")),
+                        stuck_since=str(rec["stuck_since"]),
+                    )
+                )
+            elif _stamp_after(rec.get("parked_until"), now):
                 covers.append(
                     Cover(
                         key,
@@ -573,7 +596,8 @@ def read_covers(
             if not rec.get("key"):
                 continue
             parked = rec.get("parked_until")
-            if rec.get("lease_id") or (parked and _stamp_after(parked, now)):
+            stuck = rec.get("stuck_since")
+            if rec.get("lease_id") or stuck or (parked and _stamp_after(parked, now)):
                 covers.append(
                     Cover(
                         str(rec["key"]),
@@ -581,6 +605,7 @@ def read_covers(
                         _members(rec.get("members")),
                         lease_id=str(rec["lease_id"]) if rec.get("lease_id") else None,
                         parked_until=str(parked) if parked else None,
+                        stuck_since=str(stuck) if stuck else None,
                     )
                 )
     return covers
@@ -645,16 +670,22 @@ def report_escalated(
 def _long_park(
     cover: Cover, stats: tuple[int, int] | None, now: datetime, max_hours: float
 ) -> float | None:
-    """Hours left on a park that holds a repository with PRs waiting and zero merges in the window,
-    when they exceed `max_hours`; else None (a lease, a short park or a landing repository)."""
-    if cover.lease_id or not cover.parked_until or stats is None:
+    """Hours left on a park, or hours a cause has been stuck, that hold a repository with PRs waiting
+    and zero merges in the window, when they exceed `max_hours`; else None (a lease, a short park, a
+    newly stuck cause or a landing repository)."""
+    if cover.lease_id or stats is None:
         return None
     recent, waiting = stats
     try:
-        left = (parse_stamp(cover.parked_until) - now).total_seconds() / 3600
+        if cover.stuck_since:
+            hours = (now - parse_stamp(cover.stuck_since)).total_seconds() / 3600
+        elif cover.parked_until:
+            hours = (parse_stamp(cover.parked_until) - now).total_seconds() / 3600
+        else:
+            return None
     except (ValueError, TypeError):
         return None
-    return left if recent == 0 and waiting > 0 and left > max_hours else None
+    return hours if recent == 0 and waiting > 0 and hours > max_hours else None
 
 
 def report_floors(
@@ -666,8 +697,8 @@ def report_floors(
     park_max_hours: float = 2.0,
 ) -> None:
     """Merge the floor findings into the tick, replacing their fix-lane advice. A cause lease covers a
-    floor; a park covers it only while it ends within `park_max_hours`, or while the repository still
-    lands (OMN-20840)."""
+    floor; a park covers it only while it ends within `park_max_hours`, and a stuck cause only while it
+    has been stuck no longer than that, or while the repository still lands (OMN-20840, OMN-20890)."""
     rep.checked.extend(floor_rep.checked)
     rep.unknown.extend(floor_rep.unknown)
     cells = fixer_cells(ticks[0] if ticks else {})
@@ -684,7 +715,14 @@ def report_floors(
             if cover is not None and now is not None
             else None
         )
-        if cover is not None and left is not None:
+        if cover is not None and left is not None and cover.stuck_since:
+            rep.miss(
+                loop,
+                f"{rest.rpartition(' | FIX: ')[0]}; {cover.note()}, {left:.1f}h stuck "
+                f"(> {park_max_hours:g}h)",
+                STUCK_FIX.format(repo=repo, since=cover.stuck_since, key=cover.key),
+            )
+        elif cover is not None and left is not None:
             rep.miss(
                 loop,
                 f"{rest.rpartition(' | FIX: ')[0]}; {cover.note()}, {left:.1f}h from now "
