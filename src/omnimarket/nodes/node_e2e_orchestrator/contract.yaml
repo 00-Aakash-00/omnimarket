@@ -41,19 +41,19 @@ event_bus:
   version: {major: 1, minor: 0, patch: 0}
   subscribe_topics:
     - onex.evt.omnimarket.build-loop-orchestrator-completed.v1
-    - onex.evt.omnimarket.e2e-ci-read-completed.v1
+    - onex.evt.omnimarket.build-bridge-ci-read-completed.v1
     - onex.evt.omnimarket.pr-lifecycle-orchestrator-completed.v1
   publish_topics:
-    - onex.cmd.omnimarket.e2e-ci-read-requested.v1
-    - onex.cmd.omnimarket.e2e-evidence-write-requested.v1
+    - onex.cmd.omnimarket.build-bridge-ci-read-requested.v1
+    - onex.cmd.omnimarket.build-bridge-evidence-write-requested.v1
     - onex.cmd.omnimarket.pr-lifecycle-orchestrator-start.v1
 
 published_events:
   - event_type: "E2eCiReadRequest"
-    topic: onex.cmd.omnimarket.e2e-ci-read-requested.v1
+    topic: onex.cmd.omnimarket.build-bridge-ci-read-requested.v1
     description: "Read the required-check state of the build's PRs once, not before not_before; sent again by the self-loop until green or the deadline."
   - event_type: "E2eEvidenceWriteRequest"
-    topic: onex.cmd.omnimarket.e2e-evidence-write-requested.v1
+    topic: onex.cmd.omnimarket.build-bridge-evidence-write-requested.v1
     description: "Files of the run's evidence bundle."
   - event_type: "E2ePrLifecycleStart"
     topic: onex.cmd.omnimarket.pr-lifecycle-orchestrator-start.v1
@@ -85,7 +85,7 @@ handler_routing:
       event_model:
         name: ModelE2eCiReadCompleted
         module: omnimarket.models.e2e_bridge.model_e2e_bridge
-      topic: onex.evt.omnimarket.e2e-ci-read-completed.v1
+      topic: onex.evt.omnimarket.build-bridge-ci-read-completed.v1
       description: "All green starts the lifecycle, red stops, anything else requests another read until the deadline."
     - operation: e2e.lifecycle_completed
       message_category: event

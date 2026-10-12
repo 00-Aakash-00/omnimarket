@@ -38,10 +38,10 @@ _EFFECT = "node_e2e_bridge_effect"
 _BUILD_DONE = "onex.evt.omnimarket.build-loop-orchestrator-completed.v1"
 _LIFECYCLE_DONE = "onex.evt.omnimarket.pr-lifecycle-orchestrator-completed.v1"
 _LIFECYCLE_START = "onex.cmd.omnimarket.pr-lifecycle-orchestrator-start.v1"
-_READ_REQ = "onex.cmd.omnimarket.e2e-ci-read-requested.v1"
-_READ_DONE = "onex.evt.omnimarket.e2e-ci-read-completed.v1"
-_WRITE_REQ = "onex.cmd.omnimarket.e2e-evidence-write-requested.v1"
-_WRITTEN = "onex.evt.omnimarket.e2e-evidence-written.v1"
+_READ_REQ = "onex.cmd.omnimarket.build-bridge-ci-read-requested.v1"
+_READ_DONE = "onex.evt.omnimarket.build-bridge-ci-read-completed.v1"
+_WRITE_REQ = "onex.cmd.omnimarket.build-bridge-evidence-write-requested.v1"
+_WRITTEN = "onex.evt.omnimarket.build-bridge-evidence-written.v1"
 _E2E_TOPICS = {_READ_REQ, _READ_DONE, _WRITE_REQ, _WRITTEN}
 
 

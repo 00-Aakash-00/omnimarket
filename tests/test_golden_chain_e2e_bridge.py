@@ -43,7 +43,7 @@ _NODES = Path(__file__).resolve().parents[1] / "src" / "omnimarket" / "nodes"
 _BUILD_DONE = "onex.evt.omnimarket.build-loop-orchestrator-completed.v1"
 _LIFECYCLE_DONE = "onex.evt.omnimarket.pr-lifecycle-orchestrator-completed.v1"
 _LIFECYCLE_START = "onex.cmd.omnimarket.pr-lifecycle-orchestrator-start.v1"
-_READ_REQ = "onex.cmd.omnimarket.e2e-ci-read-requested.v1"
+_READ_REQ = "onex.cmd.omnimarket.build-bridge-ci-read-requested.v1"
 
 Overall = Literal["green", "red", "pending"]
 
