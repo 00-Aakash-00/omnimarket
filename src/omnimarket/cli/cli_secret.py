@@ -555,7 +555,39 @@ def register_tenant_key(
         shown["expiry_warning"] = response.expiry_warning.value
     if response.bound_host is not None:
         shown["bound_host"] = response.bound_host
+    _fold_registered_tenant_key(response, tenant)
     click.echo(json.dumps(shown))
+
+
+def _fold_registered_tenant_key(response: Any, tenant: str) -> None:
+    """Catalogue the key on this machine too (OMN-21014).
+
+    The value is in this machine's store; the credential-registered event goes
+    to the bus for the central catalog. The host's own review gateway reads its
+    keys from this machine's catalog, so the same row is folded into the local
+    store the value lives beside, the way ``onex secret set`` folds its events.
+    The fold is an idempotent upsert by reference; no value is written.
+    """
+    store = _tenant_key_store()
+    payload: dict[str, object] = {
+        "tenant_id": tenant,
+        "provider": response.provider,
+        "name": response.name,
+        "api_key_ref": response.api_key_ref,
+        "metadata": {},
+        "expires_at": None
+        if response.expires_at is None
+        else response.expires_at.astimezone(UTC).isoformat(),
+        "bound_host": response.bound_host,
+    }
+    try:
+        apply_credential_registered(payload, SqliteDatabaseAdapter(store.db_path))
+    except sqlite3.Error as error:
+        raise click.ClickException(
+            f"the key was stored as {response.api_key_ref}, but this machine's "
+            f"catalog could not record it ({type(error).__name__}); the review "
+            "gateway on this host will not see it until it is registered again."
+        ) from None
 
 
 def _parse_expires(expires: str | None) -> datetime | None:
@@ -1112,3 +1144,107 @@ def remove_model(provider: str) -> None:
         raise click.ClickException(f"no {_MODEL_LABELS[name]} key is stored.")
     delete_secret_value(f"llm.{name}.api_key")
     handler.handle(ModelModelSetupRequest(operation="forget", provider=name))
+
+
+#: OMN-21014: the review a dry run plans. Its sampling field shows what the
+#: gateway drops before the provider sees the call.
+_REVIEW_GATEWAY_DRY_RUN_PAYLOAD: dict[str, object] = {
+    "messages": [
+        {"role": "system", "content": "You are a hostile code reviewer."},
+        {"role": "user", "content": "Dry run: no diff is sent."},
+    ],
+    "max_tokens": 16,
+    "temperature": 0.3,
+}
+
+
+@models_group.command("review-gateway")
+@click.option(
+    "--tenant",
+    required=True,
+    help="The tenant whose catalogued keys the gateway spends.",
+)
+@click.option(
+    "--model",
+    "model_option",
+    required=True,
+    help="The Claude model every review runs on, e.g. claude-sonnet-5-5.",
+)
+@click.option(
+    "--host",
+    default=None,
+    help=(
+        "This machine's lab host table row (ONEX_LAB_RUN_HOSTS); only keys bound "
+        "to it are spent. Defaults to this machine's row."
+    ),
+)
+@click.option(
+    "--bind",
+    default="127.0.0.1:8140",
+    show_default=True,
+    help="host:port the voter endpoint listens on.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Plan one review (the key it would use, the body it would send) and exit.",
+)
+def review_gateway(
+    tenant: str, model_option: str, host: str | None, bind: str, dry_run: bool
+) -> None:
+    """Serve a Hostile Review voter endpoint on this host's Claude keys (OMN-21014)."""
+    from omnimarket.nodes.node_claude_review_gateway_effect.handlers.handler_claude_review_gateway import (
+        HandlerClaudeReviewGateway,
+        run_dry,
+    )
+    from omnimarket.nodes.node_claude_review_gateway_effect.models.model_claude_review_gateway import (
+        ModelClaudeReviewGatewayRequest,
+    )
+
+    bound_host = _resolve_bound_host(host)
+    if bound_host is None:
+        raise click.ClickException(
+            "the review gateway needs this machine's lab host: pass --host or set "
+            "ONEX_LAB_RUN_HOSTS to the lab host table."
+        )
+    bind_host, _, bind_port = bind.rpartition(":")
+    backend = resolve_byok_provider_backend("anthropic")
+    if backend is None:
+        raise click.ClickException(
+            "the provider catalogue offers no anthropic backend."
+        )
+    try:
+        request = ModelClaudeReviewGatewayRequest(
+            host=bound_host,
+            tenant_id=tenant,
+            model=model_option,
+            bind_host=bind_host or "127.0.0.1",
+            bind_port=int(bind_port),
+            dry_run=dry_run,
+        )
+    except (ValidationError, ValueError) as exc:
+        raise click.ClickException(
+            f"review-gateway refused its options: {exc}"
+        ) from None
+    from omnimarket.nodes.node_llm_delegation_call_effect.handlers.handler_llm_delegation_call import (
+        HandlerLlmDelegationCall,
+    )
+
+    store = _tenant_key_store()
+    handler = HandlerClaudeReviewGateway(
+        catalog=SqliteDatabaseAdapter(store.db_path),
+        key_values=store,
+        # The one sanctioned model caller (OMN-20295); it resolves the key's
+        # value through the secret store at its own boundary.
+        call=HandlerLlmDelegationCall(),
+        endpoint_url=backend.endpoint_url,
+    )
+    if dry_run:
+        plan = run_dry(handler, request, _REVIEW_GATEWAY_DRY_RUN_PAYLOAD)
+        click.echo(json.dumps(plan.model_dump(mode="json"), sort_keys=True))
+        return
+    click.echo(
+        f"onex models review-gateway: http://{request.bind_host}:{request.bind_port}"
+        f"/v1/chat/completions (host {bound_host}, model {model_option})"
+    )
+    asyncio.run(handler.handle(request))
