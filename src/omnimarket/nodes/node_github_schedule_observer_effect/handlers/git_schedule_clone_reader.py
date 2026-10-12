@@ -11,6 +11,7 @@ local edit is not mistaken for what the default branch holds.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -27,6 +28,27 @@ from omnimarket.nodes.node_github_schedule_observer_effect.protocols.protocol_sc
 _WORKFLOW_DIR = ".github/workflows"
 _GIT_TIMEOUT_SECONDS = 30
 
+# A git hook exports these into its environment, and they override ``git -C <clone>``:
+# a read run under a hook would read the invoking repository, not the clone. Mirrors
+# omnibase_core.validators.no_unguarded_git_subprocess.scrub_git_location_env without
+# importing that test-scanning module at runtime.
+_GIT_LOCATION_ENV_VARS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+)
+
+
+def _scrubbed_env() -> dict[str, str]:
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")}
+    for key in _GIT_LOCATION_ENV_VARS:
+        env.pop(key, None)
+    return env
+
 
 def _git(clone_dir: Path, *args: str) -> str:
     try:
@@ -36,6 +58,7 @@ def _git(clone_dir: Path, *args: str) -> str:
             capture_output=True,
             text=True,
             timeout=_GIT_TIMEOUT_SECONDS,
+            env=_scrubbed_env(),
         )
     except subprocess.CalledProcessError as exc:
         raise ScheduleCloneError(

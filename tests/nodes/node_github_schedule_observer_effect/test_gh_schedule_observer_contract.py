@@ -134,6 +134,64 @@ def test_gh_schedule_observer_git_clone_reader_compares_head_with_remote_default
         reader.read_clone(tmp_path / "clones" / "absent")
 
 
+def test_gh_schedule_observer_git_clone_reader_ignores_an_inherited_git_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hook's git location environment must not override the clone being read."""
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    _git(origin, "init", "-q", "-b", "trunk")
+    (origin / ".github/workflows").mkdir(parents=True)
+    (origin / ".github/workflows/nightly.yml").write_text(
+        "on:\n  schedule:\n    - cron: '15 2 * * *'\n", encoding="utf-8"
+    )
+    (origin / ".github/workflows/ci.yml").write_text("on: push\n", encoding="utf-8")
+    _git(origin, "add", ".")
+    _git(
+        origin,
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@example.com",
+        "commit",
+        "-q",
+        "-m",
+        "init",
+    )
+    clone = tmp_path / "clones" / "example-repo"
+    subprocess.run(
+        ["git", "clone", "-q", str(origin), str(clone)],
+        check=True,
+        capture_output=True,
+        env=scrub_git_location_env(),
+    )
+
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    _git(decoy, "init", "-q", "-b", "decoy-branch")
+    _git(
+        decoy,
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@example.com",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "decoy",
+    )
+
+    monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(decoy))
+    current = GitScheduleCloneReader().read_clone(clone)
+    assert current.default_branch == "trunk"
+    assert current.head_sha == _git(clone, "rev-parse", "HEAD")
+    assert [(w.path, w.crons) for w in current.workflows] == [
+        (".github/workflows/nightly.yml", ("15 2 * * *",))
+    ]
+
+
 def test_gh_schedule_observer_state_store_refuses_to_reset_a_corrupt_cursor(
     tmp_path: Path,
 ) -> None:
