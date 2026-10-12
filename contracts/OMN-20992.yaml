@@ -6,7 +6,7 @@ summary: "Operator rulings 2026-10-11T16:00:52Z and 16:02:35Z: the company pool 
 is_seam_ticket: false
 interface_change: true
 interfaces_touched:
-  - "omnimarket.routing.tenant_overlay_resolver.resolve_tenant_overlay(selector_key, now)"
+  - "public_api"
 requirements:
   - id: "req-omn20992-router-chooses-from-the-pool"
     statement: |-
