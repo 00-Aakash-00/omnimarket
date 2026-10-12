@@ -6,10 +6,8 @@ summary: "Operator rulings 2026-10-11T17:57:01Z and 17:58:45Z: the operator's ow
 is_seam_ticket: false
 interface_change: true
 interfaces_touched:
-  - "onex secret register-tenant-key --host"
-  - "omnimarket.projection.credential_publisher.ModelInferenceCredentialCreateRequest.bound_host"
-  - "omnimarket.projection.credential_publisher.ModelCredentialRegisteredEvent.bound_host"
-  - "tenant_inference_credentials.bound_host"
+  - "events"
+  - "public_api"
 requirements:
   - id: "req-omn21012-host-recorded"
     statement: |-
@@ -68,7 +66,7 @@ dod_evidence:
         check_value: "uv run pytest tests/test_omn16316_tenant_credentials_projection.py -k bound_host -q"
         cwd: "${OMNI_HOME}/omnimarket"
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/integration -k tenant_credentials_bound_host -q"
+        check_value: "uv run pytest tests/integration/test_omn21012_tenant_credentials_bound_host.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC3"]
   - id: "dod-omn21012-deploy-probe-migration"
