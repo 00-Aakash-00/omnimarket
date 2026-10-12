@@ -61,3 +61,17 @@ dod_evidence:
         check_value: "uv run pytest tests/test_automation_liveness_exposure_read.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC3"]
+  - id: "dod-omn20802-deploy-probe"
+    description: "The projection's golden chain passes at the checked-out commit. The package probe reads the fold handler and the writer from GitHub at that commit and requires each entry class; a commit without either file fails the probe."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_golden_chain_projection_automation_liveness.py -q -p no:randomly"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_projection_automation_liveness/handlers/handler_projection_automation_liveness.py?ref=$(git rev-parse HEAD)\" --jq '.content | @base64d | contains(\"class HandlerProjectionAutomationLiveness:\")' | grep -qx true"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_projection_automation_liveness/handlers/handler_automation_liveness_writer.py?ref=$(git rev-parse HEAD)\" --jq '.content | @base64d | contains(\"class AutomationLivenessProjectionWriter(\")' | grep -qx true"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1", "AC2"]
