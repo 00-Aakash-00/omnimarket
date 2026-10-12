@@ -215,7 +215,12 @@ dependencies = [
     # premium counterfactual is None, so every savings row is BASELINE_UNRESOLVED.
     # 0.38.61 declares omnibase-compat==0.5.7 and omnibase-spi==0.23.5; the
     # core floor above admits it, so this bump cascades nothing.
-    "omnibase-infra>=0.38.69,<0.39.0",
+    # OMN-20833: floor raised to 0.38.70, the first omnibase_infra release whose
+    # pricing manifest carries the providers' published rates (omnibase_infra#4631):
+    # claude-opus-4-6 at $5 / $25 per MTok, not $15 / $75. 0.38.70 declares
+    # omnibase-compat==0.5.7, omnibase-core>=0.47.31 and omnibase-spi==0.23.5; the
+    # floors above admit them, so this bump cascades nothing.
+    "omnibase-infra>=0.38.70,<0.39.0",
     "click>=8.1.0",
     "pydantic>=2.12.5,<3.0.0",
     "pydantic-settings>=2.0.0,<3.0.0",
@@ -288,6 +293,7 @@ node_remote_lane_close_compute = "omnimarket.nodes.node_remote_lane_close_comput
 node_remote_lane_compute = "omnimarket.nodes.node_remote_lane_compute"
 node_remote_lane_effect = "omnimarket.nodes.node_remote_lane_effect"
 node_merge_sweep_plan_compute = "omnimarket.nodes.node_merge_sweep_plan_compute"
+node_merge_sweep_request_compute = "omnimarket.nodes.node_merge_sweep_request_compute"
 node_merge_sweep_reading_compute = "omnimarket.nodes.node_merge_sweep_reading_compute"
 node_merge_sweep_effect = "omnimarket.nodes.node_merge_sweep_effect"
 node_merge_sweep_orchestrator = "omnimarket.nodes.node_merge_sweep_orchestrator"
@@ -313,6 +319,7 @@ node_worktree_lease_compute = "omnimarket.nodes.node_worktree_lease_compute"
 node_host_reconcile_compute = "omnimarket.nodes.node_host_reconcile_compute"
 node_hook_refusal_row_compute = "omnimarket.nodes.node_hook_refusal_row_compute"
 node_pr_claim_registry_effect = "omnimarket.nodes.node_pr_claim_registry_effect"
+node_automation_run_observer_effect = "omnimarket.nodes.node_automation_run_observer_effect"
 node_pr_state_emit_effect = "omnimarket.nodes.node_pr_state_emit_effect"
 node_pr_title_check_compute = "omnimarket.nodes.node_pr_title_check_compute"
 node_projection_pr_state = "omnimarket.nodes.node_projection_pr_state"
@@ -377,6 +384,7 @@ node_skill_hygiene_validate_compute = "omnimarket.nodes.node_skill_hygiene_valid
 node_skill_contract_validate_compute = "omnimarket.nodes.node_skill_contract_validate_compute"
 node_skill_tree_read_effect = "omnimarket.nodes.node_skill_tree_read_effect"
 node_contract_projection_check_effect = "omnimarket.nodes.node_contract_projection_check_effect"
+node_branch_protection_audit_effect = "omnimarket.nodes.node_branch_protection_audit_effect"
 node_delegation_output_extract_compute = "omnimarket.nodes.node_delegation_output_extract_compute"
 node_delegation_hook_followup_compute = "omnimarket.nodes.node_delegation_hook_followup_compute"
 node_delegation_output_materialize_effect = "omnimarket.nodes.node_delegation_output_materialize_effect"
@@ -1109,7 +1117,12 @@ override-dependencies = [
     # premium counterfactual is None, so every savings row is BASELINE_UNRESOLVED.
     # 0.38.61 declares omnibase-compat==0.5.7 and omnibase-spi==0.23.5; the
     # core floor above admits it, so this bump cascades nothing.
-    "omnibase-infra>=0.38.69,<0.39.0",
+    # OMN-20833: floor raised to 0.38.70, the first omnibase_infra release whose
+    # pricing manifest carries the providers' published rates (omnibase_infra#4631):
+    # claude-opus-4-6 at $5 / $25 per MTok, not $15 / $75. 0.38.70 declares
+    # omnibase-compat==0.5.7, omnibase-core>=0.47.31 and omnibase-spi==0.23.5; the
+    # floors above admit them, so this bump cascades nothing.
+    "omnibase-infra>=0.38.70,<0.39.0",
     "omnibase-compat==0.5.7",
 ]
 
