@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""Deterministic acceptance respects the required bar on the BUS path (OMN-21077).
+"""An untested code answer is refused on the BUS path (OMN-21077).
 
-The bus orchestrator and bus-less local port apply the same task-class bar.
-A valid ``code_generation`` artifact scoring ~0.733 below its 0.85 bar is
-refused even when its deterministic floor passed. With the ladder exhausted,
-the terminal records the applied bar and BELOW_BAR comparison.
+``code_generation`` is a code class: it is accepted on its deterministic checks
+and an executed test run, never on a score. The bus carries no named test run,
+so a valid ``code_generation`` artifact is refused as INSUFFICIENT and the
+ladder stops on the first rung: no costlier rung can supply the missing tests.
 
 Every hop uses the real handler; acceptance never calls the judge (OMN-20164).
 """
@@ -28,6 +28,9 @@ from omnibase_core.models.delegation.wire import (
 from pydantic import BaseModel
 
 from omnimarket.inference.adapter_inference_bridge import ModelInferenceAdapter
+from omnimarket.models.delegation.wire.model_quality_gate import (
+    NO_NAMED_TEST_RUN_REASON,
+)
 from omnimarket.nodes.node_delegation_orchestrator.contract_topics import (
     TOPIC_ID_DELEGATION_COMPLETED,
     TOPIC_ID_DELEGATION_FAILED,
@@ -219,7 +222,7 @@ class TestJudgeUnavailableFloorRealDispatchPath:
         return gate_result, terminal_events, bridge
 
     @pytest.mark.asyncio
-    async def test_deterministic_acceptance_below_bar_fails_on_local_tier(
+    async def test_untested_code_answer_is_refused_on_local_tier(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # Keep the terminal evidence covered with a single draft and no next tier.
@@ -239,10 +242,12 @@ class TestJudgeUnavailableFloorRealDispatchPath:
 
         # Acceptance never calls the judge (OMN-20164).
         assert bridge.calls == 0
-        assert gate_result.passed is True
+        # OMN-21077: no named test run reached the gate, so the code answer is
+        # not checked and is refused, and no rung can cure that.
+        assert gate_result.passed is False
         assert gate_result.score_source == "deterministic_acceptance"
-        assert gate_result.quality_score < 0.85
-        # OMN-21077: clearing the deterministic floor does not bypass the bar.
+        assert NO_NAMED_TEST_RUN_REASON in gate_result.failure_reasons
+        assert gate_result.no_rung_can_satisfy is True
         assert TOPIC_ID_DELEGATION_FAILED in _terminal_topics(terminal_events)
         assert TOPIC_ID_DELEGATION_COMPLETED not in _terminal_topics(terminal_events)
         terminal = next(
@@ -252,6 +257,6 @@ class TestJudgeUnavailableFloorRealDispatchPath:
         )
         assert terminal.required_quality_bar == 0.85
         assert terminal.score_vs_required_bar is EnumQualityScoreComparison.BELOW_BAR
-        assert terminal.failed_acceptance_criteria == ()
+        assert NO_NAMED_TEST_RUN_REASON in terminal.failed_acceptance_criteria
         wf = workflow.workflows[request.correlation_id]
         assert wf.state == EnumDelegationState.FAILED

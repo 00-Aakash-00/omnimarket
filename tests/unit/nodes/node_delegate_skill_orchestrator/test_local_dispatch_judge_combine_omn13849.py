@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""Local deterministic acceptance and projection respect the bar (OMN-21077)."""
+"""Local acceptance and projection of an untested code answer (OMN-21077)."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from omnimarket.routing.delegation_backend_resolution import (
 # A good-but-mechanically-incomplete code answer: it clears the code_generation
 # deterministic floor (compiles / single artifact / non-empty) but carries none of
 # the convention/regression heuristic markers, so the deterministic-only graded
-# score is ~0.733 and fails the declared 0.85 bar.
+# score is ~0.733. With no named test run it is refused as untested.
 _GOOD_CODE = "### ANSWER\ndef add(a: int, b: int) -> int:\n    return a + b"
 
 _LOCAL_BACKEND = ModelResolvedDelegationBackend(
@@ -99,10 +99,10 @@ def _dispatch(
     )
 
 
-def test_code_answer_below_required_bar_rejected(
+def test_untested_code_answer_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A valid artifact below the declared bar is rejected and projected."""
+    """A valid artifact no test ran against is rejected and projected."""
     _no_escalation(monkeypatch)
     port = LocalDelegationDispatchPort(
         effect_handler=_code_effect,
