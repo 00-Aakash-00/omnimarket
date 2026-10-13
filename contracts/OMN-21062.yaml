@@ -17,16 +17,7 @@ requirements:
     acceptance:
       - id: "AC1"
         statement: |-
-          AC1: a binding accepted by its own author is a proposal -- falsifier: uv run pytest tests/unit/nodes/node_dod_verify/test_independent_acceptance.py -q -k self_accepted_is_proposal fails at the merge base
-      - id: "AC2"
-        statement: |-
-          AC2: an acceptance by another lane with no rerun evidence is refused -- falsifier: uv run pytest tests/unit/nodes/node_dod_verify/test_independent_acceptance.py -q -k acceptance_without_rerun_refused fails at the merge base
-      - id: "AC3"
-        statement: |-
-          AC3: an acceptance by another lane with rerun evidence passes -- falsifier: uv run pytest tests/unit/nodes/node_dod_verify/test_independent_acceptance.py -q -k independent_rerun_accepted fails at the merge base
-      - id: "AC4"
-        statement: |-
-          AC4: the change-control leg of the rule, ac_binding_acceptance.py, is verified by its own test -- falsifier: uv run pytest tests/test_omn_17427_self_accepted_binding.py -q in the onex_change_control clone
+          AC1: the required lint job and the pre-commit hook dod-verify-independent-acceptance each run the self_accepted_is_proposal, acceptance_without_rerun_refused and independent_rerun_accepted selectors of test_independent_acceptance.py, one run per selector -- falsifier: uv run pytest tests/ci/test_dod_verify_independent_acceptance_wiring_omn21062.py -q -p no:randomly --no-cov -n 0 fails at the merge base
 evidence_requirements:
   - kind: "tests"
     description: "The three named cases and the wiring test pass."
@@ -43,7 +34,6 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/unit/nodes/node_dod_verify/test_independent_acceptance.py -q -p no:randomly --no-cov -n 0 -k self_accepted_is_proposal"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC1"]
   - id: "dod-omn21062-ac2-no-rerun-refused"
     description: "An acceptance by another lane with a skipped, failed, unrunnable or absent rerun does not verify."
     source: "manual"
@@ -51,7 +41,6 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/unit/nodes/node_dod_verify/test_independent_acceptance.py -q -p no:randomly --no-cov -n 0 -k acceptance_without_rerun_refused"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC2"]
   - id: "dod-omn21062-ac3-independent-rerun-accepted"
     description: "An acceptance by another lane whose rerun passed verifies, including a second lane's appended re-acceptance of the author's record."
     source: "manual"
@@ -59,7 +48,6 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/unit/nodes/node_dod_verify/test_independent_acceptance.py -q -p no:randomly --no-cov -n 0 -k independent_rerun_accepted"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC3"]
   - id: "dod-omn21062-wiring"
     description: "The required lint job and the pre-commit hook run each selector, one run per selector."
     source: "manual"
@@ -67,6 +55,7 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/ci/test_dod_verify_independent_acceptance_wiring_omn21062.py -q -p no:randomly --no-cov -n 0"
         cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]
   - id: "dod-omn21062-ac4-occ-leg"
     description: "The change-control self-accepted rule (ac_binding_self_accepted in ac_binding_acceptance.py) passes its own test in the onex_change_control clone. Hosted CI has no change-control clone; the local Done gate runs this check."
     source: "manual"
@@ -75,4 +64,3 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/test_omn_17427_self_accepted_binding.py -q -p no:randomly --no-cov -n 0"
         cwd: "${OMNI_HOME}/onex_change_control"
-    binds_ac: ["AC4"]
