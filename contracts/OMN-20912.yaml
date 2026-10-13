@@ -107,11 +107,11 @@ dod_evidence:
         check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_github_repo_write_effect/contract.yaml?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep '^    OmniNode-ai: enforce' > /dev/null"
         cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn20912-ac5-operation-table-gate"
-    description: "AC5: the operation-table check passes on the tree and refuses each planted violation."
+    description: "AC5: the operation-table check passes on the tree and refuses each planted violation; the selector also runs the two wiring tests, which fail at the merge base where no hook or lint step runs the check, so the control can fail there."
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/ci/test_scm_operation_table_omn20912.py -q -p no:randomly --no-cov -k 'tree_table or planted or removed_from_the_table'"
+        check_value: "uv run pytest tests/ci/test_scm_operation_table_omn20912.py -q -p no:randomly --no-cov -k 'tree_table or planted or removed_from_the_table or wired'"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC5"]
   - id: "dod-omn20912-ac6-operation-table-wired"
