@@ -4,7 +4,7 @@
 
 The chain below has no hand-wired edge: an in-process router reads each node's ``handler_routing`` and
 ``published_events``, delivers every published model to the handler whose route names that topic, and
-runs the handlers' real classes. Only the GitHub read is a fake (the gateway's ci_checks answers).
+runs the handlers' real classes. Only the CI reader is a fake (the shared PR CI readings).
 
     build-loop-orchestrator-completed
       -> e2e-ci-read-requested (+ evidence)      node_e2e_orchestrator
@@ -29,12 +29,9 @@ import yaml
 from omnibase_core.models.dispatch.model_handler_output import ModelHandlerOutput
 from pydantic import BaseModel
 
+from omnimarket.models.e2e_bridge import ModelE2ePrCiReading
 from omnimarket.nodes.node_e2e_bridge_effect.handlers.handler_e2e_bridge import (
     HandlerE2eBridgeEffect,
-)
-from omnimarket.nodes.node_github_repo_gateway_effect.models.model_gateway_io import (
-    ModelCiChecksResult,
-    ModelGithubGatewayRequest,
 )
 
 pytestmark = pytest.mark.unit
@@ -123,27 +120,25 @@ async def _advance(clock: list[datetime], seconds: float) -> None:
 
 
 class _Reader:
-    """GitHub gateway fake: each PR's overall state per read, in order."""
+    """CI reader fake: each PR's overall state per read, in order."""
 
     def __init__(self, *overall: Overall) -> None:
         self.script: list[Overall] = list(overall)
-        self.reads: list[ModelGithubGatewayRequest] = []
+        self.reads: list[tuple[str, str, int, UUID]] = []
 
-    async def read_ci_checks(
-        self, request: ModelGithubGatewayRequest
-    ) -> ModelCiChecksResult:
-        self.reads.append(request)
+    async def read_ci(
+        self, *, pr_ref: str, repo: str, pr_number: int, correlation_id: UUID
+    ) -> ModelE2ePrCiReading:
+        self.reads.append((pr_ref, repo, pr_number, correlation_id))
         state = self.script.pop(0) if len(self.script) > 1 else self.script[0]
-        assert request.pr_number is not None
-        return ModelCiChecksResult(
-            repo=request.repo,
-            pr_number=request.pr_number,
+        return ModelE2ePrCiReading(
+            pr_ref=pr_ref,
             overall=state,
             total=2,
             passed=2 if state == "green" else 1,
             failed=1 if state == "red" else 0,
             pending=1 if state == "pending" else 0,
-            failing_contexts=["lint"] if state == "red" else [],
+            failing_contexts=("lint",) if state == "red" else (),
         )
 
 

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 """node_e2e_bridge_effect: the CI read and the evidence writes of the build-to-lifecycle bridge.
 
-The CI read goes through the typed GitHub gateway's ci_checks request, never a ``gh`` subprocess.
+The CI reader returns the shared bridge model, never a ``gh`` subprocess.
 """
 
 from __future__ import annotations
@@ -22,14 +22,10 @@ from omnimarket.models.e2e_bridge import (
     ModelE2eEvidenceFile,
     ModelE2eEvidenceWriteRequest,
     ModelE2eEvidenceWritten,
+    ModelE2ePrCiReading,
 )
 from omnimarket.nodes.node_e2e_bridge_effect.handlers.handler_e2e_bridge import (
     HandlerE2eBridgeEffect,
-)
-from omnimarket.nodes.node_github_repo_gateway_effect.models.model_gateway_io import (
-    EnumGithubGatewayOperation,
-    ModelCiChecksResult,
-    ModelGithubGatewayRequest,
 )
 
 pytestmark = pytest.mark.unit
@@ -40,21 +36,20 @@ PR = "OmniNode-ai/omnimarket#42"
 
 
 class FakeReader:
-    """Stands in for the gateway: answers a ci_checks request with a canned result."""
+    """Answers each PR's CI read with a canned shared reading."""
 
-    def __init__(self, results: dict[int, ModelCiChecksResult | Exception]) -> None:
+    def __init__(self, results: dict[int, ModelE2ePrCiReading | Exception]) -> None:
         self.results = results
-        self.requests: list[ModelGithubGatewayRequest] = []
+        self.requests: list[tuple[str, str, int, UUID]] = []
 
-    async def read_ci_checks(
-        self, request: ModelGithubGatewayRequest
-    ) -> ModelCiChecksResult:
-        self.requests.append(request)
-        assert request.pr_number is not None
-        got = self.results[request.pr_number]
+    async def read_ci(
+        self, *, pr_ref: str, repo: str, pr_number: int, correlation_id: UUID
+    ) -> ModelE2ePrCiReading:
+        self.requests.append((pr_ref, repo, pr_number, correlation_id))
+        got = self.results[pr_number]
         if isinstance(got, Exception):
             raise got
-        return got
+        return got.model_copy(update={"pr_ref": pr_ref})
 
 
 def _checks(
@@ -64,16 +59,15 @@ def _checks(
     total: int = 3,
     passed: int = 3,
     failed: int = 0,
-) -> ModelCiChecksResult:
-    return ModelCiChecksResult(
-        repo="OmniNode-ai/omnimarket",
-        pr_number=pr,
+) -> ModelE2ePrCiReading:
+    return ModelE2ePrCiReading(
+        pr_ref=f"OmniNode-ai/omnimarket#{pr}",
         overall=overall,
         total=total,
         passed=passed,
         failed=failed,
         pending=total - passed - failed,
-        failing_contexts=["lint"] if failed else [],
+        failing_contexts=("lint",) if failed else (),
     )
 
 
@@ -104,7 +98,7 @@ def _handler(
 
 
 class TestCiRead:
-    async def test_reads_each_pr_through_the_gateway_ci_checks_request(
+    async def test_reads_each_pr_with_its_ref_repo_number_and_correlation_id(
         self, tmp_path: Path
     ) -> None:
         reader = FakeReader(
@@ -114,12 +108,9 @@ class TestCiRead:
             _request(PR, "OmniNode-ai/omnibase_core#7")
         )
 
-        assert [r.operation for r in reader.requests] == [
-            EnumGithubGatewayOperation.CI_CHECKS
-        ] * 2
-        assert [(r.repo, r.pr_number) for r in reader.requests] == [
-            ("OmniNode-ai/omnimarket", 42),
-            ("OmniNode-ai/omnibase_core", 7),
+        assert reader.requests == [
+            (PR, "OmniNode-ai/omnimarket", 42, CID),
+            ("OmniNode-ai/omnibase_core#7", "OmniNode-ai/omnibase_core", 7, CID),
         ]
         assert isinstance(out, ModelE2eCiReadCompleted)
         assert out.correlation_id == CID
@@ -155,16 +146,44 @@ class TestCiRead:
         assert out.readings[0].overall == "red"
         assert out.readings[0].failing_contexts == ("lint",)
 
+    @pytest.mark.parametrize(
+        "pr_ref",
+        [
+            "not-a-valid-ref",
+            "invalid-repo#42",
+            "owner/repo/extra#42",
+            "owner/repo#0",
+            "owner/repo#-1",
+            "owner/repo#",
+            "owner/repo#abc",
+            "owner/repo#42#7",
+            "owner/repo#²",
+            pytest.param("owner/repo#" + "9" * 5000, id="pr-number-too-long"),
+        ],
+    )
     async def test_an_unparseable_ref_is_reported_without_a_read(
-        self, tmp_path: Path
+        self, tmp_path: Path, pr_ref: str
     ) -> None:
         reader = FakeReader({})
-        out = await _handler(reader, tmp_path).handle(_request("not-a-valid-ref"))
+        out = await _handler(reader, tmp_path).handle(_request(pr_ref))
 
         assert isinstance(out, ModelE2eCiReadCompleted)
         assert reader.requests == []
+        assert out.readings[0].pr_ref == pr_ref
         assert out.readings[0].overall == "unparseable"
         assert out.readings[0].error == "invalid pr_ref format"
+
+    async def test_whitespace_and_leading_zeros_preserve_the_original_pr_ref(
+        self, tmp_path: Path
+    ) -> None:
+        reader = FakeReader({42: _checks(42, "green")})
+        pr_ref = " OmniNode-ai/omnimarket # 0042 "
+        out = await _handler(reader, tmp_path).handle(_request(pr_ref))
+
+        assert reader.requests == [(pr_ref, "OmniNode-ai/omnimarket", 42, CID)]
+        assert isinstance(out, ModelE2eCiReadCompleted)
+        assert out.readings[0].pr_ref == pr_ref
+        assert out.readings[0].overall == "green"
 
     async def test_a_failed_read_is_unreadable_not_an_exception(
         self, tmp_path: Path

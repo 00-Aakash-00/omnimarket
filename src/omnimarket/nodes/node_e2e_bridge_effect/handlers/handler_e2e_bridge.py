@@ -14,12 +14,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
+from uuid import UUID
 
 from omnimarket.config.state_root import resolve_onex_state_root
+from omnimarket.handlers.scm.handler_gateway_ci_reader import HandlerGatewayCiReader
 from omnimarket.models.e2e_bridge import (
     ModelE2eCiReadCompleted,
     ModelE2eCiReadRequest,
@@ -27,41 +30,16 @@ from omnimarket.models.e2e_bridge import (
     ModelE2eEvidenceWritten,
     ModelE2ePrCiReading,
 )
-from omnimarket.nodes.node_github_repo_gateway_effect.handlers.handler_github_repo_gateway import (
-    HandlerGithubRepoGatewayEffect,
-)
-from omnimarket.nodes.node_github_repo_gateway_effect.models.model_gateway_io import (
-    EnumGithubGatewayOperation,
-    ModelCiChecksResult,
-    ModelGithubGatewayRequest,
-)
 
 _UNPARSEABLE = "invalid pr_ref format"
 
 
 class ProtocolCiChecksReader(Protocol):
-    """Answers one gateway ``ci_checks`` request."""
+    """Reads one PR's required-check state into the shared bridge model."""
 
-    async def read_ci_checks(
-        self, request: ModelGithubGatewayRequest
-    ) -> ModelCiChecksResult: ...
-
-
-class GatewayCiChecksReader:
-    """The GitHub gateway effect, run in process: its token resolution, transport and dispatch."""
-
-    def __init__(self) -> None:
-        self._gateway = HandlerGithubRepoGatewayEffect()
-
-    async def read_ci_checks(
-        self, request: ModelGithubGatewayRequest
-    ) -> ModelCiChecksResult:
-        output = await self._gateway.handle(request)
-        for event in output.events:
-            result = getattr(event, "result", None)
-            if isinstance(result, ModelCiChecksResult):
-                return result
-        raise RuntimeError("the GitHub gateway returned no ci_checks result")
+    async def read_ci(
+        self, *, pr_ref: str, repo: str, pr_number: int, correlation_id: UUID
+    ) -> ModelE2ePrCiReading: ...
 
 
 def _utc_now() -> datetime:
@@ -98,7 +76,7 @@ class HandlerE2eBridgeEffect:
             wait = (request.not_before - self._now()).total_seconds()
             if wait > 0:
                 await self._sleep(wait)
-        reader = self._reader or GatewayCiChecksReader()
+        reader = self._reader or HandlerGatewayCiReader()
         readings = [
             await self._read_one(reader, request, pr_ref) for pr_ref in request.pr_refs
         ]
@@ -120,26 +98,23 @@ class HandlerE2eBridgeEffect:
         request: ModelE2eCiReadRequest,
         pr_ref: str,
     ) -> ModelE2ePrCiReading:
-        gateway_request = _gateway_request(request, pr_ref)
-        if gateway_request is None:
+        parsed = _parse_pr_ref(pr_ref)
+        if parsed is None:
             return ModelE2ePrCiReading(
                 pr_ref=pr_ref, overall="unparseable", error=_UNPARSEABLE
             )
         try:
-            result = await reader.read_ci_checks(gateway_request)
+            repo, pr_number = parsed
+            return await reader.read_ci(
+                pr_ref=pr_ref,
+                repo=repo,
+                pr_number=pr_number,
+                correlation_id=request.correlation_id,
+            )
         except Exception as exc:
             return ModelE2ePrCiReading(
                 pr_ref=pr_ref, overall="unreadable", error=str(exc)[:200]
             )
-        return ModelE2ePrCiReading(
-            pr_ref=pr_ref,
-            overall=result.overall,
-            total=result.total,
-            passed=result.passed,
-            failed=result.failed,
-            pending=result.pending,
-            failing_contexts=tuple(result.failing_contexts),
-        )
 
     def _write_evidence(
         self, request: ModelE2eEvidenceWriteRequest
@@ -164,29 +139,24 @@ class HandlerE2eBridgeEffect:
         )
 
 
-def _gateway_request(
-    request: ModelE2eCiReadRequest, pr_ref: str
-) -> ModelGithubGatewayRequest | None:
-    """The gateway ci_checks request for ``owner/repo#number``, or None for a ref that is not one."""
+def _parse_pr_ref(pr_ref: str) -> tuple[str, int] | None:
+    """The repo and PR number of ``owner/repo#number``, or None for an invalid ref."""
     parts = pr_ref.split("#")
     if len(parts) != 2:
         return None
     repo, number = parts[0].strip(), parts[1].strip()
-    if not number.isdigit() or int(number) < 1:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+        return None
+    if not number.isdigit():
         return None
     try:
-        return ModelGithubGatewayRequest(
-            operation=EnumGithubGatewayOperation.CI_CHECKS,
-            repo=repo,
-            pr_number=int(number),
-            correlation_id=request.correlation_id,
-        )
+        pr_number = int(number)
     except ValueError:
         return None
+    return (repo, pr_number) if pr_number >= 1 else None
 
 
 __all__: list[str] = [
-    "GatewayCiChecksReader",
     "HandlerE2eBridgeEffect",
     "ProtocolCiChecksReader",
 ]
