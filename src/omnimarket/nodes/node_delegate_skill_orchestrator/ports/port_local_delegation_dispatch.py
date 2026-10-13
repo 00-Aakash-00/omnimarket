@@ -161,7 +161,6 @@ from omnimarket.models.delegation.model_earlier_model_attempt import (
     ModelEarlierModelAttempt,
 )
 from omnimarket.models.delegation.wire.model_quality_gate import (
-    SCORE_SOURCE_DETERMINISTIC_ACCEPTANCE,
     ModelQualityGateResult,
     ModelQualityRuleEvaluation,
 )
@@ -190,6 +189,7 @@ from omnimarket.nodes.node_delegate_skill_orchestrator.run_step_recorder import 
 # AND not a deterministic-floor rejection — resolved from the task-class contract.
 from omnimarket.nodes.node_delegation_orchestrator.quality_bar_authority import (
     RequiredBarAuthorityError,
+    meets_required_bar,
     resolve_required_bar_authority,
 )
 
@@ -402,7 +402,7 @@ def derive_attempt_acceptance(
     quality_passed: bool,
     pre_filter_rejected: bool,
     gate_passed: bool,
-    judge_unavailable_floor: bool,
+    judge_unavailable_floor: bool = False,
     quality_score: float,
     required_bar: float | None,
     rule_evaluations: tuple[ModelQualityRuleEvaluation, ...],
@@ -2068,11 +2068,6 @@ class LocalDelegationDispatchPort:
                 quality_passed=quality_passed,
                 pre_filter_rejected=gate_result.fail_category == "fail_deterministic",
                 gate_passed=gate_result.passed,
-                judge_unavailable_floor=(
-                    gate_result.passed
-                    and gate_result.score_source
-                    == SCORE_SOURCE_DETERMINISTIC_ACCEPTANCE
-                ),
                 quality_score=gate_result.quality_score,
                 required_bar=_declared_required_bar(task_type),
                 rule_evaluations=gate_result.rule_evaluations,
@@ -2564,8 +2559,8 @@ class LocalDelegationDispatchPort:
         class ``required_bar`` (e.g. code_generation ~0.733 < 0.85). The bus
         orchestrator (``handle_gate_result`` :1240-1253) accepts only when the gate
         passed AND the score is at/above the contract ``required_bar`` AND the
-        result is not a deterministic-floor rejection. This method replicates that
-        rule so the local path applies the same 0.85 bar the bus applies.
+        result is not a deterministic-floor rejection. Both paths call the same
+        predicate so the local path applies the same 0.85 bar the bus applies.
 
         When the task class declares no ``quality_gate.required_bar`` (the legacy /
         no-contract-DoD path), no bar can be applied and the reducer verdict
@@ -2573,25 +2568,17 @@ class LocalDelegationDispatchPort:
         classes without a declared bar.
 
         Verifiable task classes use ``score_source=deterministic_acceptance``
-        when their declared deterministic floor passes. That result is accepted
-        without applying a combined-score bar (OMN-13959/OMN-20164). Structural
-        failures and explicit refusals remain rejected.
+        when their declared deterministic floor passes. The declared bar applies
+        to these results too (OMN-21077), via the same predicate the bus path calls.
         """
-        if gate_result.fail_category == "fail_deterministic":
-            return False
-        if (
-            gate_result.passed
-            and gate_result.score_source == SCORE_SOURCE_DETERMINISTIC_ACCEPTANCE
-        ):
-            return True
         try:
             authority = resolve_required_bar_authority(task_type=task_type)
         except RequiredBarAuthorityError:
             # No declared bar for this class — the reducer verdict is authoritative.
-            return gate_result.passed
-        if gate_result.quality_score < authority.required_bar:
-            return False
-        return gate_result.passed
+            return (
+                gate_result.fail_category != "fail_deterministic" and gate_result.passed
+            )
+        return meets_required_bar(gate_result, authority.required_bar)
 
     def _withheld_credential_rung(
         self,
