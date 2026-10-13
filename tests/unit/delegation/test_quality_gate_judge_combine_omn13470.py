@@ -118,7 +118,7 @@ _CODE_GEN_HEUR = (
 # A good-but-mechanically-incomplete code answer: it compiles, is a single
 # artifact, and is non-empty (deterministic floor passes), but it carries none of
 # the convention/regression markers, so the deterministic-only graded score is
-# ~0.733 and fails the 0.85 bar without the judge.
+# ~0.733 and fails the declared 0.85 bar.
 _GOOD_CODE = "```python\ndef add(a: int, b: int) -> int:\n    return a + b\n```"
 _GOOD_CODE_MARKED = "### ANSWER\n" + _GOOD_CODE
 
@@ -572,7 +572,7 @@ class TestJudgeCombineRealBusChain:
         # --- orchestrator FSM start: emit routing intent ---
         routing_intents = workflow.handle_delegation_request(request)
         assert isinstance(routing_intents[0], ModelRoutingIntent)
-        # OMN-13599: for the fail-closed refusal proof, pin the terminal ceiling
+        # OMN-13599/OMN-21077: for the fail-closed refusal proofs, pin the terminal ceiling
         # tier so a single-pass gate failure has no higher tier to escalate to
         # and MUST emit a terminal delegation-failed event. (Under the new
         # local -> cheap_cloud -> claude order the cheap_cloud primary and the
@@ -636,19 +636,21 @@ class TestJudgeCombineRealBusChain:
         return gate_result, terminal_events, workflow, consumed_topics
 
     @pytest.mark.asyncio
-    async def test_good_code_completes_via_deterministic_floor_over_bus(self) -> None:
+    async def test_good_code_below_required_bar_fails_over_bus(self) -> None:
         gate_result, _terminal, workflow, consumed = await self._drive_chain(
             llm_content=_GOOD_CODE_MARKED,
+            min_tier_name="claude",
         )
         assert gate_result.score_source == "deterministic_acceptance"  # type: ignore[attr-defined]
-        assert TOPIC_ID_DELEGATION_COMPLETED in consumed, (
-            "good code answer must publish a terminal delegation-completed event "
+        assert TOPIC_ID_DELEGATION_FAILED in consumed, (
+            "below-bar code answer must publish a terminal delegation-failed event "
             f"over the bus; consumed={consumed}"
         )
+        assert TOPIC_ID_DELEGATION_COMPLETED not in consumed
         wf = workflow.workflows[
             UUID(str(gate_result.correlation_id))  # type: ignore[attr-defined]
         ]
-        assert wf.state == EnumDelegationState.COMPLETED
+        assert wf.state == EnumDelegationState.FAILED
 
     @pytest.mark.asyncio
     async def test_refusal_not_completed_even_with_high_judge_over_bus(self) -> None:
