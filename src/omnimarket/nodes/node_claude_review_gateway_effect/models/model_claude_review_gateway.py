@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from omnimarket.projection.credential_publisher import LAB_HOST_NAME_PATTERN
 
@@ -44,10 +44,24 @@ class ModelClaudeReviewGatewayRequest(BaseModel):
         pattern=r"^claude-[a-z0-9.-]+$",
         description="The Claude model every review runs on, served as /v1/models.",
     )
+    cloud_refused_repositories: tuple[str, ...] = Field(
+        min_length=1,
+        description="Repositories whose diffs never go to a cloud model, from a private overlay.",
+    )
     bind_host: str = Field(default="127.0.0.1", min_length=1)
     bind_port: int = Field(default=8140, ge=1, le=65535)
     upstream_timeout_seconds: float = Field(default=300.0, gt=0, le=1800)
     dry_run: bool = False
+
+    @field_validator("cloud_refused_repositories")
+    @classmethod
+    def validate_refused_repositories(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        repositories = tuple(name.strip() for name in value)
+        if any(not name for name in repositories):
+            raise ValueError(
+                "cloud_refused_repositories entries must be non-empty strings"
+            )
+        return repositories
 
 
 class ModelReviewGatewayPlan(BaseModel):

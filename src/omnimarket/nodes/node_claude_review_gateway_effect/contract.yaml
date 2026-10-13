@@ -21,6 +21,11 @@ description: >
   so the voter's overflow list moves the review on. A refused or credit-
   exhausted key is set aside and the next key on the host serves. A dry run
   plans one review without an upstream call. No key value is logged or returned.
+  Operator ruling 2026-10-13T20:50:03Z keeps exactly one repository's code away
+  from cloud models and allows every other repository, with the refused list
+  supplied by a private overlay and never named here, so reviews whose
+  metadata.repository is refused or absent answer 503 before any key is read
+  and overflow to a lab model.
 node_type: effect
 input_model:
   name: ModelClaudeReviewGatewayRequest

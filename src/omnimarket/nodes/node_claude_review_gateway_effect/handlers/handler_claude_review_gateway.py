@@ -18,6 +18,14 @@ across those machines. A gateway spends only keys bound to its own host, so the
 overlay places reviews by naming one gateway per host and listing the others
 as its ``overflow_endpoint_urls``.
 
+**One repository never goes to the cloud.** Operator ruling
+2026-10-13T20:50:03Z keeps exactly one repository's code away from cloud models
+and allows every other repository. The gateway starts with that refused list
+from a private overlay; the repository is never named in this public
+repository. A review whose ``metadata.repository`` is on the list or absent
+answers 503 so the overflow list moves it to a lab model. Neither case reads
+a key.
+
 **Fill-first, never round-robin.** Keys are tried in name order; the next one
 serves only when the one before cannot (the scope's terms reading: one
 account's credits at a time, never spread to multiply throughput).
@@ -129,6 +137,22 @@ class ProtocolReviewCall(Protocol):
     def __call__(
         self, request: ModelLlmDelegationCallRequest
     ) -> ProtocolCallOutcome: ...
+
+
+def normalize_repository(name: str) -> str:
+    """One repository name, regardless of owner, case or hyphen spelling."""
+    return name.strip().lower().rsplit("/", 1)[-1].replace("-", "_")
+
+
+def review_repository(payload: Mapping[str, Any]) -> str | None:
+    """The repository this review names in metadata, or none."""
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, Mapping):
+        return None
+    repository = metadata.get("repository")
+    if not isinstance(repository, str):
+        return None
+    return repository.strip() or None
 
 
 def _not_expired(value: object, now: datetime) -> bool:
@@ -328,6 +352,9 @@ class ClaudeReviewGateway:
         self._call = call
         self._endpoint_url = endpoint_url
         self._set_aside: set[str] = set()
+        self._cloud_refused_repositories = frozenset(
+            normalize_repository(name) for name in request.cloud_refused_repositories
+        )
 
     @property
     def set_aside(self) -> frozenset[str]:
@@ -360,8 +387,38 @@ class ClaudeReviewGateway:
             timeout_seconds=self._request.upstream_timeout_seconds,
         )
 
+    def _repository_refusal(self, payload: Mapping[str, Any]) -> tuple[str, str] | None:
+        repository = review_repository(payload)
+        if repository is None:
+            return (
+                "gateway_repository_unnamed",
+                "the review names no repository in metadata.repository, so it cannot "
+                "be cleared for a cloud model; overflow to the next voter",
+            )
+        if normalize_repository(repository) in self._cloud_refused_repositories:
+            return (
+                "gateway_repository_refused",
+                "the repository is refused: its diffs never go to a cloud model; "
+                "overflow to the next voter",
+            )
+        return None
+
     async def plan(self, payload: Mapping[str, Any]) -> ModelReviewGatewayPlan:
         """The dry run: the key that would serve and the call it would make."""
+        refusal = self._repository_refusal(payload)
+        if refusal is not None:
+            return ModelReviewGatewayPlan(
+                host=self._request.host,
+                tenant_id=self._request.tenant_id,
+                model=self._request.model,
+                upstream_url=self._endpoint_url,
+                candidate_key_refs=(),
+                chosen_key_ref=None,
+                chosen_key_name=None,
+                translated_request={},
+                would_answer=503,
+                reason=refusal[1],
+            )
         keys = self.candidate_keys()
         chosen: ModelReviewGatewayKey | None = None
         for key in keys:
@@ -395,6 +452,9 @@ class ClaudeReviewGateway:
 
     async def complete(self, payload: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
         """Serve one chat completion on this host's first key that can, else 503."""
+        refusal = self._repository_refusal(payload)
+        if refusal is not None:
+            return _error(503, *refusal)
         keys = self.candidate_keys()
         if not keys:
             return _error(
@@ -563,6 +623,8 @@ __all__ = [
     "ProtocolReviewCall",
     "build_app",
     "describe_call",
+    "normalize_repository",
+    "review_repository",
     "run_dry",
     "select_host_keys",
     "serve_chat_call",

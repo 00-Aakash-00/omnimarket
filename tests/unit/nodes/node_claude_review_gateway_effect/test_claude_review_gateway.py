@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from omnimarket.cli import cli_secret
 from omnimarket.enums.enum_delegation_failure_class import EnumDelegationFailureClass
@@ -51,6 +52,11 @@ _MODEL = "claude-sonnet-5-5"
 _URL = "https://provider.invalid/v1/chat/completions"
 _SECRET = "test-shared-secret"
 _NOW = datetime(2026, 10, 12, tzinfo=UTC)
+#: Placeholder names: the real refused repository is named only in the private
+#: overlay the gateway is started with, never in this public repository.
+_REFUSED_REPO = "acme/private-notes"
+_ALLOWED_REPO = "acme/private-infra"
+_REFUSED = (_REFUSED_REPO,)
 
 
 def _row(name: str, **extra: object) -> dict[str, object]:
@@ -138,7 +144,12 @@ def _gateway(
     values = FakeValues(refs)
     call = FakeCall(list(outcomes or []))
     gateway = ClaudeReviewGateway(
-        ModelClaudeReviewGatewayRequest(host=_HOST, tenant_id=_TENANT, model=_MODEL),
+        ModelClaudeReviewGatewayRequest(
+            host=_HOST,
+            tenant_id=_TENANT,
+            model=_MODEL,
+            cloud_refused_repositories=_REFUSED,
+        ),
         catalog=FakeCatalog(rows),
         key_values=values,
         call=call,
@@ -156,7 +167,16 @@ _PAYLOAD: dict[str, Any] = {
     "max_tokens": 64,
     "temperature": 0.3,
     "top_p": 0.9,
+    "metadata": {"repository": _ALLOWED_REPO},
 }
+
+
+def _for(repository: str | None) -> dict[str, Any]:
+    """The review payload for one repository (None: the payload names none)."""
+    payload = {key: value for key, value in _PAYLOAD.items() if key != "metadata"}
+    if repository is not None:
+        payload["metadata"] = {"repository": repository}
+    return payload
 
 
 def _ok() -> FakeOutcome:
@@ -296,6 +316,77 @@ def test_fails_over_past_a_key_whose_value_does_not_resolve() -> None:
     assert [request.secret_ref for request in call.calls] == [
         f"cred_{_TENANT}_anthropic_key-b"
     ]
+
+
+# --- privacy: one refused repository, every other one served -----------------
+
+
+@pytest.mark.parametrize(
+    "repository",
+    [_REFUSED_REPO, "private-notes", "private_notes", "ACME/Private_Notes"],
+)
+def test_privacy_a_refused_repositorys_diff_never_reaches_the_cloud(
+    repository: str,
+) -> None:
+    gateway, values, call = _gateway([_row("key-a")], [_ok()])
+    status, reply = asyncio.run(gateway.complete(_for(repository)))
+    assert status == 503
+    assert reply["error"]["type"] == "gateway_repository_refused"
+    assert values.reads == []
+    assert call.calls == []
+
+
+def test_privacy_a_private_repository_not_on_the_list_is_served() -> None:
+    gateway, _values, call = _gateway([_row("key-a")], [_ok()])
+    status, _reply = asyncio.run(gateway.complete(_for(_ALLOWED_REPO)))
+    assert status == 200
+    assert len(call.calls) == 1
+
+
+def test_privacy_a_review_that_names_no_repository_is_refused() -> None:
+    gateway, values, call = _gateway([_row("key-a")], [_ok()])
+    for payload in (_for(None), {**_for(None), "metadata": {"repository": "  "}}):
+        status, reply = asyncio.run(gateway.complete(payload))
+        assert status == 503
+        assert reply["error"]["type"] == "gateway_repository_unnamed"
+    assert values.reads == []
+    assert call.calls == []
+
+
+def test_privacy_the_signed_route_refuses_a_refused_repository() -> None:
+    gateway, values, call = _gateway([_row("key-a")], [_ok()])
+    payload = _for(_REFUSED_REPO)
+    status, reply = asyncio.run(
+        serve_chat_call(
+            gateway,
+            body=_wire(payload),
+            signature=_signed(payload)[SIGNATURE_HEADER],
+            secret=_SECRET,
+        )
+    )
+    assert status == 503
+    assert reply["error"]["type"] == "gateway_repository_refused"
+    assert values.reads == []
+    assert call.calls == []
+
+
+def test_privacy_the_dry_run_would_refuse_a_refused_repository() -> None:
+    gateway, _values, call = _gateway([_row("key-a")])
+    plan = asyncio.run(gateway.plan(_for(_REFUSED_REPO)))
+    assert plan.would_answer == 503
+    assert plan.chosen_key_ref is None
+    assert "refused" in plan.reason
+    assert call.calls == []
+
+
+def test_privacy_a_gateway_with_no_refused_list_is_refused() -> None:
+    with pytest.raises(ValidationError):
+        ModelClaudeReviewGatewayRequest(
+            host=_HOST,
+            tenant_id=_TENANT,
+            model=_MODEL,
+            cloud_refused_repositories=(),
+        )
 
 
 # --- AC3: signature and no key value anywhere ---------------------------------
@@ -476,18 +567,24 @@ def test_dry_run_command_reads_this_machines_catalog_and_store(
         "handler_llm_delegation_call.HandlerLlmDelegationCall.__call__",
         _no_upstream,
     )
+    overlay = tmp_path / "overlay.yaml"
+    overlay.write_text(
+        f"cloud_review_refused_repositories:\n  - {_REFUSED_REPO}\n", encoding="utf-8"
+    )
+    command = [
+        "review-gateway",
+        "--tenant",
+        _TENANT,
+        "--model",
+        _MODEL,
+        "--host",
+        _HOST,
+        "--privacy-overlay",
+        str(overlay),
+        "--dry-run",
+    ]
     result = CliRunner().invoke(
-        cli_secret.models_group,
-        [
-            "review-gateway",
-            "--tenant",
-            _TENANT,
-            "--model",
-            _MODEL,
-            "--host",
-            _HOST,
-            "--dry-run",
-        ],
+        cli_secret.models_group, [*command, "--repository", _ALLOWED_REPO]
     )
     assert result.exit_code == 0, result.output
     plan = json.loads(result.output)
@@ -496,3 +593,28 @@ def test_dry_run_command_reads_this_machines_catalog_and_store(
     assert plan["would_answer"] == 200
     assert plan["upstream_url"].startswith("https://")
     assert "sk-ant-fake-never-printed" not in result.output
+
+    refused = CliRunner().invoke(
+        cli_secret.models_group, [*command, "--repository", _REFUSED_REPO]
+    )
+    assert refused.exit_code == 0, refused.output
+    assert json.loads(refused.output)["would_answer"] == 503
+
+
+@pytest.mark.parametrize(
+    "overlay_text",
+    [None, "cloud_review_refused_repositories: []\n", "other_key: [x]\n"],
+    ids=["absent", "empty", "no-list"],
+)
+def test_privacy_the_command_will_not_start_without_a_refused_list(
+    tmp_path: Path, overlay_text: str | None
+) -> None:
+    command = ["review-gateway", "--tenant", _TENANT, "--model", _MODEL]
+    command += ["--host", _HOST, "--dry-run", "--repository", _ALLOWED_REPO]
+    if overlay_text is not None:
+        overlay = tmp_path / "overlay.yaml"
+        overlay.write_text(overlay_text, encoding="utf-8")
+        command += ["--privacy-overlay", str(overlay)]
+    result = CliRunner().invoke(cli_secret.models_group, command)
+    assert result.exit_code != 0
+    assert "would_answer" not in result.output

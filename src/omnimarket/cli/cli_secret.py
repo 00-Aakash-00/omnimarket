@@ -37,7 +37,7 @@ import os
 import socket
 import sqlite3
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from getpass import getpass
@@ -1267,12 +1267,35 @@ _REVIEW_GATEWAY_DRY_RUN_PAYLOAD: dict[str, object] = {
     help="host:port the voter endpoint listens on.",
 )
 @click.option(
+    "--privacy-overlay",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    envvar="ONEX_REVIEW_GATEWAY_PRIVACY_OVERLAY",
+    required=True,
+    help=(
+        "A YAML file supplied by whoever runs the gateway, whose "
+        "cloud_review_refused_repositories list names the repositories whose "
+        "diffs never go to a cloud model. The gateway refuses to start without "
+        "a non-empty list."
+    ),
+)
+@click.option(
+    "--repository",
+    default=None,
+    help="The review's metadata.repository, used only by --dry-run.",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     help="Plan one review (the key it would use, the body it would send) and exit.",
 )
 def review_gateway(
-    tenant: str, model_option: str, host: str | None, bind: str, dry_run: bool
+    tenant: str,
+    model_option: str,
+    host: str | None,
+    bind: str,
+    privacy_overlay: Path,
+    repository: str | None,
+    dry_run: bool,
 ) -> None:
     """Serve a Hostile Review voter endpoint on this host's Claude keys (OMN-21014)."""
     from omnimarket.nodes.node_claude_review_gateway_effect.handlers.handler_claude_review_gateway import (
@@ -1282,6 +1305,28 @@ def review_gateway(
     from omnimarket.nodes.node_claude_review_gateway_effect.models.model_claude_review_gateway import (
         ModelClaudeReviewGatewayRequest,
     )
+
+    try:
+        overlay = yaml.safe_load(privacy_overlay.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError):
+        raise click.ClickException(
+            "the privacy overlay must be a readable YAML mapping."
+        ) from None
+    refused = (
+        overlay.get("cloud_review_refused_repositories")
+        if isinstance(overlay, Mapping)
+        else None
+    )
+    if (
+        not isinstance(refused, list)
+        or not refused
+        or any(not isinstance(name, str) or not name.strip() for name in refused)
+    ):
+        raise click.ClickException(
+            "the privacy overlay must be a YAML mapping with a non-empty "
+            "cloud_review_refused_repositories list of non-empty strings."
+        )
+    cloud_refused_repositories = tuple(name.strip() for name in refused)
 
     bound_host = _resolve_bound_host(host)
     if bound_host is None:
@@ -1300,6 +1345,7 @@ def review_gateway(
             host=bound_host,
             tenant_id=tenant,
             model=model_option,
+            cloud_refused_repositories=cloud_refused_repositories,
             bind_host=bind_host or "127.0.0.1",
             bind_port=int(bind_port),
             dry_run=dry_run,
@@ -1322,11 +1368,15 @@ def review_gateway(
         endpoint_url=backend.endpoint_url,
     )
     if dry_run:
-        plan = run_dry(handler, request, _REVIEW_GATEWAY_DRY_RUN_PAYLOAD)
+        payload = _REVIEW_GATEWAY_DRY_RUN_PAYLOAD.copy()
+        if repository is not None:
+            payload["metadata"] = {"repository": repository}
+        plan = run_dry(handler, request, payload)
         click.echo(json.dumps(plan.model_dump(mode="json"), sort_keys=True))
         return
     click.echo(
         f"onex models review-gateway: http://{request.bind_host}:{request.bind_port}"
-        f"/v1/chat/completions (host {bound_host}, model {model_option})"
+        f"/v1/chat/completions (host {bound_host}, model {model_option}, "
+        f"{len(cloud_refused_repositories)} repositories refused cloud review)"
     )
     asyncio.run(handler.handle(request))
