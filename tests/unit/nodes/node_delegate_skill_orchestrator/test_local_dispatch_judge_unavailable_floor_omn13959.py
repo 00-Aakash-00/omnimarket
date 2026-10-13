@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""Local deterministic-floor acceptance and required-bar authority."""
+"""Local deterministic acceptance respects required-bar authority (OMN-21077)."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ from omnimarket.routing.delegation_backend_resolution import (
 # A good-but-mechanically-incomplete code answer: clears the code_generation
 # deterministic floor (compiles / single artifact / non-empty) but carries none of
 # the convention/regression heuristic markers, so the deterministic-only graded
-# score is ~0.733 and fails the 0.85 bar WITHOUT the judge.
+# score is ~0.733 and fails the declared 0.85 bar.
 _GOOD_CODE = "### ANSWER\ndef add(a: int, b: int) -> int:\n    return a + b"
 
 _LOCAL_BACKEND = ModelResolvedDelegationBackend(
@@ -52,7 +52,7 @@ def _no_escalation(monkeypatch: pytest.MonkeyPatch) -> None:
     Isolates the acceptance decision from the escalation loop: initial resolution
     returns the local backend, ``next_eligible_tier`` always returns None, and
     ``max_escalations`` is 0 — so a NON-accepted result terminates FAILED at the
-    local tier instead of walking the ladder (which is what the bug did).
+    local tier instead of walking the ladder.
     """
     monkeypatch.setattr(
         port_mod, "resolve_delegation_backend", lambda *_a, **_k: _LOCAL_BACKEND
@@ -104,14 +104,14 @@ def _dispatch(
 
 
 # ---------------------------------------------------------------------------
-# End-to-end local dispatch: judge unavailable -> accept on deterministic floor
+# End-to-end local dispatch: deterministic acceptance below the bar is refused
 # ---------------------------------------------------------------------------
 
 
-def test_valid_local_artifact_accepted_on_deterministic_floor(
+def test_valid_local_artifact_below_required_bar_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A valid local artifact completes on its deterministic floor without escalation."""
+    """A valid local artifact below the declared bar fails without escalation."""
     _no_escalation(monkeypatch)
     port = LocalDelegationDispatchPort(
         effect_handler=_effect_returning(_GOOD_CODE),
@@ -120,10 +120,10 @@ def test_valid_local_artifact_accepted_on_deterministic_floor(
     )
     result = _dispatch(port, task_type="code_generation")
 
-    assert result["status"] == "completed"
-    assert result["quality_gate_passed"] is True
+    assert result["status"] == "failed"
+    assert result["quality_gate_passed"] is False
     assert result["escalation_count"] == 0
-    # Acceptance comes from the declared deterministic floor.
+    # Clearing the deterministic floor does not exempt the score from the bar.
     assert float(result["quality_score"]) < 0.85
 
 
@@ -165,15 +165,15 @@ class TestIsQualityAcceptedJudgeUnavailable:
     def _port(self) -> LocalDelegationDispatchPort:
         return LocalDelegationDispatchPort.__new__(LocalDelegationDispatchPort)
 
-    def test_judge_unavailable_floor_accepts_below_bar(self) -> None:
-        """deterministic_acceptance + passed below the bar -> accepted (floor)."""
+    def test_deterministic_acceptance_below_bar_rejected(self) -> None:
+        """deterministic_acceptance + passed below the bar -> rejected."""
         r = _gate_result(
             passed=True,
             score=0.733,
             score_source=SCORE_SOURCE_DETERMINISTIC_ACCEPTANCE,
             fail_category="pass",
         )
-        assert self._port()._is_quality_accepted("code_generation", r) is True
+        assert self._port()._is_quality_accepted("code_generation", r) is False
 
     def test_judge_combined_below_bar_rejected(self) -> None:
         """combined + score below the bar -> rejected (bar preserved)."""

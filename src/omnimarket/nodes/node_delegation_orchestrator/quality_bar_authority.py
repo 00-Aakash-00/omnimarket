@@ -8,6 +8,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+from omnimarket.models.delegation.wire.model_quality_gate import ModelQualityGateResult
 from omnimarket.nodes.node_delegation_routing_reducer.handlers.handler_delegation_routing import (
     _get_task_class_contract,
     _task_class_entry,
@@ -27,6 +28,18 @@ class RequiredBarAuthority:
     score_source: str
     request_override_applied: bool = False
     override_within_bounds: bool = True
+
+
+def meets_required_bar(result: ModelQualityGateResult, required_bar: float) -> bool:
+    """Apply the one acceptance verdict for the bus orchestrator and bus-less port.
+
+    Deterministic acceptance gets no exemption from the bar (OMN-21077).
+    """
+    return (
+        result.fail_category != "fail_deterministic"
+        and result.passed
+        and result.quality_score >= required_bar
+    )
 
 
 def resolve_required_bar_authority(
@@ -174,5 +187,6 @@ def _bar_value(raw: Any, field_name: str) -> float:
 __all__ = [
     "RequiredBarAuthority",
     "RequiredBarAuthorityError",
+    "meets_required_bar",
     "resolve_required_bar_authority",
 ]

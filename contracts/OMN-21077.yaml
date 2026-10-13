@@ -1,0 +1,58 @@
+schema_version: "1.0.0"
+ticket_id: "OMN-21077"
+title: "A verifiable class's declared required_bar applies to deterministic acceptance on both delegation paths"
+summary: >-
+  The local port and the bus orchestrator accepted a gate result carrying
+  score_source=deterministic_acceptance before reading the class required_bar,
+  so a pass stub scoring 0.733 was accepted for code_generation and refactor
+  against a 0.85 bar. Both paths now decide with one shared predicate,
+  meets_required_bar in quality_bar_authority.py, and the bar applies to every
+  score source.
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: "req-bar-applies-to-deterministic-acceptance"
+    statement: |-
+      An accepted delegation decision has a quality_score at or above its task class's declared required_bar on the local and the bus path, and both paths give the same verdict on the same gate result.
+    acceptance:
+      - id: "AC1"
+        statement: |-
+          AC1: an accepted decision always has a quality_score at or above its class bar on both paths -- falsifier: a test submitting a pass stub for code_generation and refactor through the local and the bus path asserts both refuse it
+      - id: "AC2"
+        statement: |-
+          AC2: the bus and local paths give the same verdict on the same gate result -- falsifier: a parity test running one fixed gate result through both paths asserts equal verdicts
+evidence_requirements:
+  - kind: "tests"
+    description: "The pass-stub refusal on both paths and the verdict parity cases pass."
+    command: "uv run pytest tests/unit/delegation/test_required_bar_applies_to_deterministic_acceptance_omn21077.py -q -p no:randomly --no-cov -n 0"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn21077-ac1-pass-stub-refused"
+    description: "A pass stub for code_generation and refactor is refused through the real local dispatch and the real bus handler, with the gate's own deterministic_acceptance score below the class bar."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_required_bar_applies_to_deterministic_acceptance_omn21077.py -q -p no:randomly --no-cov -n 0 -k refuses_pass_stub"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]
+  - id: "dod-omn21077-ac2-verdict-parity"
+    description: "Six fixed gate results run through the local _is_quality_accepted and the bus handle_gate_result give equal verdicts, each equal to passed, not fail_deterministic and score at or above the bar."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_required_bar_applies_to_deterministic_acceptance_omn21077.py -q -p no:randomly --no-cov -n 0 -k same_verdict"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC2"]
+  - id: "dod-omn21077-deploy-probe"
+    description: "Deploy smoke on the runtime after the deploy agent rolls this change - from the running container, the shared predicate exists and refuses a passed deterministic_acceptance gate result at 0.733 against the code_generation bar. The command exits nonzero on the merge-base image, which has no meets_required_bar. It reads deployed code, not this contract or a receipt. Hosted CI has no runtime; the local Done gate must execute this unbound deployment check."
+    source: "manual"
+    execution_scope: "local_done_gate"
+    checks:
+      - check_type: "command"
+        check_value: |-
+          bash -c 'docker exec "${RUNTIME_CONTAINER:-omninode-runtime}" python -c "from uuid import uuid4; from omnimarket.models.delegation.wire.model_quality_gate import ModelQualityGateResult as R; from omnimarket.nodes.node_delegation_orchestrator.quality_bar_authority import meets_required_bar as m, resolve_required_bar_authority as a; r = R(correlation_id=uuid4(), passed=True, fail_category=\"pass\", quality_score=0.733, score_source=\"deterministic_acceptance\"); assert not m(r, a(task_type=\"code_generation\").required_bar)"'
+        cwd: "${OMNI_HOME}/omnimarket"

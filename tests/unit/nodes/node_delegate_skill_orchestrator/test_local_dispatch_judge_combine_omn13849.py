@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""Local acceptance and projection use the deterministic floor (OMN-20164)."""
+"""Local deterministic acceptance and projection respect the bar (OMN-21077)."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from omnimarket.routing.delegation_backend_resolution import (
 # A good-but-mechanically-incomplete code answer: it clears the code_generation
 # deterministic floor (compiles / single artifact / non-empty) but carries none of
 # the convention/regression heuristic markers, so the deterministic-only graded
-# score is ~0.733 and fails the 0.85 bar WITHOUT the judge.
+# score is ~0.733 and fails the declared 0.85 bar.
 _GOOD_CODE = "### ANSWER\ndef add(a: int, b: int) -> int:\n    return a + b"
 
 _LOCAL_BACKEND = ModelResolvedDelegationBackend(
@@ -99,10 +99,10 @@ def _dispatch(
     )
 
 
-def test_code_answer_accepted_on_deterministic_floor(
+def test_code_answer_below_required_bar_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The declared deterministic floor accepts and projects a valid artifact."""
+    """A valid artifact below the declared bar is rejected and projected."""
     _no_escalation(monkeypatch)
     port = LocalDelegationDispatchPort(
         effect_handler=_code_effect,
@@ -110,8 +110,8 @@ def test_code_answer_accepted_on_deterministic_floor(
         effect_process_boundary=False,
     )
     result = _dispatch(port, task_type="code_generation")
-    assert result["status"] == "completed"
-    assert result["quality_gate_passed"] is True
+    assert result["status"] == "failed"
+    assert result["quality_gate_passed"] is False
     assert float(result["quality_score"]) < 0.85
 
 
