@@ -338,6 +338,23 @@ def test_signature_missing_or_wrong_is_refused_before_any_key_is_read(
     assert call.calls == []
 
 
+def test_signature_of_one_payload_does_not_cover_a_changed_payload() -> None:
+    gateway, values, call = _gateway([_row("key-a")], [_ok()])
+    tampered = {**_PAYLOAD, "model": "another-model"}
+    status, reply = asyncio.run(
+        serve_chat_call(
+            gateway,
+            body=_wire(tampered),
+            signature=_signed(_PAYLOAD)[SIGNATURE_HEADER],
+            secret=_SECRET,
+        )
+    )
+    assert status == 401
+    assert reply["error"]["type"] == "gateway_signature"
+    assert values.reads == []
+    assert call.calls == []
+
+
 @pytest.mark.parametrize("body", [b"not json", b"[1, 2]"])
 def test_signature_check_refuses_a_body_that_is_not_a_json_object(body: bytes) -> None:
     gateway, values, call = _gateway([_row("key-a")], [_ok()])

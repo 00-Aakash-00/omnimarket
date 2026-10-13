@@ -260,7 +260,15 @@ def describe_call(request: ModelLlmDelegationCallRequest) -> dict[str, Any]:
 def signature_is_valid(
     payload: Mapping[str, Any], signature: str | None, secret: str
 ) -> bool:
-    """The transport's signature: HMAC-SHA256 over canonical JSON (sorted, compact)."""
+    """The transport's signature: HMAC-SHA256 over canonical JSON (sorted, compact).
+
+    The canonical form is the one the sender computes: the LLM HTTP transport
+    signs ``json.dumps(payload, sort_keys=True, separators=(",", ":"))`` before it
+    posts, so a verifier over the raw wire bytes would refuse every real call.
+    The signature carries no timestamp or nonce, the transport's documented limit
+    on a private LAN segment; replay is bounded by the host-bound key set, not by
+    this check.
+    """
     if not signature or not secret:
         return False
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
