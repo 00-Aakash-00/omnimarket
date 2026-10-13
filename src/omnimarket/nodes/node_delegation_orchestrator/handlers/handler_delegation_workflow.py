@@ -205,8 +205,9 @@ from omnimarket.nodes.node_delegation_orchestrator.models.model_stale_inference_
 from omnimarket.nodes.node_delegation_orchestrator.quality_bar_authority import (
     RequiredBarAuthority,
     RequiredBarAuthorityError,
-    meets_required_bar,
+    is_quality_accepted,
     resolve_required_bar_authority,
+    with_executed_check_verdict,
 )
 from omnimarket.nodes.node_delegation_quality_gate_reducer.models.model_quality_gate_input import (
     ModelQualityGateInput,
@@ -3641,15 +3642,31 @@ class HandlerDelegationWorkflow:
             self._advance(workflow, EnumDelegationState.FAILED)
             return self._emit_terminal(terminal_inputs)
 
+        # OMN-21077: a code answer the gate passed with no executed test run is
+        # refused here exactly as the gate refuses it, before anything decides.
+        result = with_executed_check_verdict(
+            result,
+            required_bar_authority,
+            declared_deterministic=workflow.routing_decision.dod_deterministic,
+        )
+        workflow.gate_result = result
         actual_score = result.quality_score
-        score_below_required_bar = actual_score < required_bar_authority.required_bar
+        # OMN-21077: a code class is accepted on its executed checks, so its bar
+        # is reported and never compared; every other class keeps its bar.
+        bar_decides = not required_bar_authority.acceptance_by_executed_tests
+        score_below_required_bar = (
+            bar_decides and actual_score < required_bar_authority.required_bar
+        )
         pre_filter_rejected = result.fail_category == "fail_deterministic"
-        # OMN-21077: the shared predicate applies the declared bar to every score
-        # source, deterministic acceptance included.
+        # OMN-21077: the predicate the bus-less port shares. A code class needs
+        # every deterministic check passed and its tests run and passed; any
+        # other class needs its declared bar, deterministic acceptance included.
         # OMN-13409: honour result.passed so heuristic refusals remain rejected
         # even when their score meets the bar.
-        quality_accepted = meets_required_bar(
-            result, required_bar_authority.required_bar
+        quality_accepted = is_quality_accepted(
+            result,
+            required_bar_authority,
+            declared_deterministic=workflow.routing_decision.dod_deterministic,
         )
         # OMN-16932: the same booleans, as a typed decision + reason that is
         # recorded rather than inferred. Derived here so the ACCEPT and CLIMB
@@ -3690,7 +3707,9 @@ class HandlerDelegationWorkflow:
         no_rung_can_satisfy = result.no_rung_can_satisfy or repeated_deterministic_floor
         acceptance_decision, acceptance_reason = self._acceptance_decision(
             pre_filter_rejected=pre_filter_rejected,
-            gate_passed=result.passed,
+            # OMN-21077: for a code class the acceptance criteria are the
+            # executed checks, so a gate pass with no test evidence is not met.
+            gate_passed=result.passed if bar_decides else quality_accepted,
             score_below_required_bar=score_below_required_bar,
             no_rung_can_satisfy=no_rung_can_satisfy,
         )
@@ -3751,6 +3770,13 @@ class HandlerDelegationWorkflow:
                 failure_reason="",
                 terminal_failure_reason=None,
                 required_bar_authority=required_bar_authority,
+                # OMN-21077: a code answer accepted on its tests below the
+                # advisory bar carries no bar, because a completed terminal may
+                # not state a passed result below its bar. The comparison
+                # decided nothing, so it is omitted as one typed pair.
+                required_bar_applied=(
+                    bar_decides or actual_score >= required_bar_authority.required_bar
+                ),
             )
 
             self._advance(workflow, EnumDelegationState.COMPLETED)
@@ -4497,11 +4523,14 @@ class HandlerDelegationWorkflow:
         rejection is reported first because it short-circuits the other two.
         """
         score_below_bar = result.quality_score < required_bar_authority.required_bar
+        # OMN-21077: a code class's bar decides nothing, so a low score is never
+        # the label; the comparison token below still states the fact.
+        bar_decides = not required_bar_authority.acceptance_by_executed_tests
         if result.fail_category == "rubric_failed":
             prefix = "rubric_failed"
         elif pre_filter_rejected:
             prefix = "pre_filter_rejected"
-        elif score_below_bar:
+        elif score_below_bar and bar_decides:
             prefix = "score_below_required_bar"
         else:
             # Score cleared the bar; the gate rejected on an acceptance
@@ -4517,6 +4546,7 @@ class HandlerDelegationWorkflow:
             # in prose so harmless gate diagnostics survive that redactor.
             f"bar_source={required_bar_authority.authority_source} "
             f"score_source={required_bar_authority.score_source}"
+            + ("" if bar_decides else " acceptance=executed_tests")
         )
         # OMN-18295. When the score CLEARED the bar and the run failed anyway,
         # the reader's first question is "then what decided?" -- and the answer

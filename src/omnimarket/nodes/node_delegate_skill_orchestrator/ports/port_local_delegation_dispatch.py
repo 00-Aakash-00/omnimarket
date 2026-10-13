@@ -134,7 +134,10 @@ from omnimarket.inference.provider_quota_state import (
     quota_domain_for_endpoint,
     read_provider_quota_snapshot,
 )
-from omnimarket.inference.task_class_authority import withheld_delegation_refusal
+from omnimarket.inference.task_class_authority import (
+    resolve_task_class_execution_required,
+    withheld_delegation_refusal,
+)
 from omnimarket.local_deployment.tenant_identity import (
     ensure_install_identity_mirrored,
     resolve_or_mint_local_deployment_tenant_id,
@@ -159,6 +162,12 @@ from omnimarket.models.delegation.local_credential_refusal import (
 )
 from omnimarket.models.delegation.model_earlier_model_attempt import (
     ModelEarlierModelAttempt,
+)
+from omnimarket.models.delegation.wire.model_named_test_run import ModelNamedTestRun
+from omnimarket.models.delegation.wire.model_named_test_run_request import (
+    ModelNamedTestRunRequest,
+    ModelNamedTestRunResult,
+    ModelNamedTestSpec,
 )
 from omnimarket.models.delegation.wire.model_quality_gate import (
     ModelQualityGateResult,
@@ -189,8 +198,9 @@ from omnimarket.nodes.node_delegate_skill_orchestrator.run_step_recorder import 
 # AND not a deterministic-floor rejection — resolved from the task-class contract.
 from omnimarket.nodes.node_delegation_orchestrator.quality_bar_authority import (
     RequiredBarAuthorityError,
-    meets_required_bar,
+    is_quality_accepted,
     resolve_required_bar_authority,
+    with_executed_check_verdict,
 )
 
 # OMN-13849: the SAME required-bar authority the bus orchestrator applies
@@ -227,9 +237,6 @@ from omnimarket.nodes.node_delegation_routing_reducer.handlers.handler_delegatio
     tier_for_backend,
     tier_max_retries,
 )
-
-# Import the canonical effect via its public package surface (not its internal
-# models package) so this composition stays on the node boundary (OMN-13160).
 from omnimarket.nodes.node_llm_delegation_call_effect import (
     HandlerLlmDelegationCall,
     ModelLlmDelegationCallObservation,
@@ -237,6 +244,10 @@ from omnimarket.nodes.node_llm_delegation_call_effect import (
     ModelLlmDelegationCallResult,
     current_call_observer,
 )
+
+# Import the canonical effect via its public package surface (not its internal
+# models package) so this composition stays on the node boundary (OMN-13160).
+from omnimarket.nodes.node_named_test_run_effect import HandlerNamedTestRunEffect
 from omnimarket.nodes.node_projection_delegation.handlers.handler_projection_delegation import (
     HandlerProjectionDelegation,
 )
@@ -378,6 +389,30 @@ def _declared_required_bar(task_type: str) -> float | None:
         return resolve_required_bar_authority(task_type=task_type).required_bar
     except RequiredBarAuthorityError:
         return None
+
+
+def _with_executed_check_verdict(
+    task_type: str,
+    gate_result: ModelQualityGateResult,
+    declared_deterministic: tuple[str, ...],
+) -> ModelQualityGateResult:
+    """Refuse an untested code pass as the bus path does (OMN-21077)."""
+    try:
+        authority = resolve_required_bar_authority(task_type=task_type)
+    except RequiredBarAuthorityError:
+        return gate_result
+    return with_executed_check_verdict(
+        gate_result, authority, declared_deterministic=declared_deterministic
+    )
+
+
+def _acceptance_by_executed_tests(task_type: str) -> bool:
+    """Whether ``task_type`` is a code class judged by executed tests (OMN-21077)."""
+    try:
+        authority = resolve_required_bar_authority(task_type=task_type)
+    except RequiredBarAuthorityError:
+        return False
+    return authority.acceptance_by_executed_tests
 
 
 def _named_blocking_vetoes(
@@ -787,6 +822,7 @@ _EFFECT_CHILD_BOOT_SAFETY_FACTOR = 4.0
 # first child reports readiness.
 _observed_child_boot_seconds: float | None = None
 
+type _NamedTestRunner = Callable[[ModelNamedTestRunRequest], ModelNamedTestRunResult]
 type _EffectHandler = Callable[
     [ModelLlmDelegationCallRequest], ModelLlmDelegationCallResult
 ]
@@ -1142,8 +1178,13 @@ class LocalDelegationDispatchPort:
         terminal_publisher: EmitEffectTopicPublisher | None = None,
         metering_refresh_publisher: ProtocolMeteringRefreshPublisher | None = None,
         run_step_publisher: ProtocolRunStepPublisher | None = None,
+        named_test_runner: _NamedTestRunner | None = None,
     ) -> None:
         self._terminal_publisher = terminal_publisher or EmitEffectTopicPublisher()
+        # OMN-21077: runs the tests a code-class request names against each
+        # answer, so the gate judges the code by whether it works. Resolved
+        # lazily: a request that names no tests never constructs it.
+        self._named_test_runner = named_test_runner
         # OMN-19987: where each numbered step of a run is published. By default
         # the same emit effect the terminal uses (spool, then the bus).
         self._run_step_publisher: ProtocolRunStepPublisher = (
@@ -1293,6 +1334,7 @@ class LocalDelegationDispatchPort:
         no_escalation: bool = False,
         attribution: Mapping[str, str] | None = None,
         model: str | None = None,
+        named_tests: ModelNamedTestSpec | None = None,
     ) -> dict[str, object]:
         # OMN-18931: the no-escalation fault route is admitted only by the
         # trusted runtime consumer for a declared dogfood fault backend. The
@@ -1698,6 +1740,8 @@ class LocalDelegationDispatchPort:
                 temperature=temperature,
                 response_format=response_format,
                 run_steps=run_steps,
+                # OMN-21077: every rung's answer is tested, not only the first.
+                named_tests=named_tests,
             )
             _settle_in_flight_attempt(progress, attempt_outcome)
 
@@ -2052,7 +2096,20 @@ class LocalDelegationDispatchPort:
                 response_contract_evidence = response_contract_evidence.model_copy(
                     update={"validated": gate_result.passed}
                 )
-            quality_passed = self._is_quality_accepted(task_type, gate_result)
+            # OMN-21077: judged against the check set the gate was given, which
+            # the prompt's declared response shape can narrow. A code answer the
+            # gate passed with no executed test run is refused as the gate
+            # refuses it, before anything decides.
+            declared_deterministic, _ = resolve_task_class_dod_checks(
+                task_type, prompt=prompt
+            )
+            gate_result = _with_executed_check_verdict(
+                task_type, gate_result, declared_deterministic
+            )
+            quality_passed = self._is_quality_accepted(
+                task_type, gate_result, declared_deterministic=declared_deterministic
+            )
+            bar_decides = not _acceptance_by_executed_tests(task_type)
             # OMN-16932: the accept/climb verdict, typed, on the bus-less path
             # too — so `onex delegate` and the bus terminal describe a
             # stop-or-climb the same way instead of one of them leaving the
@@ -2067,12 +2124,17 @@ class LocalDelegationDispatchPort:
             ) = derive_attempt_acceptance(
                 quality_passed=quality_passed,
                 pre_filter_rejected=gate_result.fail_category == "fail_deterministic",
-                gate_passed=gate_result.passed,
+                # OMN-21077: a code class's acceptance criteria are its executed
+                # checks, so a gate pass without test evidence is not met.
+                gate_passed=gate_result.passed if bar_decides else quality_passed,
                 quality_score=gate_result.quality_score,
                 required_bar=_declared_required_bar(task_type),
                 rule_evaluations=gate_result.rule_evaluations,
                 no_rung_can_satisfy=gate_result.no_rung_can_satisfy,
             )
+            if not bar_decides:
+                # OMN-21077: the score comparison above is reported, not applied.
+                acceptance_detail = f"{acceptance_detail} acceptance=executed_tests"
             if gate_result.fail_category == "rubric_failed":
                 acceptance_reason = EnumDelegationAcceptanceReason.RUBRIC_FAILED
                 acceptance_detail = "; ".join(gate_result.failure_reasons)
@@ -2549,7 +2611,11 @@ class LocalDelegationDispatchPort:
             backend = _with_model_choice(next_backend)
 
     def _is_quality_accepted(
-        self, task_type: str, gate_result: ModelQualityGateResult
+        self,
+        task_type: str,
+        gate_result: ModelQualityGateResult,
+        *,
+        declared_deterministic: tuple[str, ...] | None = None,
     ) -> bool:
         """Apply the task-class required-bar authority, mirroring the bus path.
 
@@ -2567,9 +2633,11 @@ class LocalDelegationDispatchPort:
         ``passed`` is the authority — preserving the pre-OMN-13849 behavior for
         classes without a declared bar.
 
-        Verifiable task classes use ``score_source=deterministic_acceptance``
-        when their declared deterministic floor passes. The declared bar applies
-        to these results too (OMN-21077), via the same predicate the bus path calls.
+        OMN-21077: a code class (``execution_required: true``) is not decided by
+        the bar at all. It is accepted when every deterministic check passed and
+        its declared ``passes_existing_tests`` ran and passed, through the same
+        predicate the bus path calls. ``declared_deterministic`` is the check set
+        the gate was given; ``None`` resolves the class's own set.
         """
         try:
             authority = resolve_required_bar_authority(task_type=task_type)
@@ -2578,7 +2646,11 @@ class LocalDelegationDispatchPort:
             return (
                 gate_result.fail_category != "fail_deterministic" and gate_result.passed
             )
-        return meets_required_bar(gate_result, authority.required_bar)
+        if declared_deterministic is None:
+            declared_deterministic, _ = resolve_task_class_dod_checks(task_type)
+        return is_quality_accepted(
+            gate_result, authority, declared_deterministic=declared_deterministic
+        )
 
     def _withheld_credential_rung(
         self,
@@ -2972,6 +3044,7 @@ class LocalDelegationDispatchPort:
         temperature: float | None = None,
         response_format: dict[str, object] | None = None,
         run_steps: RunStepRecorder | None = None,
+        named_tests: ModelNamedTestSpec | None = None,
     ) -> _AttemptOutcome:
         """Run one resolve->effect->gate attempt for ``backend``.
 
@@ -3370,6 +3443,17 @@ class LocalDelegationDispatchPort:
         else:
             result = result.model_copy(update={"content": extraction.deliverable})
 
+        # OMN-21077: a code class's answer is judged by the tests the request
+        #    names, run against the deliverable the caller receives. No named
+        #    tests leaves the run None, and the gate refuses the answer as
+        #    INSUFFICIENT.
+        named_test_run = await self._run_named_tests(
+            task_type=task_type,
+            named_tests=named_tests,
+            deliverable=result.content or "",
+            correlation_id=correlation_id,
+        )
+
         # 4. CANONICAL QUALITY GATE (OMN-13597) — run the SAME reducer the bus
         #    path runs. HTTP/transport success is NOT a quality verdict: a model
         #    refusal or empty answer returns success here but must NOT be recorded
@@ -3415,6 +3499,7 @@ class LocalDelegationDispatchPort:
                 # non-heuristic way to tell the two apart.
                 finish_reason=result.finish_reason,
                 reasoning_stripped_chars=result.reasoning_stripped_chars,
+                named_test_run=named_test_run,
             )
         from omnimarket.delegation.deliverable_extraction import (
             gate_result_with_output_refusal,
@@ -3506,6 +3591,7 @@ class LocalDelegationDispatchPort:
         finish_reason: EnumProviderFinishReason = EnumProviderFinishReason.ABSENT,
         reasoning_stripped_chars: int = 0,
         grounding_source: str | None = None,
+        named_test_run: ModelNamedTestRun | None = None,
     ) -> ModelQualityGateResult:
         """Run the canonical deterministic quality-gate reducer.
 
@@ -3570,7 +3656,40 @@ class LocalDelegationDispatchPort:
             else prompt,
             finish_reason=finish_reason,
             reasoning_stripped_chars=reasoning_stripped_chars,
+            named_test_run=named_test_run,
         )
+
+    async def _run_named_tests(
+        self,
+        *,
+        task_type: str,
+        named_tests: ModelNamedTestSpec | None,
+        deliverable: str,
+        correlation_id: UUID,
+    ) -> ModelNamedTestRun | None:
+        """Run the request's named tests against a code-class answer (OMN-21077).
+
+        ``None`` when the class is not a code class, no tests were named, the
+        answer is empty, or the run was refused; the gate then treats the code
+        answer as untested and refuses it.
+        """
+        if named_tests is None or not resolve_task_class_execution_required(task_type):
+            return None
+        if not deliverable.strip():
+            return None
+        if self._named_test_runner is None:
+            self._named_test_runner = HandlerNamedTestRunEffect().handle
+        outcome = await asyncio.to_thread(
+            self._named_test_runner,
+            ModelNamedTestRunRequest(spec=named_tests, answer_content=deliverable),
+        )
+        logger.info(
+            "LocalDelegationDispatch: named test run status=%s correlation=%s %s",
+            outcome.status.value,
+            correlation_id,
+            outcome.detail.splitlines()[0] if outcome.detail else "",
+        )
+        return outcome.run
 
     def _project_evidence(
         self,

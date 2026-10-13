@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+# ONEX Node Contract - Named Test Run Effect (OMN-21077)
+#
+# A code answer is judged by whether it works. The delegation quality gate is a
+# pure reducer and runs nothing; this effect runs the tests a delegation names
+# against its answer and returns the ModelNamedTestRun the gate's
+# passes_existing_tests check reads.
+#
+# WHO HOSTS THIS NODE. Whoever holds the workspace: the bus-less delegation
+# port (node_delegate_skill_orchestrator's LocalDelegationDispatchPort) calls
+# the handler in process on the caller's host. A shared runtime has no access to
+# a caller's workspace, so this contract declares runtime_dispatch and NO
+# event_bus block, the same shape as node_focused_test_run_effect: the runtime
+# auto-wiring attaches only contracts that declare both handler_routing and
+# event_bus, so no shared runtime subscribes to the command topic.
+name: "node_named_test_run_effect"
+lifecycle: experimental
+node_type: "EFFECT_GENERIC"
+runtime_profiles: [effects]
+contract_version:
+  major: 0
+  minor: 1
+  patch: 0
+node_version: "0.1.0"
+description: >
+  Copies a workspace into a temporary directory, writes a delegated answer's
+  code to the named file in the copy, runs each named pytest node id against
+  it, removes the copy, and returns the named-test run: which tests ran, which
+  failed, and the first failing exit code. A workspace that cannot be used is
+  refused with no run.
+input_model:
+  name: "ModelNamedTestRunRequest"
+  module: "omnimarket.models.delegation.wire.model_named_test_run_request"
+  description: "The named tests, the workspace, the answer path, the answer, the per-test timeout."
+output_model:
+  name: "ModelNamedTestRunResult"
+  module: "omnimarket.models.delegation.wire.model_named_test_run_request"
+  description: "completed with the named-test run, or refused with no run and the reason."
+handler:
+  module: "omnimarket.nodes.node_named_test_run_effect.handlers.handler_named_test_run_effect"
+  class: "HandlerNamedTestRunEffect"
+  input_model: "omnimarket.models.delegation.wire.model_named_test_run_request.ModelNamedTestRunRequest"
+handler_routing:
+  routing_strategy: "operation_match"
+  default_handler: "omnimarket.nodes.node_named_test_run_effect.handlers.handler_named_test_run_effect:HandlerNamedTestRunEffect"
+  handlers:
+    - operation: "run_named_tests"
+      handler:
+        name: "HandlerNamedTestRunEffect"
+        module: "omnimarket.nodes.node_named_test_run_effect.handlers.handler_named_test_run_effect"
+descriptor:
+  node_archetype: effect
+  purity: effectful
+  idempotent: true
+  timeout_ms: 1800000
+runtime_dispatch:
+  command_topic: "onex.cmd.omnimarket.named-test-run-requested.v1"
+  terminal_events:
+    success: "onex.evt.omnimarket.named-test-run-completed.v1"
+    failure: "onex.evt.omnimarket.named-test-run-failed.v1"
+# The repository's default test command: this process's interpreter followed by
+# these arguments and one named pytest node id. Each named test runs on its own.
+named_test_run:
+  test_args: ["-m", "pytest", "-q", "-p", "no:cacheprovider", "--no-header"]
+  max_workspace_files: 20000
+  max_workspace_bytes: 268435456
+  excluded_names:
+    - ".git"
+    - ".venv"
+    - "venv"
+    - "node_modules"
+    - "__pycache__"
+    - ".mypy_cache"
+    - ".pytest_cache"
+    - ".ruff_cache"
+    - ".onex_state"
+metadata:
+  transport_type: kafka
+  description: "Named test run effect, run in process where the delegation workspace is"
+  author: "OmniNode Team"
+  created: "2026-10-13"
+  tags:
+    - "effect"
+    - "named-test-run"
+    - "delegation"
+    - "OMN-21077"
+  related_tickets:
+    - "OMN-21077"
+    - "OMN-21076"

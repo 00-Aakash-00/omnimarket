@@ -1,0 +1,22 @@
+name: node_named_test_run_effect
+version: "0.1.0"
+description: "Effect: runs the pytest node ids a delegation names against its answer, written into a temporary copy of the caller's workspace, and returns the named-test run the quality gate's passes_existing_tests check reads. Runs where the workspace is: the in-process delegation port on the caller's host, never a shared runtime."
+pack: pipeline
+node_role: effect
+display_name: "Named Test Run Effect"
+omnibase_core_compat: ">=0.39.0,<1.0.0"
+entry_points:
+  onex.nodes:
+    node_named_test_run_effect: "omnimarket.nodes.node_named_test_run_effect"
+capabilities:
+  standalone: true
+  full_runtime: false
+  requires_network: false
+  requires_repo: false
+  requires_secrets: false
+  requires_docker: false
+  side_effect_class: write
+dependencies: []
+authors: ["OmniNode Platform Team"]
+license: "MIT"
+tags: ["effect", "named-test-run", "delegation", "quality-gate"]

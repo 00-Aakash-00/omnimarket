@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""Local deterministic acceptance respects required-bar authority (OMN-21077)."""
+"""Local acceptance of a code answer is decided by executed tests (OMN-21077)."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from omnimarket.models.delegation.wire.model_quality_gate import (
     SCORE_SOURCE_COMBINED,
     SCORE_SOURCE_DETERMINISTIC_ACCEPTANCE,
     ModelQualityGateResult,
+    ModelQualityRuleEvaluation,
 )
 from omnimarket.nodes.node_delegate_skill_orchestrator.ports import (
     port_local_delegation_dispatch as port_mod,
@@ -33,7 +34,8 @@ from omnimarket.routing.delegation_backend_resolution import (
 # A good-but-mechanically-incomplete code answer: clears the code_generation
 # deterministic floor (compiles / single artifact / non-empty) but carries none of
 # the convention/regression heuristic markers, so the deterministic-only graded
-# score is ~0.733 and fails the declared 0.85 bar.
+# score is ~0.733. The score decides nothing for a code class: with no named
+# test run the answer is refused as untested (OMN-21077).
 _GOOD_CODE = "### ANSWER\ndef add(a: int, b: int) -> int:\n    return a + b"
 
 _LOCAL_BACKEND = ModelResolvedDelegationBackend(
@@ -104,14 +106,14 @@ def _dispatch(
 
 
 # ---------------------------------------------------------------------------
-# End-to-end local dispatch: deterministic acceptance below the bar is refused
+# End-to-end local dispatch: an untested code answer is refused
 # ---------------------------------------------------------------------------
 
 
-def test_valid_local_artifact_below_required_bar_refused(
+def test_valid_local_artifact_with_no_named_tests_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A valid local artifact below the declared bar fails without escalation."""
+    """A valid local artifact no test ran against fails without escalation."""
     _no_escalation(monkeypatch)
     port = LocalDelegationDispatchPort(
         effect_handler=_effect_returning(_GOOD_CODE),
@@ -123,8 +125,6 @@ def test_valid_local_artifact_below_required_bar_refused(
     assert result["status"] == "failed"
     assert result["quality_gate_passed"] is False
     assert result["escalation_count"] == 0
-    # Clearing the deterministic floor does not exempt the score from the bar.
-    assert float(result["quality_score"]) < 0.85
 
 
 def test_deterministic_floor_still_rejects_empty_artifact(
@@ -149,7 +149,12 @@ def test_deterministic_floor_still_rejects_empty_artifact(
 
 
 def _gate_result(
-    *, passed: bool, score: float, score_source: str, fail_category: str
+    *,
+    passed: bool,
+    score: float,
+    score_source: str,
+    fail_category: str,
+    tests_passed: bool | None = None,
 ) -> ModelQualityGateResult:
     return ModelQualityGateResult(
         correlation_id=uuid4(),
@@ -157,16 +162,27 @@ def _gate_result(
         fail_category=fail_category,  # type: ignore[arg-type]
         quality_score=score,
         score_source=score_source,
+        rule_evaluations=(
+            ()
+            if tests_passed is None
+            else (
+                ModelQualityRuleEvaluation(
+                    rule="passes_existing_tests",
+                    enforcement="blocking",
+                    passed=tests_passed,
+                ),
+            )
+        ),
     )
 
 
 @pytest.mark.unit
-class TestIsQualityAcceptedJudgeUnavailable:
+class TestIsQualityAcceptedCodeClass:
     def _port(self) -> LocalDelegationDispatchPort:
         return LocalDelegationDispatchPort.__new__(LocalDelegationDispatchPort)
 
-    def test_deterministic_acceptance_below_bar_rejected(self) -> None:
-        """deterministic_acceptance + passed below the bar -> rejected."""
+    def test_deterministic_acceptance_without_tests_rejected(self) -> None:
+        """deterministic_acceptance + passed with no test run -> rejected."""
         r = _gate_result(
             passed=True,
             score=0.733,
@@ -175,8 +191,8 @@ class TestIsQualityAcceptedJudgeUnavailable:
         )
         assert self._port()._is_quality_accepted("code_generation", r) is False
 
-    def test_judge_combined_below_bar_rejected(self) -> None:
-        """combined + score below the bar -> rejected (bar preserved)."""
+    def test_judge_combined_below_bar_without_tests_rejected(self) -> None:
+        """combined + score below the bar, no test run -> rejected."""
         r = _gate_result(
             passed=True,
             score=0.64,
@@ -185,13 +201,27 @@ class TestIsQualityAcceptedJudgeUnavailable:
         )
         assert self._port()._is_quality_accepted("code_generation", r) is False
 
-    def test_judge_combined_above_bar_accepted(self) -> None:
-        """combined + score at/above the bar -> accepted."""
+    def test_judge_combined_above_bar_without_tests_rejected(self) -> None:
+        """combined + score at/above the bar, no test run -> rejected.
+
+        OMN-21077: a score cannot accept a code answer; only its tests can.
+        """
         r = _gate_result(
             passed=True,
             score=0.98,
             score_source=SCORE_SOURCE_COMBINED,
             fail_category="pass",
+        )
+        assert self._port()._is_quality_accepted("code_generation", r) is False
+
+    def test_tests_passed_below_bar_accepted(self) -> None:
+        """Executed tests passed -> accepted, whatever the advisory score."""
+        r = _gate_result(
+            passed=True,
+            score=0.64,
+            score_source=SCORE_SOURCE_DETERMINISTIC_ACCEPTANCE,
+            fail_category="pass",
+            tests_passed=True,
         )
         assert self._port()._is_quality_accepted("code_generation", r) is True
 
