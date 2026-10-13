@@ -58,3 +58,10 @@ dod_evidence:
     cwd: ${OMNI_HOME}/omnimarket
   binds_ac:
   - AC3
+- id: dod-omn-13967-label-reply
+  description: A classification prompt that asks for only the label declares a short answer, so a correct one-token label passes short_form_adequacy, while a one-token reply to a prose request that merely mentions a label is still refused.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/unit/delegation/test_omn13967_label_reply_declares_short_answer.py -q
+    cwd: ${OMNI_HOME}/omnimarket
