@@ -632,6 +632,17 @@ class TestSuffixedEvidenceIds:
             files=files, ticket_id="OMN-20885", repo=_OMNICLAUDE, pr_number=2655
         )
 
+    def test_an_oversized_evidence_id_is_unreadable_and_keeps_the_defer(self) -> None:
+        """An id longer than any receipt directory name is never parsed: the
+        slug match backtracks quadratically on an adversarial id, so the id is
+        read as unreadable (fail toward deferring) instead."""
+        evidence_id = "dod-omniclaude" + "-pr-1" * 60 + "-pr-2656-" + "a" * 20
+        assert len(evidence_id) > 255
+        files = _ticket_contract_patch("OMN-20885", evidence_id)
+        assert companion_may_cover_pr(
+            files=files, ticket_id="OMN-20885", repo=_OMNICLAUDE, pr_number=2655
+        )
+
     def test_a_suffixed_id_compares_the_whole_number(self) -> None:
         files = _ticket_contract_patch(
             "OMN-20885", "dod-OmniNode-ai-omniclaude-pr-26550-schema-compat-tests"

@@ -139,6 +139,9 @@ _EVIDENCE_ID_RE = re.compile(
     r"dod-(?P<slug>.+?)-pr-(?P<number>\d+)(?:-[A-Za-z0-9_.]+)*"
 )
 _EVIDENCE_ID_PREFIX = "dod-"
+# No receipt directory name exceeds this, and the lazy slug match backtracks
+# quadratically on a long adversarial id, so a longer id is never parsed.
+_MAX_EVIDENCE_ID_LENGTH = 255
 
 # An evidence id added to a contract file: ``+  - id: "dod-…-pr-<n>"`` in a patch.
 _ADDED_EVIDENCE_ID_RE = re.compile(
@@ -355,7 +358,11 @@ def companion_may_cover_pr(
     for evidence_id in evidence_ids:
         if not evidence_id.startswith(_EVIDENCE_ID_PREFIX):
             continue
-        match = _EVIDENCE_ID_RE.fullmatch(evidence_id)
+        match = (
+            _EVIDENCE_ID_RE.fullmatch(evidence_id)
+            if len(evidence_id) <= _MAX_EVIDENCE_ID_LENGTH
+            else None
+        )
         if match is None:
             return True  # a dod id naming no PR could be this PR's evidence
         named.append((_slug_key(match.group("slug")), int(match.group("number"))))
