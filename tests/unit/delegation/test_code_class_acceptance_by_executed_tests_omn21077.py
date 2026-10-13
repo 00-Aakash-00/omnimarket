@@ -500,6 +500,27 @@ def test_named_test_run_effect_fails_a_test_that_does_not_exist(
     assert result.run.passed is False
 
 
+def test_named_test_run_effect_withholds_the_callers_secrets(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The tests run model-written code, so the caller's environment stays out."""
+    monkeypatch.setenv("OMN21077_PROBE_API_KEY", "not-for-the-model")
+    (workspace / "test_env.py").write_text(
+        "import os\n\n\n"
+        "def test_no_caller_secret() -> None:\n"
+        '    assert "OMN21077_PROBE_API_KEY" not in os.environ\n',
+        encoding="utf-8",
+    )
+    spec = _spec(workspace).model_copy(
+        update={"test_ids": ("test_env.py::test_no_caller_secret",)}
+    )
+    result = HandlerNamedTestRunEffect().handle(
+        ModelNamedTestRunRequest(spec=spec, answer_content=_fenced(CORRECT))
+    )
+    assert result.run is not None
+    assert result.run.passed is True, result.detail
+
+
 def test_named_test_run_effect_refuses_a_missing_workspace(tmp_path: Path) -> None:
     result = HandlerNamedTestRunEffect().handle(
         ModelNamedTestRunRequest(

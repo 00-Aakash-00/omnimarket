@@ -94,11 +94,16 @@ def _declared_excluded_names() -> frozenset[str]:
     return frozenset(names)
 
 
+#: The only caller variables the tests see. The tests execute model-written code,
+#: so the caller's credentials and tokens in its environment are not passed on.
+_PASSED_ENV_NAMES = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
+
+
 def _test_env() -> dict[str, str]:
-    """No inherited git location, no caller virtualenv, no bytecode in the copy."""
-    env = scrub_git_location_env(os.environ)
-    env.pop("VIRTUAL_ENV", None)
-    env.pop("PYTHONPATH", None)
+    """A minimal environment: no caller secrets, git location, virtualenv or bytecode."""
+    env = scrub_git_location_env(
+        {name: os.environ[name] for name in _PASSED_ENV_NAMES if name in os.environ}
+    )
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     return env
 
