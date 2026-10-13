@@ -103,3 +103,10 @@ dod_evidence:
           raise SystemExit(1 if bad or missing else 0)
           PROBE
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn19970-ci-summary-docs-only-marker-pending"
+    description: "CI Summary with the docs-only marker still pending keeps a skipped tier pending instead of rejecting it, and never defers a tier failure or a non-tier skip."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/scripts/ci/test_ci_summary_gate.py -q -p no:randomly --no-cov -n 0 -k docs_only_marker"
+        cwd: "${OMNI_HOME}/omnimarket"
