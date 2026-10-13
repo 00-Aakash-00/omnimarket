@@ -1475,6 +1475,18 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
+      # OMN-21062: a binding is accepted by a second lane that reruns its check.
+      # Check-only; one run per selector so a renamed case selects nothing and
+      # fails. SYNC with the ci.yml lint step "dod_verify independent acceptance
+      # (OMN-21062)".
+      - id: dod-verify-independent-acceptance
+        name: dod_verify independent acceptance (OMN-21062)
+        language: system
+        entry: bash -c 'for selector in self_accepted_is_proposal acceptance_without_rerun_refused independent_rerun_accepted; do uv run pytest tests/unit/nodes/node_dod_verify/test_independent_acceptance.py -q -p no:randomly --no-cov -n 0 -k "$selector" || exit 1; done; uv run pytest tests/ci/test_dod_verify_independent_acceptance_wiring_omn21062.py -q -p no:randomly --no-cov -n 0'
+        files: ^(src/omnimarket/nodes/node_dod_verify/|tests/test_dod_verify_acceptance_basis\.py$|tests/ci/test_dod_verify_independent_acceptance_wiring_omn21062\.py$|tests/unit/nodes/node_dod_verify/(test_independent_acceptance|omn_19428_occ_tree|omn_20858_ticket_reader|conftest)\.py$|\.pre-commit-config\.yaml$)
+        pass_filenames: false
+        stages: [pre-commit]
+
       # OMN-20001: the event registry drift check reads omniclaude at the pinned
       # rev, a pin move needs the integration step, both drift directions stay
       # strict, and the two OMN-13146 tests stay present and uninverted.

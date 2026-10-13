@@ -525,6 +525,16 @@ jobs:
       # 'dod-verify-every-criterion-bound'.
       - name: dod_verify refuses partly bound criteria (OMN-20032)
         run: uv run pytest tests/test_dod_verify_every_criterion_bound.py -q -p no:randomly --no-cov
+      # OMN-21062: a binding is accepted by a second lane that reruns its check
+      # (ruling 2026-10-03T00:40:00Z). One run per selector, so a renamed or
+      # deleted case selects nothing and fails. SYNC with pre-commit hook
+      # 'dod-verify-independent-acceptance'.
+      - name: dod_verify independent acceptance (OMN-21062)
+        run: |
+          for selector in self_accepted_is_proposal acceptance_without_rerun_refused independent_rerun_accepted; do
+            uv run pytest tests/unit/nodes/node_dod_verify/test_independent_acceptance.py -q -p no:randomly --no-cov -n 0 -k "$selector"
+          done
+          uv run pytest tests/ci/test_dod_verify_independent_acceptance_wiring_omn21062.py -q -p no:randomly --no-cov -n 0
       # OMN-20001: the drift check reads omniclaude at the pin, a pin move needs the
       # integration step, both drift directions stay strict, and the two OMN-13146
       # tests stay present and uninverted. SYNC with pre-commit hook
