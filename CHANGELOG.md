@@ -1,3 +1,13 @@
+## v0.4.314 (2026-10-14)
+
+### Release
+- Cut omnimarket from dev at 0.4.314 by the scheduled release train.
+- 1 release-relevant commit(s) merged since v0.4.313.
+- Opened by the release train, which cuts only when the repo's declared lab-evidence premise holds for the exact candidate commit.
+
+### Included Since v0.4.313
+- fix: accept a code answer on its executed tests, not a keyword score (#3878)
+
 ## v0.4.313 (2026-10-13)
 
 ### Release
