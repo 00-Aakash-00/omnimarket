@@ -1,89 +1,52 @@
 ---
 schema_version: "1.0.0"
 ticket_id: "OMN-20844"
-title: "Customers choose their own OpenRouter model when they add their key"
-summary: "A customer who brings their own OpenRouter key names the model it runs: key registration takes the model, checks it against the provider's list for that key and stores it; onex delegate takes a per-call model; no free model is picked for the customer, and the delegation names the chosen model."
+title: "A benchmark large enough to separate the delegation rungs: a committed, tested rung driver and at least 25 mined tasks per class"
+summary: "The delegation ladder's own runner (benchmarks/delegation_ladder/run_ladder.py) gains a pinned-rung mode, a sharding flag, an offline rescoring mode and a per-class, per-rung result table with 95 percent Wilson intervals (summarise_results.py). The task set grows from 28 to 135 tasks, at least 25 in each of document, review, test, reasoning and code_generation, drawn from merged changes and test suites of the public repositories and validated by execution. The free and subscription rungs are run over the whole set and the table is committed with the records and responses behind it."
 is_seam_ticket: false
-interface_change: true
-interfaces_touched:
-  - "public_api"
+interface_change: false
+interfaces_touched: []
 requirements:
-  - id: "req-customer-chooses-openrouter-model"
-    statement: |-
-      The customer chooses the OpenRouter model their own key runs.
+  - id: "req-driver-committed-and-tested"
+    statement: "The rung benchmark driver is part of the ladder's own runner and has a test for its per-rung, per-class result table."
     acceptance:
       - id: "AC1"
-        statement: |-
-          AC1: onex models add, onex secret set and onex secret register-tenant-key take --model, and the hosted intake takes model; the model is checked against the provider's list for the key, a model the list does not name is refused with nothing stored, and a listed model is stored with the customer's credential.
-      - id: "AC2"
-        statement: |-
-          AC2: ModelDelegateSkillRequest declares an optional model field, omitted from the wire when unset; the delegate handler passes it to the dispatch port only when set; the in-process port runs the customer's own route on it and refuses it for any other route; the runtime port refuses it.
-      - id: "AC3"
-        statement: |-
-          AC3: with no model named for OpenRouter, a terminal is asked for one and a script or the hosted intake is refused with BYOK_MODEL_NOT_CHOSEN; a credential with no model is refused at call time; a model the customer named is never re-aimed at a catalogue pick.
-      - id: "AC4"
-        statement: |-
-          AC4: the delegation result names the chosen model, and onex models add fails its test when the answer names another model than the chosen one.
-      - id: "AC5"
-        statement: |-
-          AC5: the OpenRouter catalogue row declares customer_chooses_model and its billing is pay_as_you_go, not free_tier.
-  - id: "req-ci-check-prerequisite"
-    statement: "The separate check-only prerequisite for OmniNode-ai/omnimarket#3838 accepts unrelated CI additions while retaining the characterized pin and release-staleness requirements."
+        statement: "AC1: the driver is committed and tested -- falsifier: the test and one rerun command that reproduces a cell"
+  - id: "req-per-class-separation"
+    statement: "The report states, per class, which rung is separated from the others and in which classes none is, from at least 25 tasks per class."
     acceptance:
-      - id: "AC6"
-        statement: |-
-          AC6: workflow action comparisons accept added uses of characterized action/commit pairs in the same workflow while refusing missing uses, moved pins, unknown actions and unknown workflows; release-staleness checks require unconditional jobs and steps, one strict CI Summary registration and no skippable registration, ordered after Canonical File Shape and before CI Summary, regardless of unrelated jobs added around it, with positive and negative controls.
+      - id: "AC2"
+        statement: "AC2: per-class separation stated -- falsifier: the table with intervals per class and per rung, at least 25 tasks per class"
 evidence_requirements:
   - kind: "tests"
-    description: "Registration, intake, catalogue, effect and delegate-request tests with the provider's model list and the provider faked."
-    command: "uv run pytest tests/unit/cli/test_omn20844_openrouter_model_choice.py tests/test_omn20844_chosen_model_never_re_aimed.py tests/unit/nodes/node_delegate_skill_orchestrator/test_delegate_model_choice_omn20844.py -q -p no:randomly"
+    description: "AC1: the table, separation, rung command and offline rescoring tests, and the mined-task tests that re-prove the committed bundles by execution."
+    command: "uv run pytest benchmarks/delegation_ladder/tests/test_rung_table.py benchmarks/delegation_ladder/tests/test_mined_tasks.py -q -p no:randomly"
 emergency_bypass:
   enabled: false
   justification: ""
   follow_up_ticket_id: ""
 dod_evidence:
-  - id: "dod-omn20844-openrouter-model-choice"
-    description: "The customer's OpenRouter model is taken at registration, checked against the key's list, stored, overridable per call, never replaced by a catalogue pick, and named by the delegation."
+  - id: "dod-omn20844-ac1-driver-tested"
+    description: "AC1: the per-class, per-rung table, the separation rule, the pinned rung commands and the offline rescoring of a saved response are tested, each with a negative control. Fails at the merge base, where none of those functions exist."
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/cli/test_omn20844_openrouter_model_choice.py tests/test_omn20844_chosen_model_never_re_aimed.py tests/unit/nodes/node_delegate_skill_orchestrator/test_delegate_model_choice_omn20844.py -q -p no:randomly"
+        check_value: "uv run pytest benchmarks/delegation_ladder/tests/test_rung_table.py -q -n 0 -p no:randomly --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC1", "AC2", "AC3", "AC4", "AC5"]
-  - id: "dod-omn20844-guard-tests-are-wired"
-    description: "The customer-chooses-model tests run in a check-only pre-commit hook and in a named ci.yml job registered as a strict gate of CI Summary."
+    binds_ac: ["AC1"]
+  - id: "dod-omn20844-ac1-rerun-reproduces-a-cell"
+    description: "AC1: the committed results rescore to the verdicts they were recorded with, from the saved responses and without a model call. This is the cell reproduction; the same driver with --rung and --only reruns a cell against the model."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run python -m benchmarks.delegation_ladder.run_ladder --rescore benchmarks/delegation_ladder/results/rungs/2026-10-14"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]
+  - id: "dod-omn20844-ac2-table-and-minimum"
+    description: "AC2: every class in the committed results holds at least 25 tasks for every rung, the committed table is the table the records give, and each class states which rung (if any) is separated. Fails at the merge base, where there are 28 tasks and no per-class results."
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/ci/test_omn20844_byok_model_choice_wiring.py -q -p no:randomly"
+        check_value: "uv run pytest benchmarks/delegation_ladder/tests/test_rung_results.py benchmarks/delegation_ladder/tests/test_mined_tasks.py -q -n 0 -p no:randomly --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC3"]
-  - id: dod-omn20844-ci-characterization-l6999
-    description: OpenRouter model-choice acceptance tests run with this PR's characterization regression controls for added workflow uses and release gates, retaining refusal of moved pins, removed uses, unknown actions and conditional release gates.
-    source: manual
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/cli/test_omn20844_openrouter_model_choice.py tests/test_omn20844_chosen_model_never_re_aimed.py tests/unit/nodes/node_delegate_skill_orchestrator/test_delegate_model_choice_omn20844.py tests/ci/test_omn20558_ratchet_burndown_characterization.py tests/ci/test_release_staleness_gate_omn18010.py -q -p no:randomly"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac:
-      - AC1
-      - AC2
-      - AC3
-      - AC4
-      - AC5
-  - id: "dod-omn20844-action-ref-prerequisite"
-    description: "Workflow action comparisons accept added uses of characterized pins and refuse missing uses, moved pins, unknown actions and unknown workflows."
-    source: "manual"
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/ci/test_omn20558_ratchet_burndown_characterization.py -q -p no:randomly"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC6"]
-  - id: "dod-omn20844-release-staleness-prerequisite"
-    description: "Release-staleness checks retain unconditional jobs and steps, one strict CI Summary registration and no skippable registration, ordered after Canonical File Shape and before CI Summary, regardless of unrelated jobs added around it."
-    source: "manual"
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/ci/test_release_staleness_gate_omn18010.py -q -p no:randomly"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC6"]
+    binds_ac: ["AC2"]
