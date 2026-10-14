@@ -37,7 +37,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py -k release_floor -q"
+        check_value: "uv run pytest tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py::test_infra_release_floor_and_lock_include_vendored_migrations tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py::test_infra_release_floor_follows_raised_lock tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py::test_infra_release_floor_refuses_obsolete_or_unadmitted_lock -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC5"]
   - id: "dod-omn18946-check-fix-deploy-probe"

@@ -14,9 +14,7 @@ from packaging.version import Version
 REPO = Path(__file__).resolve().parents[3]
 
 
-def test_infra_release_floor_and_lock_include_vendored_migrations() -> None:
-    project = tomllib.loads((REPO / "pyproject.toml").read_text())
-    lock = tomllib.loads((REPO / "uv.lock").read_text())
+def _assert_infra_release_floor(project: dict[str, Any], lock: dict[str, Any]) -> None:
     package = next(p for p in lock["package"] if p["name"] == "omnibase-infra")
     locked_version = Version(package["version"])
     assert locked_version >= Version("0.38.71")
@@ -31,6 +29,43 @@ def test_infra_release_floor_and_lock_include_vendored_migrations() -> None:
         )
         assert locked_version in requirement.specifier
         assert Version("0.38.70") not in requirement.specifier
+
+
+def _infra_tables(specifier: str, locked: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    requirement = f"omnibase-infra{specifier}"
+    project = {
+        "project": {"dependencies": [requirement]},
+        "tool": {"uv": {"override-dependencies": [requirement]}},
+    }
+    lock = {"package": [{"name": "omnibase-infra", "version": locked}]}
+    return project, lock
+
+
+def test_infra_release_floor_and_lock_include_vendored_migrations() -> None:
+    _assert_infra_release_floor(
+        tomllib.loads((REPO / "pyproject.toml").read_text()),
+        tomllib.loads((REPO / "uv.lock").read_text()),
+    )
+
+
+@pytest.mark.parametrize("locked", ["0.38.71", "0.38.72", "0.38.73"])
+def test_infra_release_floor_follows_raised_lock(locked: str) -> None:
+    _assert_infra_release_floor(*_infra_tables(f">={locked},<0.39.0", locked))
+
+
+@pytest.mark.parametrize(
+    ("specifier", "locked"),
+    [
+        (">=0.38.71,<0.39.0", "0.38.70"),
+        (">=0.38.70,<0.39.0", "0.38.72"),
+        (">=0.38.71,<0.38.72", "0.38.72"),
+    ],
+)
+def test_infra_release_floor_refuses_obsolete_or_unadmitted_lock(
+    specifier: str, locked: str
+) -> None:
+    with pytest.raises(AssertionError):
+        _assert_infra_release_floor(*_infra_tables(specifier, locked))
 
 
 def test_workspace_validation_carries_invoke_command_before_agent_runs(
