@@ -365,3 +365,14 @@ dod_evidence:
       - check_type: "command"
         check_value: "bash -o pipefail -c 'gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_delegation_quality_gate_reducer/handlers/handler_quality_gate.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -F \"if _reads_unbound_pytest(tree):\" >/dev/null'"
     binds_ac: ["AC16", "AC17"]
+  - id: "dod-omn20844-ac16-preloaded-rescore-workers"
+    description: "AC16: rescore_dir scores the unit_test_execution and patch_apply_and_test cells in preloaded forked workers; probes share no subject imports or bytecode, keep the timeout, keep the mutation control and the first verdict, and refuse changed saved bytes; committed cells of one task of each executing scorer rescore to their recorded verdicts on every rung."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest benchmarks/delegation_ladder/tests/test_rung_table.py -q -n 0 -p no:randomly --no-cov -k 'preloaded or parallel_rescore or execution_reuse'"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "test_passes"
+        check_value: "uv run pytest benchmarks/delegation_ladder/tests/test_rung_results.py::test_an_executing_task_of_each_scorer_rescores_on_every_rung -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC16"]

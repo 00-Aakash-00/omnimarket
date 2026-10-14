@@ -44,17 +44,24 @@ checked without spending a model call.
 from __future__ import annotations
 
 import argparse
+import ast
 import concurrent.futures
+import gc
+import importlib
+import io
 import json
+import multiprocessing
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
 import tempfile
 import time
-from contextlib import ExitStack
+import traceback
+from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -75,6 +82,7 @@ from benchmarks.delegation_ladder.models import (  # noqa: E402
     is_accepted,
 )
 from benchmarks.delegation_ladder.scorers import (  # noqa: E402
+    TestRunner,
     score_diagnosis_location,
     score_exact_match,
     score_grounding_coverage,
@@ -1156,16 +1164,46 @@ def run_on_rung(
         "response_sha256": sha256_of(response),
         "response_chars": len(response),
         "wall_ms": wall_ms,
-        "host": socket.gethostname(),
+        "host": PUBLISHED_HOST,
         "driver_sha": _driver_sha(),
-        "command": " ".join(argv),
         **got,
     }
+    for private in PRIVATE_RECORD_FIELDS:
+        record.pop(private, None)
+    for text_field in ("scorer_detail", "detail"):
+        if isinstance(record.get(text_field), str):
+            record[text_field] = publishable_text(record[text_field])
     if not delivered:
         record["failure_kind"] = got.get("failure_kind")
     elif not scored_pass:
         record["failure_kind"] = f"scorer_{outcome}"
     return record
+
+
+# A record is committed to a public repository, so it names neither the machine
+# that ran it nor the internal runs behind it. The command line, the run and
+# delegation ids and the receipt path identify internal systems and add nothing a
+# reader can reproduce from; the host is a fixed label.
+PUBLISHED_HOST = "lab-host"
+PRIVATE_RECORD_FIELDS = ("command", "run_id", "receipt", "delegation_id")
+_PRIVATE_TEXT: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\$?\{?OMNI_HOME\}?(?:/[^\s\"',)]*)?"), "<registry>"),
+    (re.compile(r"[\w.-]*\.onex_state[^\s\"',)]*"), "<state>"),
+    (re.compile(r"/(?:home|Users|data|scratch|srv|mnt)/[^\s\"',)]+"), "<path>"),
+    (re.compile(r"\b[\w-]+(?:\.[\w-]+)*\.ts\.net\b"), "<host>"),
+    (re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b"), "<address>"),
+    (
+        re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"),
+        "<id>",
+    ),
+)
+
+
+def publishable_text(text: str) -> str:
+    """``text`` with paths, addresses, hostnames and run ids replaced."""
+    for pattern, placeholder in _PRIVATE_TEXT:
+        text = pattern.sub(placeholder, text)
+    return text
 
 
 def _difficulty(bundle: ModelTaskBundle) -> str | None:
@@ -1186,7 +1224,11 @@ def _driver_sha() -> str | None:
 
 
 def _rescore_cell(
-    bundle: ModelTaskBundle, saved: Path, recorded: dict[str, Any]
+    bundle: ModelTaskBundle,
+    saved: Path,
+    recorded: dict[str, Any],
+    *,
+    test_runner: TestRunner | None = None,
 ) -> tuple[str, float, str]:
     """``(outcome, score, detail)`` re-derived from a cell's saved response."""
     blob = json.loads(saved.read_text(encoding="utf-8"))
@@ -1200,7 +1242,7 @@ def _rescore_cell(
         )
     if not response.strip() and recorded.get("scorer_outcome") == "no_answer":
         return "no_answer", 0.0, str(recorded.get("scorer_detail", ""))
-    verdict = score(bundle, response)
+    verdict = score(bundle, response, test_runner=test_runner)
     return verdict.outcome.value, verdict.score, verdict.detail
 
 
@@ -1288,6 +1330,162 @@ def _results_files(dirs: list[Path]) -> list[Path]:
     return files
 
 
+def _warm_rescore_worker(bundles: list[ModelTaskBundle]) -> None:
+    """Load dependencies once, in a spawned worker that never runs a subject.
+
+    Each probe forks this clean worker, so imports and mutations made by a
+    generated test cannot reach another probe. Preparing pytest in an empty
+    directory preserves the isolated runner's plugin set and assertion rewriting.
+    """
+    import pytest
+
+    original = Path.cwd()
+    with tempfile.TemporaryDirectory(prefix="ladder-preload-") as tmp:
+        try:
+            os.chdir(tmp)
+            Path("test_preload.py").write_text("", encoding="utf-8")
+            with redirect_stdout(io.StringIO()) as output, redirect_stderr(output):
+                rc = pytest.main(
+                    [
+                        "test_preload.py",
+                        "--collect-only",
+                        "-q",
+                        "-p",
+                        "no:cacheprovider",
+                    ]
+                )
+            if rc not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED):
+                raise RuntimeError(f"pytest preload failed: {output.getvalue()}")
+        finally:
+            os.chdir(original)
+
+    modules: set[str] = set()
+    for bundle in bundles:
+        for key, text in bundle.scorer_config.items():
+            if not key.endswith("_text") or not isinstance(text, str):
+                continue
+            try:
+                tree = ast.parse(text)
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module and not node.level:
+                    modules.add(node.module)
+                elif isinstance(node, ast.Import):
+                    modules.update(alias.name for alias in node.names)
+    for module in sorted(modules):
+        if module.startswith(("omnibase_core.", "omnibase_infra.", "omnimarket.")):
+            try:
+                importlib.import_module(module)
+            except ImportError:
+                # A missing dependency must still fail in the probe, where the
+                # scorer can report it; warming is not an installation step.
+                continue
+
+    # Keep the preloaded graph out of subsequent collections and copy-on-write
+    # churn. New objects created by a probe remain subject to normal collection.
+    gc.freeze()
+
+
+def _run_forked_pytest(
+    workdir: Path, test_name: str, timeout_s: int
+) -> tuple[int, str]:
+    """Run the same pytest arguments and timeout in a fresh, preloaded child."""
+    import pytest
+
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as output:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        pid = os.fork()
+        if pid == 0:
+            rc = 3
+            try:
+                os.dup2(output.fileno(), 1)
+                os.dup2(output.fileno(), 2)
+                os.chdir(workdir)
+                sys.dont_write_bytecode = True
+                os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
+                rc = int(pytest.main([test_name, "-q", "-p", "no:cacheprovider"]))
+            except BaseException:
+                traceback.print_exc()
+            finally:
+                sys.stdout.flush()
+                sys.stderr.flush()
+                os._exit(rc)
+
+        deadline = time.monotonic() + timeout_s
+        try:
+            while True:
+                done, status = os.waitpid(pid, os.WNOHANG)
+                if done:
+                    break
+                if time.monotonic() >= deadline:
+                    os.kill(pid, signal.SIGKILL)
+                    os.waitpid(pid, 0)
+                    return 124, f"timed out after {timeout_s}s"
+                time.sleep(0.005)
+        except BaseException:
+            os.kill(pid, signal.SIGKILL)
+            os.waitpid(pid, 0)
+            raise
+        output.seek(0)
+        return os.waitstatus_to_exitcode(status), output.read().strip()[-1200:]
+
+
+def _rescore_worker_group(
+    cells: list[tuple[ModelTaskBundle, Path, dict[str, Any]]],
+) -> list[tuple[str, float, str]]:
+    """Score one task's rungs, reusing identical test/source executions only.
+
+    In particular, each patch task's committed pre-fix control is identical on
+    every rung. The cache lives for this group only; hashes and recorded verdicts
+    are still checked independently for every cell, on every rescore invocation.
+    """
+    cache: dict[tuple[str, int, tuple[tuple[str, bytes], ...]], tuple[int, str]] = {}
+
+    def run_test(workdir: Path, test_name: str, timeout_s: int) -> tuple[int, str]:
+        sources = tuple(
+            (path.name, path.read_bytes()) for path in sorted(workdir.glob("*.py"))
+        )
+        key = (test_name, timeout_s, sources)
+        if key not in cache:
+            cache[key] = _run_forked_pytest(workdir, test_name, timeout_s)
+        return cache[key]
+
+    return [
+        _rescore_cell(bundle, saved, recorded, test_runner=run_test)
+        for bundle, saved, recorded in cells
+    ]
+
+
+def _rescore_parallel_cells(
+    cells: list[tuple[ModelTaskBundle, Path, dict[str, Any]]],
+) -> list[tuple[str, float, str]]:
+    """Preload once in a spawned coordinator, then share its clean import graph.
+
+    The coordinator never executes a subject. Workers and their probe children
+    inherit dependencies, but none inherit imports or mutations from a probe.
+    """
+    used = {bundle.task_id: bundle for bundle, _, _ in cells}
+    _warm_rescore_worker(list(used.values()))
+    groups: dict[str, list[tuple[ModelTaskBundle, Path, dict[str, Any]]]] = {}
+    indices: dict[str, list[int]] = {}
+    for index, cell in enumerate(cells):
+        task_id = cell[0].task_id
+        groups.setdefault(task_id, []).append(cell)
+        indices.setdefault(task_id, []).append(index)
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=min(4, len(groups), os.cpu_count() or 1),
+        mp_context=multiprocessing.get_context("fork"),
+    ) as pool:
+        groups_scored = list(pool.map(_rescore_worker_group, groups.values()))
+    ordered: dict[int, tuple[str, float, str]] = {}
+    for task_id, verdicts in zip(groups, groups_scored, strict=True):
+        for index, verdict in zip(indices[task_id], verdicts, strict=True):
+            ordered[index] = verdict
+    return [ordered[index] for index in range(len(cells))]
+
+
 def rescore_dir(
     directory: Path, *, write: bool = False, only: list[str] | None = None
 ) -> int:
@@ -1303,27 +1501,57 @@ def rescore_dir(
         raise ValueError("--rescore --write rewrites whole files; drop --only")
     wanted = {token.upper() for token in only} if only else None
     bundles = {b.task_id: b for b in load_bundles(None, include_hard=True)}
-    checked = changed = 0
-    for jsonl in _results_files([directory]):
-        records = _read_jsonl(jsonl)
+    files: dict[Path, list[dict[str, Any]]] = {}
+    for path in _results_files([directory]):
+        records = _read_jsonl(path)
         if wanted is not None:
             records = [r for r in records if str(r["task_id"]).upper() in wanted]
+        files[path] = records
+    cells = [
+        (
+            bundles[recorded["task_id"]],
+            directory
+            / "responses"
+            / recorded["model_rung"]
+            / f"{recorded['task_id']}.json",
+            recorded,
+        )
+        for records in files.values()
+        for recorded in records
+    ]
+    executing = {
+        EnumScorerKind.UNIT_TEST_EXECUTION,
+        EnumScorerKind.PATCH_APPLY_AND_TEST,
+    }
+    forked = [
+        index
+        for index, (bundle, _, _) in enumerate(cells)
+        if hasattr(os, "fork") and bundle.scorer in executing
+    ]
+    threaded = sorted(set(range(len(cells))) - set(forked))
+    scored: dict[int, tuple[str, float, str]] = {}
+    if forked:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=1,
+            mp_context=multiprocessing.get_context("spawn"),
+        ) as coordinator:
+            forked_verdicts = coordinator.submit(
+                _rescore_parallel_cells, [cells[index] for index in forked]
+            ).result()
+        scored.update(zip(forked, forked_verdicts, strict=True))
+    # Each other cell scores in its own temporary directory, so cells can run
+    # at once; the hard tier's cells each run a repository test file twice.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        threaded_verdicts = list(
+            pool.map(lambda index: _rescore_cell(*cells[index]), threaded)
+        )
+    scored.update(zip(threaded, threaded_verdicts, strict=True))
+    verdicts = iter(scored[index] for index in range(len(cells)))
+    checked = changed = 0
+    for jsonl, records in files.items():
         updated: list[dict[str, Any]] = []
-
-        def cell(recorded: dict[str, Any]) -> tuple[str, float, str]:
-            saved = (
-                directory
-                / "responses"
-                / recorded["model_rung"]
-                / f"{recorded['task_id']}.json"
-            )
-            return _rescore_cell(bundles[recorded["task_id"]], saved, recorded)
-
-        # Each cell scores in its own temporary directory, so cells can run at
-        # once; the hard tier's cells each run a repository test file twice.
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-            verdicts = list(pool.map(cell, records))
-        for recorded, (outcome, point, detail) in zip(records, verdicts, strict=True):
+        for recorded in records:
+            outcome, point, detail = next(verdicts)
             checked += 1
             if outcome != recorded["scorer_outcome"]:
                 changed += 1
@@ -1486,7 +1714,9 @@ def run_rung_benchmark(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------
 
 
-def score(bundle: ModelTaskBundle, response: str) -> ModelScore:
+def score(
+    bundle: ModelTaskBundle, response: str, *, test_runner: TestRunner | None = None
+) -> ModelScore:
     config = dict(bundle.scorer_config)
     match bundle.scorer:
         case EnumScorerKind.GROUNDING_RUBRIC:
@@ -1496,11 +1726,15 @@ def score(bundle: ModelTaskBundle, response: str) -> ModelScore:
         case EnumScorerKind.EXACT_MATCH:
             return score_exact_match(response, config)
         case EnumScorerKind.UNIT_TEST_EXECUTION:
-            return score_unit_test_execution(response, config, FIXTURES)
+            return score_unit_test_execution(
+                response, config, FIXTURES, test_runner=test_runner
+            )
         case EnumScorerKind.DIAGNOSIS_LOCATION:
             return score_diagnosis_location(response, config)
         case EnumScorerKind.PATCH_APPLY_AND_TEST:
-            return score_patch_apply_and_test(response, config, FIXTURES)
+            return score_patch_apply_and_test(
+                response, config, FIXTURES, test_runner=test_runner
+            )
         case EnumScorerKind.MULTI_FILE_EDIT_AND_TEST:
             return score_multi_file_edit_and_test(response, config)
         case EnumScorerKind.LITERAL_EQUALS:
@@ -1686,6 +1920,11 @@ def main() -> int:
     surface = parser.add_mutually_exclusive_group()
     surface.add_argument("--path", choices=["local", "cloud"])
     surface.add_argument("--backend", choices=list(BACKENDS))
+    surface.add_argument(
+        "--rung",
+        choices=sorted(RUNGS),
+        help="Run the task set against one pinned delegation rung (OMN-20844).",
+    )
     parser.add_argument("--set", choices=["ladder", "tiered"], default="ladder")
     parser.add_argument("--classes", nargs="+")
     parser.add_argument("--difficulty", choices=[d.value for d in EnumDifficulty])
@@ -1701,11 +1940,6 @@ def main() -> int:
         default="0/1",
         help="K/N (also i/N for --rung): run only the tasks whose position modulo N is K, so one rung "
         "can be split across hosts.",
-    )
-    parser.add_argument(
-        "--rung",
-        choices=sorted(RUNGS),
-        help="Run the task set against one pinned delegation rung (OMN-20844).",
     )
     parser.add_argument(
         "--write",
