@@ -96,6 +96,15 @@ EXPECTED_MISSING_ENTRY_POINTS = {
     # secret delete`; it returns credential events for the CLI shim to fold and
     # subscribes to no topic, so it has no onex.nodes entry point.
     "node_local_secret_store_effect",
+    # OMN-20926: the captured secret resolver is called in-process by a
+    # consumer that holds a captured record, with a store built from the
+    # consumer's own identity; it returns the value as a SecretStr, publishes
+    # nothing and subscribes to no topic, so it has no onex.nodes entry point.
+    "node_captured_secret_resolve_effect",
+    # OMN-20926: the captured secret store effect is called in-process by the
+    # content-capture producer for each secret its scrub detects; it returns a
+    # reference, publishes nothing and subscribes to no topic.
+    "node_captured_secret_store_effect",
     # OMN-20817: the model setup effect runs from `onex models`; it returns its
     # status and test results to the CLI shim and subscribes to no topic, so it
     # has no onex.nodes entry point.
@@ -316,9 +325,12 @@ def test_market_node_runtime_dogfood_inventory_classifies_all_entry_points() -> 
     # node_operator_capture_effect is hosted by the work-ledger serve process
     # on the ledger host (--operator-capture), not by a runtime, so it has no
     # handler_routing: 20 -> 21.
+    # OMN-21014's node_claude_review_gateway_effect is started by
+    # `onex models review-gateway`, not by a bus command, so it has no
+    # handler_routing: 21 -> 22.
     # node_e2e_orchestrator routes its event topics to a handler now, so it is no
-    # longer non-addressable: 21 -> 20.
-    assert summary["skipped"] == 20
+    # longer non-addressable: 22 -> 21.
+    assert summary["skipped"] == 21
     assert summary["failed"] == 0
     assert summary["failure_buckets"] == {}
     assert {
