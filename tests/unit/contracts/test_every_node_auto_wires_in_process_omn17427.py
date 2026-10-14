@@ -34,6 +34,7 @@ test until it is removed from the list in the same change.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -99,10 +100,17 @@ _CANNOT_WIRE_IN_PROCESS: dict[str, str] = {
 _DERIVED_FIELDS = ("route_id", "handler_id", "topic_pattern")
 
 
+_ACTIVE_PACKAGES_ENV = "ONEX_ACTIVE_RUNTIME_PACKAGES"
+
+
+def _drop_runtime_package_filter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An every-node gate must include packages inactive on the caller's lane."""
+    monkeypatch.delenv(_ACTIVE_PACKAGES_ENV, raising=False)
+
+
 @pytest.fixture(autouse=True)
 def _discover_every_runtime_package(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An every-node gate must include packages inactive on the caller's lane."""
-    monkeypatch.delenv("ONEX_ACTIVE_RUNTIME_PACKAGES", raising=False)
+    _drop_runtime_package_filter(monkeypatch)
 
 
 def _field_max_length(field_name: str) -> int:
@@ -180,6 +188,14 @@ def test_the_gate_runs_on_every_pull_request_commit_and_release() -> None:
             f".pre-commit-config.yaml: no {_PRECOMMIT_HOOK_ID} hook runs {_THIS_TEST}"
         )
     assert not problems, "\n".join(problems)
+
+
+def test_the_gate_ignores_the_callers_runtime_package_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(_ACTIVE_PACKAGES_ENV, "omnibase_infra,omnimarket")
+    _drop_runtime_package_filter(monkeypatch)
+    assert _ACTIVE_PACKAGES_ENV not in os.environ
 
 
 def test_limits_are_read_from_the_dispatch_route_model() -> None:

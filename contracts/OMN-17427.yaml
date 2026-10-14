@@ -194,6 +194,13 @@ requirements:
       - id: "AC32"
         statement: |-
           AC32: a pull request citing a ticket with no contract passes the prerequisite when its merge-base diff is the root CHANGELOG.md with optional pyproject.toml and uv.lock, and still fails when the diff adds any other path, lacks the root CHANGELOG.md, or the base cannot be read -- falsifier: uv run pytest tests/ci/test_ticket_contract_release_cut_exempt_omn17427.py -q fails at the merge base
+  - id: "req-auto-wiring-gate-every-package"
+    statement: |-
+      The in-process auto-wiring gate discovers every node regardless of the caller's ONEX_ACTIVE_RUNTIME_PACKAGES filter, so a lane that excludes a package does not report that package's known exception as fixed.
+    acceptance:
+      - id: "AC33"
+        statement: |-
+          AC33: the gate drops ONEX_ACTIVE_RUNTIME_PACKAGES before it discovers nodes, so an ambient filter that excludes a package leaves that package's nodes in the check -- falsifier: the focused filter test fails when the variable survives the gate's setup.
 evidence_requirements:
   - kind: "tests"
     description: "A Claude-limited Codex-allowed host with free Codex slots reports Codex headroom; other hosts keep their lines."
@@ -525,3 +532,11 @@ dod_evidence:
         check_value: "uv run pytest tests/ci/test_ticket_contract_release_cut_exempt_omn17427.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC32"]
+  - id: "dod-omn17427-ac33-auto-wiring-gate-every-package"
+    description: "The in-process auto-wiring gate clears the caller's runtime package filter before it discovers nodes."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/contracts/test_every_node_auto_wires_in_process_omn17427.py -q -k test_the_gate_ignores_the_callers_runtime_package_filter"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC33"]
