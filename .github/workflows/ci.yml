@@ -3203,11 +3203,32 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+      - name: Read the locked omnibase_infra release
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          import os
+          import re
+          import tomllib
+
+          with open("uv.lock", "rb") as lock_file:
+              packages = tomllib.load(lock_file).get("package", [])
+          entries = [package for package in packages if package.get("name") == "omnibase-infra"]
+          if (len(entries) != 1
+                  or entries[0].get("source") != {"registry": "https://pypi.org/simple"}
+                  or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", entries[0].get("version", ""))):
+              raise SystemExit("uv.lock must contain one released omnibase-infra version from PyPI")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output_file:
+              print(f"infra_version={entries[0]['version']}", file=output_file)
+          PYTHON
+
       - name: Checkout omnibase_infra (sibling, test-time overlay only)
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
         with:
           repository: OmniNode-ai/omnibase_infra
-          ref: v0.38.71
+          ref: v${{ steps.pins.outputs.infra_version }}
           path: .sibling/omnibase_infra
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up Python

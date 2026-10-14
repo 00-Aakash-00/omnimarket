@@ -64,11 +64,32 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Read the locked omnibase_infra release
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          import os
+          import re
+          import tomllib
+
+          with open("uv.lock", "rb") as lock_file:
+              packages = tomllib.load(lock_file).get("package", [])
+          entries = [package for package in packages if package.get("name") == "omnibase-infra"]
+          if (len(entries) != 1
+                  or entries[0].get("source") != {"registry": "https://pypi.org/simple"}
+                  or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", entries[0].get("version", ""))):
+              raise SystemExit("uv.lock must contain one released omnibase-infra version from PyPI")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output_file:
+              print(f"infra_version={entries[0]['version']}", file=output_file)
+          PYTHON
+
       - name: Checkout omnibase_infra (gate script only)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           repository: OmniNode-ai/omnibase_infra
-          ref: v0.38.71
+          ref: v${{ steps.pins.outputs.infra_version }}
           path: omnibase_infra
           token: ${{ secrets.OMNI_GITHUB_TOKEN || github.token }}
           # Sparse checkout: only the gate script is needed

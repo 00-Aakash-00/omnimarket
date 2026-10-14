@@ -87,11 +87,32 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Read the locked omnibase_infra release
+        id: pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          import os
+          import re
+          import tomllib
+
+          with open("uv.lock", "rb") as lock_file:
+              packages = tomllib.load(lock_file).get("package", [])
+          entries = [package for package in packages if package.get("name") == "omnibase-infra"]
+          if (len(entries) != 1
+                  or entries[0].get("source") != {"registry": "https://pypi.org/simple"}
+                  or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", entries[0].get("version", ""))):
+              raise SystemExit("uv.lock must contain one released omnibase-infra version from PyPI")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output_file:
+              print(f"infra_version={entries[0]['version']}", file=output_file)
+          PYTHON
+
       - name: Checkout omnibase_infra at the pinned release tag (sibling — vendored destination)
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: OmniNode-ai/omnibase_infra
-          ref: v0.38.71
+          ref: v${{ steps.pins.outputs.infra_version }}
           path: omnibase_infra-dest
           token: ${{ secrets.OMNI_GITHUB_TOKEN || github.token }}
           sparse-checkout: |
@@ -125,13 +146,13 @@ jobs:
             dest_file="omnibase_infra-dest/docker/migrations/forward/nodes/${node_name}/${filename}"
 
             if [ ! -f "${dest_file}" ]; then
-              echo "::warning::${src_file} has no vendored counterpart at docker/migrations/forward/nodes/${node_name}/${filename} in the pinned omnibase_infra v0.38.71. This repo is ahead of its pin; omnibase_infra vendors it through its own consumer PR (scripts/sync-node-migrations.sh) and this repo bumps the pin after integration testing." >&2
+              echo "::warning::${src_file} has no vendored counterpart at docker/migrations/forward/nodes/${node_name}/${filename} in the pinned omnibase_infra v${{ steps.pins.outputs.infra_version }}. This repo is ahead of its pin; omnibase_infra vendors it through its own consumer PR (scripts/sync-node-migrations.sh) and this repo bumps the pin after integration testing." >&2
               ahead=1
               continue
             fi
 
             if ! cmp -s "${src_file}" "${dest_file}"; then
-              echo "::warning::${src_file} differs from the vendored copy in the pinned omnibase_infra v0.38.71 (${dest_file}). This repo is ahead of its pin; omnibase_infra re-runs scripts/sync-node-migrations.sh through its own consumer PR." >&2
+              echo "::warning::${src_file} differs from the vendored copy in the pinned omnibase_infra v${{ steps.pins.outputs.infra_version }} (${dest_file}). This repo is ahead of its pin; omnibase_infra re-runs scripts/sync-node-migrations.sh through its own consumer PR." >&2
               ahead=1
             fi
           done
@@ -141,4 +162,4 @@ jobs:
             exit 0
           fi
 
-          echo "::notice::All changed node migrations are already vendored in the pinned omnibase_infra v0.38.71."
+          echo "::notice::All changed node migrations are already vendored in the pinned omnibase_infra v${{ steps.pins.outputs.infra_version }}."

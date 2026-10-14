@@ -1,0 +1,43 @@
+schema_version: "1.0.0"
+ticket_id: "OMN-18946"
+title: "Sibling pin checks follow the locked release after a dependency floor increase"
+summary: "Six workflow checkouts resolve omnibase-infra from uv.lock; the release-floor test checks the locked release against the dependency range."
+is_seam_ticket: false
+interface_change: false
+requirements:
+  - id: "req-omn18946-check-fix"
+    statement: "Checks accept a supported newer locked release while refusing missing, malformed and obsolete releases."
+    acceptance:
+      - id: "AC4"
+        statement: "Every non-hosted omnibase_infra checkout resolves the locked version before checkout; changed versions follow the lock and invalid versions fail."
+      - id: "AC5"
+        statement: "Both dependency ranges admit the locked release and refuse 0.38.70, while the lock is at least 0.38.71."
+evidence_requirements:
+  - kind: "tests"
+    description: "Pin readers and release-floor tests."
+    command: "uv run pytest tests/ci/test_sibling_pins_omn20001.py tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py -q"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn18946-check-fix-lock-readers"
+    description: "Pin readers follow releases 0.38.71, 0.38.72 and 0.38.73 and reject missing or invalid versions."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_sibling_pins_omn20001.py -q"
+    binds_ac: ["AC4"]
+  - id: "dod-omn18946-check-fix-release-floor"
+    description: "The locked version is supported and versions predating the vendored migrations remain refused."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py -k release_floor -q"
+    binds_ac: ["AC5"]
+  - id: "dod-omn18946-check-fix-deploy-probe"
+    description: "Deploy probe: hosted-runner pin resolution follows newer lock releases and rejects malformed locks."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_sibling_pins_omn20001.py -k 'pin_reader or checkout_pins' -q"

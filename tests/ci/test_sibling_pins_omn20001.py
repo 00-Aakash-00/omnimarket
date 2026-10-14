@@ -206,28 +206,95 @@ def test_infra_checkout_pins_match_lock(tmp_path: Path) -> None:
         if wf not in hosted
         and str((s.get("with") or {}).get("repository")) == "OmniNode-ai/omnibase_infra"
     }
-    assert pins == {
-        f"v{_lock_version('omnibase-infra')}",
-        "v${{ steps.pins.outputs.infra_version }}",
-    }
-    pin_step = next(
-        s
+    assert pins == {"v${{ steps.pins.outputs.infra_version }}"}
+    jobs = {
+        (wf, job)
         for wf, job, s in _steps()
-        if wf == "ci.yml" and job == "sibling-release-compat" and s.get("id") == "pins"
+        if wf not in hosted
+        and str((s.get("with") or {}).get("repository")) == "OmniNode-ai/omnibase_infra"
+    }
+    for index, (wf, job) in enumerate(sorted(jobs)):
+        steps = [s for w, j, s in _steps() if (w, j) == (wf, job)]
+        pin_step = next(s for s in steps if s.get("id") == "pins")
+        checkout = next(
+            s
+            for s in steps
+            if (s.get("with") or {}).get("repository") == "OmniNode-ai/omnibase_infra"
+        )
+        assert steps.index(pin_step) < steps.index(checkout), (wf, job)
+        output = tmp_path / f"pins-{index}"
+        subprocess.run(
+            ["bash", "-c", pin_step["run"]],
+            cwd=REPO_ROOT,
+            env={"GITHUB_OUTPUT": str(output)},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert (
+            f"infra_version={_lock_version('omnibase-infra')}"
+            in output.read_text().splitlines()
+        )
+
+
+@pytest.mark.parametrize("version", ["0.38.71", "0.38.72", "0.38.73"])
+def test_every_infra_pin_reader_follows_a_new_lock(
+    tmp_path: Path, version: str
+) -> None:
+    lock = (REPO_ROOT / "uv.lock").read_text()
+    lock = re.sub(
+        r'(^name = "omnibase-infra"\nversion = ")[^"]+',
+        rf"\g<1>{version}",
+        lock,
+        flags=re.M,
     )
-    output = tmp_path / "pins"
-    subprocess.run(
-        ["bash", "-c", pin_step["run"]],
-        cwd=REPO_ROOT,
-        env={"GITHUB_OUTPUT": str(output)},
-        capture_output=True,
-        text=True,
-        check=True,
+    (tmp_path / "uv.lock").write_text(lock)
+    hosted = _hosted_reusables()
+    for index, (wf, job, step) in enumerate(_steps()):
+        if wf in hosted or step.get("id") != "pins":
+            continue
+        output = tmp_path / f"pins-{index}"
+        subprocess.run(
+            ["bash", "-c", step["run"]],
+            cwd=tmp_path,
+            env={"GITHUB_OUTPUT": str(output)},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert f"infra_version={version}" in output.read_text().splitlines(), (wf, job)
+
+
+@pytest.mark.parametrize(
+    "infra_entry",
+    [
+        "",
+        '[[package]]\nname = "omnibase-infra"\nversion = "0.38.72"\nsource = { git = "https://github.com/OmniNode-ai/omnibase_infra" }\n',
+        '[[package]]\nname = "omnibase-infra"\nversion = "dev"\nsource = { registry = "https://pypi.org/simple" }\n',
+        '[[package]]\nname = "omnibase-infra"\nversion = "0.38.72"\nsource = { registry = "https://pypi.org/simple" }\n'
+        * 2,
+    ],
+)
+def test_every_infra_pin_reader_refuses_missing_or_invalid_releases(
+    tmp_path: Path, infra_entry: str
+) -> None:
+    (tmp_path / "uv.lock").write_text(
+        infra_entry + '[[package]]\nname = "omnibase-core"\nversion = "0.28.1"\n'
     )
-    assert output.read_text().splitlines() == [
-        f"infra_version={_lock_version('omnibase-infra')}",
-        f"core_version={_lock_version('omnibase-core')}",
-    ]
+    hosted = _hosted_reusables()
+    for index, (wf, job, step) in enumerate(_steps()):
+        if wf in hosted or step.get("id") != "pins":
+            continue
+        output = tmp_path / f"pins-{index}"
+        done = subprocess.run(
+            ["bash", "-c", step["run"]],
+            cwd=tmp_path,
+            env={"GITHUB_OUTPUT": str(output)},
+            capture_output=True,
+            text=True,
+        )
+        assert done.returncode != 0, (wf, job, done.stdout, done.stderr)
+        assert not output.exists(), (wf, job)
 
 
 def test_hosted_reusable_infra_checkouts_pin_a_full_sha() -> None:

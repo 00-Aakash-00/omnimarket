@@ -16,6 +16,10 @@ REPO = Path(__file__).resolve().parents[3]
 
 def test_infra_release_floor_and_lock_include_vendored_migrations() -> None:
     project = tomllib.loads((REPO / "pyproject.toml").read_text())
+    lock = tomllib.loads((REPO / "uv.lock").read_text())
+    package = next(p for p in lock["package"] if p["name"] == "omnibase-infra")
+    locked_version = Version(package["version"])
+    assert locked_version >= Version("0.38.71")
     for dependencies in (
         project["project"]["dependencies"],
         project["tool"]["uv"]["override-dependencies"],
@@ -25,11 +29,8 @@ def test_infra_release_floor_and_lock_include_vendored_migrations() -> None:
             for value in dependencies
             if Requirement(value).name == "omnibase-infra"
         )
-        assert Version("0.38.71") in requirement.specifier
+        assert locked_version in requirement.specifier
         assert Version("0.38.70") not in requirement.specifier
-    lock = tomllib.loads((REPO / "uv.lock").read_text())
-    package = next(p for p in lock["package"] if p["name"] == "omnibase-infra")
-    assert Version(package["version"]) >= Version("0.38.71")
 
 
 def test_workspace_validation_carries_invoke_command_before_agent_runs(
