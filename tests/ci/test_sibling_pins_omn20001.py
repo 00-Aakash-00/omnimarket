@@ -279,7 +279,8 @@ def test_every_infra_pin_reader_refuses_missing_or_invalid_releases(
     tmp_path: Path, infra_entry: str
 ) -> None:
     (tmp_path / "uv.lock").write_text(
-        infra_entry + '[[package]]\nname = "omnibase-core"\nversion = "0.28.1"\n'
+        infra_entry
+        + '[[package]]\nname = "omnibase-core"\nversion = "0.28.1"\nsource = { registry = "https://pypi.org/simple" }\n'
     )
     hosted = _hosted_reusables()
     for index, (wf, job, step) in enumerate(_steps()):

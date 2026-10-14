@@ -2220,6 +2220,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import os
+          import re
           import tomllib
 
           with open("uv.lock", "rb") as lock_file:
@@ -2229,7 +2230,8 @@ jobs:
           for name, output in (("omnibase-infra", "infra_version"), ("omnibase-core", "core_version")):
               entries = [package for package in packages if package.get("name") == name]
               sources = [package.get("source") for package in entries]
-              if len(entries) != 1 or sources != [{"registry": "https://pypi.org/simple"}]:
+              if (len(entries) != 1 or sources != [{"registry": "https://pypi.org/simple"}]
+                      or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", entries[0].get("version", ""))):
                   print(f"::error::{name}: source={sources!r}, entries={len(entries)}; a released pin is required (a sibling's dev is never an integration target).")
                   failed = True
                   continue
