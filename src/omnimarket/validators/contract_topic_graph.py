@@ -1083,15 +1083,6 @@ SCOPE_FENCE: tuple[tuple[str, str, str | None, str, str], ...] = (
         "OMN-18013 residual",
         "starved: no publisher anywhere, but the subscription carries live handler wiring",
     ),
-    # --- needs a handler class extracted from a standalone consumer.py before
-    # either subscription can resolve. A node refactor, not a declaration.
-    (
-        "DECLARED_BUT_UNWIRED",
-        "node_e2e_orchestrator",
-        None,
-        "OMN-18013 residual",
-        "runs as a standalone aiokafka consumer with no handler class to wire",
-    ),
 )
 
 

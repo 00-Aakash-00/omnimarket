@@ -441,13 +441,13 @@ repos:
       # LAG can never rise and the group reads Stable / MEMBERS 1 / LAG 0 while 100% of
       # the traffic is lost. Same script the 'Subscriber Dispatcher Resolution' CI job
       # runs, so local and CI enforcement cannot drift. Triggers on contract.yaml (a
-      # routing change needs no .py edit). Ratchet frozen in
-      # config/validation/subscriber_dispatcher_resolution_baseline.yaml (shrink-only).
+      # routing change needs no .py edit). No exemption file exists: the baseline was
+      # burned to zero and deleted, and no-baseline-refreeze keeps it deleted.
       - id: subscriber-dispatcher-resolution
         name: Every subscribe_topic resolves to a registered dispatcher (OMN-16939)
         language: system
         entry: bash scripts/ci/check_subscriber_dispatcher_resolution.sh
-        files: ^(src/omnimarket/.*\.(py|yaml)|config/validation/subscriber_dispatcher_resolution_baseline\.yaml|scripts/ci/check_subscriber_dispatcher_resolution\.sh)$
+        files: ^(src/omnimarket/.*\.(py|yaml)|scripts/ci/check_subscriber_dispatcher_resolution\.sh)$
         pass_filenames: false
         stages: [pre-commit]
 
