@@ -47,11 +47,41 @@ dod_evidence:
       - check_type: "command"
         check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_github_webhook_ingress_effect/contract.yaml?ref=$(git rev-parse HEAD)\" --jq .path"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20915-poller-publishes-only-status-events"
+    description: "AC1 (omnimarket half): the moved poller behaves as the omnibase_infra node it replaces. Wired through wire_from_manifest on an in-memory bus, an unconfigured poller publishes nothing on a runtime tick and a configured one publishes one PR status event per open PR and never its poll-cycle summary."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_github_pr_poller_effect/test_poller_publishes_only_status_events.py tests/nodes/node_github_pr_poller_effect/test_handler_github_api_poll.py tests/nodes/node_github_pr_poller_effect/test_runtime_profile.py tests/nodes/node_github_pr_poller_effect/test_triage_state.py tests/nodes/node_github_pr_poller_effect/test_golden_chain_runtime_tick_omn20590.py tests/nodes/node_github_pr_poller_effect/test_golden_chain_api_poll.py -q -p no:randomly"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]
+  - id: "dod-omn20915-poller-status-event-deploy-probe"
+    description: "Deploy probe. The poller's PR status event model exists in omnimarket at the checked-out commit, which is what the deploy agent rolls onto the dev lane; the probe reads it from GitHub at that commit and exits nonzero at the merge base, where the poller still returns its poll-cycle summary. The dev-lane readout after the roll is the effects runtime log showing no onex.evt.github.pr-status.v1 publish per tick while the contract configures no repositories."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_github_pr_poller_effect/models/model_github_pr_status_poll_event.py?ref=$(git rev-parse HEAD)\" --jq .path"
+        cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn20915-ac3-triage-reads-on-one-transport"
     description: "AC3 (omnimarket half): the PR triage reads are served by omnimarket's GitHubHttpTransport."
     source: "manual"
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/test_github_api_triage.py -q -p no:randomly"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC3"]
+  - id: "dod-omn20915-scm-nodes-no-cli"
+    description: "The source-control nodes (every node directory named with github) reach GitHub through their transport, never the CLI or a literal API host URL; the four moved or gateway nodes stay registered onex.nodes entry points. The test plants a violation in a throwaway family and requires the scan to refuse it; the same test is the scm-nodes-no-gh-cli pre-commit hook and the ci.yml lint step."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_scm_nodes_no_gh_cli_omn20915.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20915-scm-nodes-no-cli-wired"
+    description: "AC3 (omnimarket half): the check that keeps one GitHub I/O path in the source-control nodes is wired as the scm-nodes-no-gh-cli pre-commit hook and as a step of the ci.yml lint job. The test itself passes at the merge base because the source-control nodes are already clean, so it is evidence in the item above and carries no must-fail bound check; this item binds what the change adds, the hook and the lint step, through a test that reads both and fails on the merge base, which carries neither."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_scm_nodes_no_gh_cli_omn20915.py::test_scan_is_wired_as_hook_and_lint_step -q -n 0 -p no:randomly --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC3"]
