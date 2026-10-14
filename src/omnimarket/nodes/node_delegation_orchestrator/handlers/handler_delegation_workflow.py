@@ -3644,10 +3644,17 @@ class HandlerDelegationWorkflow:
 
         # OMN-21077: a code answer the gate passed with no executed test run is
         # refused here exactly as the gate refuses it, before anything decides.
+        # A response contract replaces the class DoD at the gate (OMN-15193), so
+        # the check set in force is then empty and the schema alone decides.
+        declared_deterministic = (
+            ()
+            if workflow.effective_response_contract is not None
+            else workflow.routing_decision.dod_deterministic
+        )
         result = with_executed_check_verdict(
             result,
             required_bar_authority,
-            declared_deterministic=workflow.routing_decision.dod_deterministic,
+            declared_deterministic=declared_deterministic,
         )
         workflow.gate_result = result
         actual_score = result.quality_score
@@ -3666,7 +3673,7 @@ class HandlerDelegationWorkflow:
         quality_accepted = is_quality_accepted(
             result,
             required_bar_authority,
-            declared_deterministic=workflow.routing_decision.dod_deterministic,
+            declared_deterministic=declared_deterministic,
         )
         # OMN-16932: the same booleans, as a typed decision + reason that is
         # recorded rather than inferred. Derived here so the ACCEPT and CLIMB

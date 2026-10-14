@@ -2100,8 +2100,12 @@ class LocalDelegationDispatchPort:
             # the prompt's declared response shape can narrow. A code answer the
             # gate passed with no executed test run is refused as the gate
             # refuses it, before anything decides.
-            declared_deterministic, _ = resolve_task_class_dod_checks(
-                task_type, prompt=prompt
+            # A response contract replaces the class DoD at the gate
+            # (OMN-15193), so the check set in force is then empty.
+            declared_deterministic = (
+                ()
+                if attempt_outcome.response_contract_governed
+                else resolve_task_class_dod_checks(task_type, prompt=prompt)[0]
             )
             gate_result = _with_executed_check_verdict(
                 task_type, gate_result, declared_deterministic
@@ -3568,6 +3572,7 @@ class LocalDelegationDispatchPort:
             timeout_result=None,
             preamble_chars=extraction.preamble_chars,
             output_refusal=output_refusal,
+            response_contract_governed=effective_response_contract is not None,
             response_contract_evidence=_response_contract_evidence_for_attempt(
                 response_contract=effective_response_contract,
                 deliverable_contract=deliverable_contract,
@@ -4155,6 +4160,7 @@ class _AttemptOutcome:
         "preamble_chars",
         "request_text",
         "response_contract_evidence",
+        "response_contract_governed",
         "result",
         "timeout_result",
     )
@@ -4170,6 +4176,7 @@ class _AttemptOutcome:
         output_refusal: ModelDelegationOutputRefusal | None,
         response_contract_evidence: ModelDelegationContractEvidence | None = None,
         request_text: str | None = None,
+        response_contract_governed: bool = False,
     ) -> None:
         self.result = result
         self.gate_result = gate_result
@@ -4179,6 +4186,9 @@ class _AttemptOutcome:
         self.output_refusal = output_refusal
         self.response_contract_evidence = response_contract_evidence
         self.request_text = request_text
+        # OMN-21077: the gate validated a response contract in place of the
+        # class DoD, so the executed-test rule is not the check set in force.
+        self.response_contract_governed = response_contract_governed
 
 
 __all__ = ["LocalDelegationDispatchPort"]

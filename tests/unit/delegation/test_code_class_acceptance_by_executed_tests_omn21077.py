@@ -194,7 +194,10 @@ def _dispatch(
 
 
 def _bus_workflow(
-    *, task_type: str, content: str
+    *,
+    task_type: str,
+    content: str,
+    response_contract: dict[str, object] | None = None,
 ) -> tuple[hw.HandlerDelegationWorkflow, ModelQualityGateIntent]:
     handler = hw.HandlerDelegationWorkflow(workflows={})
     cid = uuid4()
@@ -204,6 +207,7 @@ def _bus_workflow(
             task_type=task_type,
             correlation_id=cid,
             emitted_at=datetime.now(UTC),
+            response_contract=response_contract,
         )
     )
     deterministic, heuristic = resolve_task_class_dod_checks(task_type, prompt=PROMPT)
@@ -230,7 +234,11 @@ def _bus_workflow(
     events = handler.handle_inference_response(
         ModelInferenceResponseData(
             correlation_id=cid,
-            content=f"{contract.render_start_marker}\n{content}",
+            content=(
+                f"{contract.render_start_marker}\n{content}"
+                if contract.render_start_marker
+                else content
+            ),
             model_used="fixture-model",
             latency_ms=10,
         )
@@ -462,6 +470,66 @@ def test_bus_path_refuses_untested_code_and_does_not_climb(
     assert not any(isinstance(event, ModelDelegationCompleted) for event in events)
     assert not any(isinstance(event, ModelRoutingIntent) for event in events)
     assert any(isinstance(event, ModelDelegationFailed) for event in events)
+
+
+# -- a caller response contract is the sole acceptance authority ---------------
+
+_JSON_CONTRACT: dict[str, object] = {
+    "type": "object",
+    "properties": {"answer": {"type": "string"}},
+    "required": ["answer"],
+    "additionalProperties": False,
+}
+_JSON_ANSWER = '{"answer": "def add(a, b):\\n    return a + b"}'
+
+
+def test_bus_path_lets_a_response_contract_decide_a_code_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OMN-21077: the schema replaces the class DoD (OMN-15193), tests included."""
+    _no_escalation(monkeypatch)
+    handler, intent = _bus_workflow(
+        task_type="code_generation",
+        content=_JSON_ANSWER,
+        response_contract=_JSON_CONTRACT,
+    )
+    gate_result = delta(
+        intent.payload, response_contract=intent.payload.response_contract
+    )
+    assert gate_result.passed is True, gate_result.failure_reasons
+    events = handler.handle_gate_result(gate_result)
+    assert any(isinstance(event, ModelDelegationCompleted) for event in events)
+
+
+def test_local_path_lets_a_response_contract_decide_a_code_answer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """OMN-21077: same verdict on the local path, with no named tests."""
+    _no_escalation(monkeypatch)
+    port = LocalDelegationDispatchPort(
+        effect_handler=_effect_returning(_JSON_ANSWER),
+        evidence_db_path=tmp_path / "d.sqlite",
+        effect_process_boundary=False,
+    )
+    result = asyncio.run(
+        port.dispatch(
+            prompt=PROMPT,
+            task_type="code_generation",
+            correlation_id=uuid4(),
+            max_tokens=256,
+            source_file_path=None,
+            source_session_id=None,
+            wait=True,
+            execution_timeout_seconds=240,
+            terminal_delivery_margin_seconds=60,
+            quality_contract_mode="extend_task_class",
+            acceptance_criteria=(),
+            tenant_id=None,
+            response_contract=_JSON_CONTRACT,
+        )
+    )
+    assert result["status"] == "completed", result
+    assert result["quality_gate_passed"] is True
 
 
 # -- the named test run effect -------------------------------------------------
