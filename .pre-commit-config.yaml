@@ -1746,6 +1746,14 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
+      - id: class3-installed-copy-drift
+        name: Class 3 installed-copy drift node regression (OMN-20865)
+        language: system
+        entry: uv run --frozen pytest tests/test_host_reconcile_class3_import_drift.py -q -p no:randomly
+        files: ^(src/omnimarket/models/model_host_reconcile\.py|src/omnimarket/nodes/node_host_reconcile_compute/.*|tests/test_host_reconcile_class3_import_drift\.py|\.pre-commit-config\.yaml|\.github/workflows/ci\.yml)$
+        pass_filenames: false
+        stages: [pre-commit]
+
       # OMN-19547: walkable contract state machines (golden-chain validation
       # layer plan r4, Phase -1). Typed state_machine blocks load through
       # ModelFSMSubcontract with no unknown key and pass analyze_fsm; NOT_ARMED
