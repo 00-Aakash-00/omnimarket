@@ -612,6 +612,9 @@ jobs:
       # OMN-20282: paired with the work-ledger-principal-cli pre-commit hook.
       - name: Work-ledger signing configuration and bus round-trip
         run: uv run --frozen pytest tests/unit/work_ledger_bus/test_work_ledger_append_cli.py -q
+      # OMN-20737: paired with the work-ledger-parity-database pre-commit hook.
+      - name: Work-ledger parity database errors and live state reads
+        run: uv run --frozen pytest tests/unit/nodes/node_projection_work_ledger/test_work_ledger_parity.py -q
       # OMN-20278: paired with the lab-work-receipt pre-commit hooks.
       - name: Lab work receipt STATUS mapping
         run: uv run --frozen pytest tests/unit/nodes/node_work_ledger_bus_mirror/test_lab_work_receipt_mapping.py -q -p no:randomly --no-cov
