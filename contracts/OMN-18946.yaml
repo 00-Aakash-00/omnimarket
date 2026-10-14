@@ -26,7 +26,11 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/ci/test_sibling_pins_omn20001.py -q"
+        check_value: "uv run pytest tests/ci/test_sibling_pins_omn20001.py -k pin_reader -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_sibling_pins_omn20001.py -k 'not pin_reader' -q"
+        cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC4"]
   - id: "dod-omn18946-check-fix-release-floor"
     description: "The locked version is supported and versions predating the vendored migrations remain refused."
@@ -34,6 +38,7 @@ dod_evidence:
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py -k release_floor -q"
+        cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC5"]
   - id: "dod-omn18946-check-fix-deploy-probe"
     description: "Deploy probe: hosted-runner pin resolution follows newer lock releases and rejects malformed locks."
@@ -41,3 +46,4 @@ dod_evidence:
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/ci/test_sibling_pins_omn20001.py -k 'pin_reader or checkout_pins' -q"
+        cwd: "${OMNI_HOME}/omnimarket"
