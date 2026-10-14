@@ -1,0 +1,92 @@
+schema_version: "1.0.0"
+ticket_id: "OMN-20489"
+title: "A delegated answer is accepted only after its gate: contract checks plus an independent judge for text, its named tests for code"
+summary: >-
+  node_delegation_answer_gate_compute decides acceptance of a delegated answer.
+  A text class (task-class verification grounding) is accepted only when its
+  contract checks pass and an independent judge, whose model family is known
+  and differs from the producer's, accepts the content. A code class
+  (execution_required) is accepted only when its contract checks pass and its
+  named tests ran against the answer and passed. Any other class keeps its
+  contract verdict. The judge backend is the first routing-contract backend
+  declaring judge_adequacy of another family; the judge prompt reads the
+  source and the answer and does not count sentences. A rejection fails the
+  quality-gate result with fallback recommended, so the ladder climbs as on a
+  contract failure, and the judge or test verdict is recorded in
+  rule_evaluations beside the contract's rules. The in-process dispatch port
+  applies the gate when an answer judge is wired; wiring a default judge on
+  the live delegation path is follow-up work. The routing contract and the
+  overlay are not changed.
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: "req-text-answer-needs-independent-judge"
+    statement: |-
+      A text-class answer is accepted only when its contract checks pass and an independent judge of another model family accepts its content; no verdict, an unparseable verdict or a same-family judge refuses it.
+    acceptance:
+      - id: "GATE1"
+        statement: |-
+          GATE1: text gate over 120 labelled answers -- falsifier: a labelled row whose contract or judge verdict is a reject is accepted, or of the 19 rows a careful reading rejects the gate passes other than 7 where the grader alone passed 17
+  - id: "req-code-answer-needs-named-tests"
+    statement: |-
+      A code-class answer is accepted only when its contract checks pass and its named tests ran against it and passed.
+    acceptance:
+      - id: "GATE2"
+        statement: |-
+          GATE2: code gate -- falsifier: an answer whose named pytest test fails in a workspace copy is accepted, or one whose test passes is refused
+  - id: "req-rejection-escalates-and-is-recorded"
+    statement: |-
+      A gate rejection fails the quality-gate result with fallback recommended, and the judge or test verdict is recorded in rule_evaluations; the in-process dispatch refuses a summary its judge rejects or whose judge call fails.
+    acceptance:
+      - id: "GATE3"
+        statement: |-
+          GATE3: dispatch applies the gate -- falsifier: with a judge wired, a summary the judge rejects completes, or a summary the judge accepts fails
+  - id: "req-no-routing-change"
+    statement: |-
+      No routing contract or overlay change cites this ticket.
+    acceptance:
+      - id: "AC3"
+        statement: |-
+          AC3: no routing, contract or overlay change cites this ticket -- falsifier: git log of the bifrost contract path shows a commit citing this ticket
+evidence_requirements:
+  - kind: "tests"
+    description: "Answer gate over the labelled rows, the code gate with real named tests, and the in-process dispatch with a judge wired."
+    command: "uv run pytest tests/unit/delegation/test_answer_gate_omn20489.py -q -p no:randomly --no-cov -n 0"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn20489-gate1-text-gate"
+    description: "Every labelled row is accepted exactly when its contract and judge verdicts both accept; the judge veto cuts the careful-reject answers passed from 17 to 7; a same-family, unknown-family, absent or unparseable judge refuses."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_answer_gate_omn20489.py -q -p no:randomly --no-cov -n 0 -k 'text or judge or labelled or fixture'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["GATE1"]
+  - id: "dod-omn20489-gate2-code-gate"
+    description: "A slugify answer whose named pytest test passes in a workspace copy is accepted; one whose test fails is refused with the failing test id; no test run is refused as INSUFFICIENT."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_answer_gate_omn20489.py -q -p no:randomly --no-cov -n 0 -k code"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["GATE2"]
+  - id: "dod-omn20489-gate3-dispatch"
+    description: "The in-process dispatch with a judge wired completes a summary its judge accepts, fails one its judge rejects or whose judge call raises, and leaves the verdict unchanged with no judge wired."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_answer_gate_omn20489.py -q -p no:randomly --no-cov -n 0 -k 'dispatch or rejection or acceptance'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["GATE3"]
+  - id: "dod-omn20489-ac3-no-routing-change"
+    description: "No commit touching the bifrost routing contract cites this ticket."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "bash -c '! git log --format=%B -- src/omnimarket/configs/bifrost_delegation.yaml | grep -q OMN-20489'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC3"]
