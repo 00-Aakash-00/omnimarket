@@ -33,9 +33,60 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC4"]
   - id: "dod-omn18946-check-fix-release-floor"
-    description: "The locked version is supported and versions predating the vendored migrations remain refused."
+    description: "The committed release-floor check accepts raised supported locks and refuses obsolete or unadmitted locks in both dependency ranges."
     source: "manual"
     checks:
+      # The gate overlays this PR's tests onto its merge-base control. Execute
+      # the check from that tree's committed revision to compare its behaviour,
+      # rather than executing the corrected test on both sides of the control.
+      - check_type: "test_passes"
+        check_value: |
+          uv run python - <<'PY'
+          import json
+          import subprocess
+          import tempfile
+          from pathlib import Path
+
+          path = "tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py"
+          source = subprocess.check_output(["git", "show", f"HEAD:{path}"], text=True)
+          namespace = {"__file__": str(Path.cwd() / path)}
+          exec(compile(source, path, "exec"), namespace)
+          check = namespace["test_infra_release_floor_and_lock_include_vendored_migrations"]
+          with tempfile.TemporaryDirectory() as directory:
+              root = Path(directory)
+              namespace["REPO"] = root
+
+              def run(ranges, locked):
+                  (root / "pyproject.toml").write_text(
+                      "[project]\ndependencies = " + json.dumps(["omnibase-infra" + ranges[0]])
+                      + "\n[tool.uv]\noverride-dependencies = "
+                      + json.dumps(["omnibase-infra" + ranges[1]]) + "\n"
+                  )
+                  (root / "uv.lock").write_text(
+                      '[[package]]\nname = "omnibase-infra"\nversion = '
+                      + json.dumps(locked) + "\n"
+                  )
+                  check()
+
+              for locked in ("0.38.71", "0.38.72", "0.38.73"):
+                  run([f">={locked},<0.39.0"] * 2, locked)
+              for invalid, locked in (
+                  (">=0.38.71,<0.39.0", "0.38.70"),
+                  (">=0.38.70,<0.39.0", "0.38.72"),
+                  (">=0.38.71,<0.38.72", "0.38.72"),
+              ):
+                  for index in (0, 1):
+                      ranges = [">=0.38.71,<0.39.0"] * 2
+                      ranges[index] = invalid
+                      try:
+                          run(ranges, locked)
+                      except AssertionError:
+                          pass
+                      else:
+                          raise AssertionError(("accepted invalid release", ranges, locked))
+          print("release-floor probe: 3 supported locks accepted; 6 invalid range/lock cases refused")
+          PY
+        cwd: "${OMNI_HOME}/omnimarket"
       - check_type: "test_passes"
         check_value: "uv run pytest tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py::test_infra_release_floor_and_lock_include_vendored_migrations tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py::test_infra_release_floor_follows_raised_lock tests/nodes/node_architecture_discovery_orchestrator/test_infra_03871_compatibility.py::test_infra_release_floor_refuses_obsolete_or_unadmitted_lock -q"
         cwd: "${OMNI_HOME}/omnimarket"
