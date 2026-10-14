@@ -99,6 +99,12 @@ _CANNOT_WIRE_IN_PROCESS: dict[str, str] = {
 _DERIVED_FIELDS = ("route_id", "handler_id", "topic_pattern")
 
 
+@pytest.fixture(autouse=True)
+def _discover_every_runtime_package(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An every-node gate must include packages inactive on the caller's lane."""
+    monkeypatch.delenv("ONEX_ACTIVE_RUNTIME_PACKAGES", raising=False)
+
+
 def _field_max_length(field_name: str) -> int:
     """The max_length ModelDispatchRoute declares for one field, read from the model."""
     for constraint in ModelDispatchRoute.model_fields[field_name].metadata:
