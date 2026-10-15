@@ -1231,15 +1231,16 @@ repos:
       # os.getenv reads in delegation-owned modules and enforces the provenance
       # ratchet (OMN-12967): BIFROST_CONTRACT_PATH and sibling path-config keys
       # MUST resolve through delegation_config_provenance — raw reads always block.
-      # Broad env-read violations run in report mode (Wave 0); provenance-bypass
-      # violations always exit 1. SYNC with ci.yml step "Delegation env-read gate".
+      # OMN-20201: enforce ordinary reads as CI already does. Changes to the
+      # scanner, its tests or its wiring must rescan the source tree too.
+      # SYNC with ci.yml step "Delegation env read scanner (enforce)".
       - id: delegation-env-read-gate
         require_serial: true
         name: Delegation env-read gate (OMN-13295)
         language: system
-        entry: uv run python scripts/ci/check_delegation_env_reads.py
-        files: ^src/omnimarket/.*\.py$
-        pass_filenames: true
+        entry: uv run python scripts/ci/check_delegation_env_reads.py --mode enforce
+        files: ^(src/omnimarket/.*\.py|scripts/ci/check_delegation_env_reads\.py|tests/test_delegation_env_scanner\.py|\.pre-commit-config\.yaml|\.github/workflows/ci\.yml)$
+        pass_filenames: false
         stages: [pre-commit]
 
       # OMN-13285 (W6/GAP-3): routing-authority demo gate. PORTED to the canonical

@@ -46,6 +46,8 @@ DELEGATION_MODULE_PATTERNS = [
     "nodes/node_llm_inference_",
     "nodes/node_llm_completion_",
     "nodes/node_llm_embedding_",
+    "nodes/node_llm_delegation_routing_compute/",
+    "nodes/node_routing_policy_engine/",
     "nodes/node_delegation_quality_gate_",
     "nodes/node_projection_delegation",
     "delegation/",

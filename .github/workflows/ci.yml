@@ -422,7 +422,9 @@ jobs:
       # SYNC: OMN-10926 — delegation env read scanner in enforce mode (Wave 2)
       # Fails CI if any delegation/LLM/bifrost module adds a new os.environ/os.getenv read.
       - name: Delegation env read scanner (enforce)
-        run: uv run python scripts/ci/check_delegation_env_reads.py --mode enforce
+        run: |
+          uv run pytest tests/test_delegation_env_scanner.py -q -n 0
+          uv run python scripts/ci/check_delegation_env_reads.py --mode enforce
       # OMN-12856: GitHub-token env-read gate. Fails CI if any omnimarket source
       # reads GH_PAT/GH_TOKEN/GITHUB_TOKEN via os.environ/os.getenv directly.
       # After OMN-12856 the canonical path is contract_secret_ref + resolve_api_key.

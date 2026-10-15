@@ -1,0 +1,58 @@
+schema_version: "1.0.0"
+ticket_id: OMN-20201
+title: Delegation validator exclusion burn-down, partial M39 scope
+summary: >-
+  Extends the existing delegation environment scanner to two previously unscanned
+  routing nodes and enforces the scanner in pre-commit as CI already does.
+  This is partial M39 evidence only. The remaining M39 scopes and the other audit
+  items remain pending; none of the umbrella acceptance criteria is claimed met.
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: req-audit-burndown
+    statement: Resolve the audit inventory without widening an exemption.
+    acceptance:
+      - id: AC1
+        statement: "AC1: each HIDING item's violations are fixed and its entry removed, or the item carries a recorded ruling that it stays -- falsifier: the item's validator run with the entry deleted still reports findings and no ruling is recorded here"
+      - id: AC2
+        statement: "AC2: each STRUCTURAL item's matcher or wiring is fixed and required in CI with tests in both directions, or carries a recorded ruling -- falsifier: a planted violation of the item's class passes the repo's required CI contexts"
+      - id: AC3
+        statement: "AC3: each item split out into its own ticket is linked here before this ticket closes -- falsifier: an item listed above with no fix, ruling or linked child when this ticket is closed"
+evidence_requirements:
+  - kind: tests
+    description: Partial M39 scope and enforcement evidence; full ticket closure remains pending.
+    command: uv run pytest tests/test_delegation_env_scanner.py -q -n 0
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: dod-current-scanned-scope
+    description: >-
+      Partial context for AC1 only: the current scanner scope reports no ordinary
+      or provenance-bypass violations. Other HIDING items are not evaluated here.
+      No acceptance binding is asserted.
+    source: manual
+    checks:
+      - check_type: command
+        check_value: uv run python scripts/ci/check_delegation_env_reads.py --mode enforce --verbose
+  - id: dod-m39-two-routing-scopes
+    description: >-
+      Partial AC2 evidence: planted environment reads in the two newly covered
+      routing nodes fail; clean inputs pass. Tests also check the enforcing hook
+      and existing CI step. The remaining structural inventory is still pending.
+      No acceptance binding is asserted.
+    source: manual
+    checks:
+      - check_type: test_passes
+        check_value: uv run pytest tests/test_delegation_env_scanner.py -q -n 0
+  - id: dod-m39-unresolved-inventory
+    description: >-
+      AC3 remains pending: no split tickets are created by this change and the
+      umbrella ticket is not ready for closure. The focused suite records only
+      this change's scope, not resolution of the remaining inventory.
+      No acceptance binding is asserted.
+    source: manual
+    status: pending
+    checks: []

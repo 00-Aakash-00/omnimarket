@@ -13,10 +13,13 @@ Ticket: OMN-10917
 
 from __future__ import annotations
 
+import re
+import shlex
 import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 scripts_ci_dir = Path(__file__).parent.parent / "scripts" / "ci"
 sys.path.insert(0, str(scripts_ci_dir))
@@ -27,8 +30,92 @@ from check_delegation_env_reads import (  # noqa: E402
     _find_provenance_bypass_in_source,
     _is_allowlisted,
     _is_delegation_module,
+    main,
     scan_delegation_modules,
 )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "node_name",
+    ["node_llm_delegation_routing_compute", "node_routing_policy_engine"],
+)
+def test_routing_nodes_refuse_env_reads(
+    node_name: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exercise the gate CLI on clean code, a planted read, and its repair."""
+    handler = (
+        tmp_path
+        / "src"
+        / "omnimarket"
+        / "nodes"
+        / node_name
+        / "handlers"
+        / "handler.py"
+    )
+    handler.parent.mkdir(parents=True)
+    (tmp_path / ".git").mkdir()
+    monkeypatch.chdir(tmp_path)
+    handler.write_text('endpoint = "from-request"\n')
+    assert main(["--mode", "enforce"]) == 0
+
+    handler.write_text('import os\nendpoint = os.environ.get("LLM_URL", "")\n')
+    assert main(["--mode", "enforce"]) == 1
+    result = scan_delegation_modules(repo_root=tmp_path, mode="enforce")
+    assert result.scanned_files == 1
+    assert len(result.violations) == 1
+    assert f"{node_name}/handlers/handler.py:2:" in result.violations[0]
+
+    handler.write_text('endpoint = "from-request"\n')
+    assert main(["--mode", "enforce"]) == 0
+
+
+@pytest.mark.unit
+def test_precommit_runs_enforcing_scanner_for_gate_changes() -> None:
+    """Gate edits must scan the source tree rather than just their own file."""
+    root = Path(__file__).resolve().parents[1]
+    config = yaml.safe_load((root / ".pre-commit-config.yaml").read_text())
+    hook = next(
+        hook
+        for repo in config["repos"]
+        for hook in repo["hooks"]
+        if hook["id"] == "delegation-env-read-gate"
+    )
+    argv = shlex.split(hook["entry"]) + hook.get("args", [])
+    assert argv == [
+        "uv",
+        "run",
+        "python",
+        "scripts/ci/check_delegation_env_reads.py",
+        "--mode",
+        "enforce",
+    ]
+    assert hook["pass_filenames"] is False
+    for changed in (
+        "src/omnimarket/nodes/node_routing_policy_engine/handlers/handler_routing_policy.py",
+        "scripts/ci/check_delegation_env_reads.py",
+        "tests/test_delegation_env_scanner.py",
+        ".pre-commit-config.yaml",
+        ".github/workflows/ci.yml",
+    ):
+        assert re.search(hook["files"], changed), changed
+
+
+@pytest.mark.unit
+def test_ci_runs_env_scanner_regressions_before_enforcing() -> None:
+    """The existing CI gate carries both the regression suite and the scan."""
+    root = Path(__file__).resolve().parents[1]
+    workflow = yaml.safe_load((root / ".github/workflows/ci.yml").read_text())
+    gate = next(
+        step
+        for job in workflow["jobs"].values()
+        for step in job.get("steps", [])
+        if step.get("name") == "Delegation env read scanner (enforce)"
+    )
+    assert gate["run"].splitlines() == [
+        "uv run pytest tests/test_delegation_env_scanner.py -q -n 0",
+        "uv run python scripts/ci/check_delegation_env_reads.py --mode enforce",
+    ]
 
 
 class TestIsDelegationModule:
