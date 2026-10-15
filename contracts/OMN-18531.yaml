@@ -1,0 +1,37 @@
+---
+schema_version: "1.0.0"
+ticket_id: "OMN-18531"
+title: "TA.21 contract half: the capture identity, sequence and barrier fields cross the redaction fan-out verbatim"
+summary: "omniclaude's two capture hooks stamp each record with stream and producer_seq, each content record with the content_record_id of the lineage reference it fulfils, and journal a barrier content record per stream. The redaction contract hashes any field it does not declare, so the capture_redaction.yaml owned here declares content_record_id, producer_seq, stream, record_type, barrier_id, high_water and content_capture as capture_verbatim on the content-captured topic, and producer_seq and stream on the hook-event topic. The projection half of TA.21 (storing the fields, the contiguous high-water, the barrier read model) is a separate change."
+is_seam_ticket: false
+interface_change: true
+interfaces_touched: ["events"]
+requirements:
+  - id: "req-omn18531-ta21-verbatim-fields"
+    statement: "The identity, sequence and barrier fields are declared verbatim, and an undeclared field is still hashed."
+    acceptance:
+      - id: "AC1"
+        statement: "AC1: redact_capture keeps content_record_id, producer_seq, stream, barrier_id, high_water, record_type and content_capture unchanged on the content-captured topic, and producer_seq and stream on the hook-event topic, while a field nobody declared is still replaced by its digest -- falsifier: uv run pytest tests/unit/nodes/node_event_emit_effect/test_capture_identity_fields_omn18531.py fails on the head without this change"
+evidence_requirements:
+  - kind: "tests"
+    description: "The declared fields, the fan-out result on each topic and the undeclared-field control."
+    command: "uv run pytest tests/unit/nodes/node_event_emit_effect/test_capture_identity_fields_omn18531.py tests/unit/nodes/node_event_emit_effect/test_hook_event_capture_omn19513.py tests/unit/nodes/node_event_emit_effect/test_content_capture_omn19550.py -q -p no:randomly --no-cov -n 0"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn18531-ta21-ac1-verbatim-fields"
+    description: "AC1: the new fields cross the fan-out verbatim on both topics and an undeclared sibling is still hashed."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_event_emit_effect/test_capture_identity_fields_omn18531.py -q -p no:randomly --no-cov -n 0"
+    binds_ac: ["AC1"]
+  - id: "dod-omn18531-ta21-deploy-probe"
+    description: "Deploy probe. The contract owned here declares content_record_id at the checked-out commit; the probe reads it from GitHub at that commit and exits nonzero on a tree without the declaration, so it fails at the merge base."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "bash -c 'gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_event_emit_effect/contracts/capture_redaction.yaml?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -Eq \"^ +content_record_id: capture_verbatim\"'"
+        cwd: "${OMNI_HOME}/omnimarket"
