@@ -941,6 +941,12 @@ db_io:
       migration: src/omnimarket/nodes/node_projection_run_trace/migrations/0000_create_run_trace.sql
       access: read_write
       role: run_trace
+    - name: local_environment
+      database_ref: application
+      schema: public
+      migration: src/omnimarket/nodes/node_projection_local_environment/migrations/0000_create_local_environment.sql
+      access: read_write
+      role: local_environment
     - name: traces
       database_ref: application
       schema: omninode_internal
@@ -1186,6 +1192,14 @@ database_objects:
     writers: []
   # OMN-19987: cursor for the per-run step rows.
   - name: run_trace_projection_cursor_seq
+    kind: sequence
+    database_ref: application
+    schema: public
+    domain: TENANT
+    owner_declaration: service:omnimarket_projection_migration_runner
+    writers: []
+  # OMN-19988: cursor for the per-service environment rows.
+  - name: local_environment_projection_cursor_seq
     kind: sequence
     database_ref: application
     schema: public
