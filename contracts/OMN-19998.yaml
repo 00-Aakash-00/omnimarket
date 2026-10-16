@@ -122,7 +122,7 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_throughput_tick_decision_compute/handlers/handler_throughput_tick_decision.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -Fc 'def check_repo_status('
-  - id: "dod-omn19998-expired-dep-health-allowlist-row-removed"
+  - id: "dod-omn19998-expired-allowlist-row-removed"
     description: "The allowlist expiry test passes at the head and fails at the merge base, where the task-delegated row is past its expires_at of 2026-10-15."
     source: "manual"
     checks:
@@ -130,7 +130,7 @@ dod_evidence:
         check_value: "uv run pytest tests/nodes/test_dep_health_contract_topology.py -q -k test_this_repo_allowlist_has_no_expired_entries"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC6"]
-  - id: "dod-omn19998-expired-dep-health-allowlist-row-deploy-probe"
+  - id: "dod-omn19998-expired-allowlist-deploy-probe"
     description: "Hosted-runner probe reads the dep-health allowlist at this commit and requires the diagnostic row to remain and the task-delegated row to be gone; the base still carries the expired row and fails."
     source: "manual"
     checks:
