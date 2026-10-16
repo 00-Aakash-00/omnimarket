@@ -127,7 +127,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/test_dep_health_contract_topology.py -q -k test_this_repo_allowlist_has_no_expired_entries"
+        check_value: "uv run pytest tests/nodes/test_dep_health_contract_topology.py -q -k 'test_this_repo_allowlist_has_no_expired_entries or test_this_repo_allowlist_has_no_task_delegated_row'"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC6"]
   - id: "dod-omn19998-expired-allowlist-deploy-probe"
