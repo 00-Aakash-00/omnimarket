@@ -324,6 +324,43 @@ def substitute_any_registered_byok_route(
     return backend
 
 
+def next_registered_byok_route(
+    *,
+    tier: str,
+    excluded_backend_ids: frozenset[str],
+    excluded_model_ids: frozenset[str] = frozenset(),
+    db_path: Path | None = None,
+) -> ModelResolvedDelegationBackend | None:
+    """The customer's next OWN key once the platform ladder has none (OMN-20844).
+
+    The ladder's sibling and up-tier probes judge platform rungs, and a rung is
+    routable only when its HOUSE credential resolves or is explicitly pinned. A
+    customer holding keys for two providers therefore lost the second one the
+    moment the first failed: every rung that could have been substituted onto
+    it was judged unroutable first (Gemini's rungs are pin-only, GLM's need a
+    GLM key), so the run ended after one key.
+
+    This walks the customer's registered providers in catalogue order and
+    returns the first route not already tried this dispatch. Only the
+    customer's own minted references are ever returned; with no untried key it
+    returns ``None`` and the caller terminates as before. No house credential
+    answers in its place.
+    """
+    registered = set(registered_local_byok_providers(db_path=db_path))
+    for provider in customer_provider_catalogue():
+        if provider not in registered:
+            continue
+        plan = resolve_local_byok_credential_plan(provider, db_path=db_path)
+        byok = resolve_byok_provider_backend(provider, plan=plan)
+        if byok is None or byok.backend_id in excluded_backend_ids:
+            continue
+        route = _registered_byok_route(byok, replaced=None, tier=tier, db_path=db_path)
+        if route is None or route.model_id in excluded_model_ids:
+            continue
+        return route
+    return None
+
+
 #: The ladder tier a pinned BYOK route reports. A customer's provider model is
 #: a metered cloud model, which is what the ``cheap_cloud`` tier prices.
 _BYOK_TIER = "cheap_cloud"
@@ -343,6 +380,7 @@ __all__: list[str] = [
     "ByokKeyNotRegisteredError",
     "ByokPinNotPermittedError",
     "house_provider_slug",
+    "next_registered_byok_route",
     "resolve_pinned_byok_route",
     "substitute_any_registered_byok_route",
     "substitute_local_byok_route",

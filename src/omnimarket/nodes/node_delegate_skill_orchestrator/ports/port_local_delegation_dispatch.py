@@ -314,6 +314,7 @@ from omnimarket.routing.delegation_backend_resolution import (
     resolve_delegation_backend as _resolve_delegation_backend_uncustomized,
 )
 from omnimarket.routing.local_byok_route import (
+    next_registered_byok_route,
     resolve_pinned_byok_route,
     substitute_any_registered_byok_route,
     substitute_local_byok_route,
@@ -1921,6 +1922,26 @@ class LocalDelegationDispatchPort:
                         quota_state=self._quota_snapshot(quota_observations),
                     )
 
+                # OMN-20844: the ladder judged every platform rung unroutable or
+                # tried, so a customer's OTHER registered key is the next
+                # responder. A typed account or model refusal is about the key
+                # that failed, not the customer's other provider, so it moves on
+                # here too; an auth failure or a missing credential still ends
+                # the run, and nothing but the customer's own keys is offered.
+                customer_key_route: ModelResolvedDelegationBackend | None = None
+                if (
+                    transport_sibling is None
+                    and escalated_backend is None
+                    and pinned_backend_id is None
+                    and not byok_same_backend_retry
+                    and _is_retryable_transport_failure(transport_failure_class)
+                    and is_customer_attributed(resolved_tenant_id)
+                ):
+                    customer_key_route = next_registered_byok_route(
+                        tier=current_tier,
+                        excluded_backend_ids=frozenset(excluded_backend_refs),
+                    )
+
                 # A transport failure never runs the quality gate, so bank its
                 # (typically zero) metered cost directly — mirrors the
                 # post-success banking below without requiring a gate verdict.
@@ -2024,6 +2045,23 @@ class LocalDelegationDispatchPort:
                     )
                     escalation_count += 1
                     backend = _with_model_choice(escalated_backend)
+                    continue
+
+                if customer_key_route is not None:
+                    # A sideways hop like a sibling: the customer's other key is
+                    # not a higher tier, so it is not charged to the budget.
+                    logger.info(
+                        "LocalDelegationDispatch: customer key fall-through "
+                        "task_type=%s backend=%s -> backend=%s on transport "
+                        "failure_class=%s correlation=%s reason=%s",
+                        task_type,
+                        backend.backend_id,
+                        customer_key_route.backend_id,
+                        transport_failure_class,
+                        correlation_id,
+                        transport_failure_message,
+                    )
+                    backend = _with_model_choice(customer_key_route)
                     continue
 
                 # Cannot escalate (non-retryable failure_class, budget exhausted,
@@ -2585,6 +2623,16 @@ class LocalDelegationDispatchPort:
                     quota_state=self._quota_snapshot(quota_observations),
                     stop_reasons=ladder_stop_reasons,
                 )
+                # OMN-20844: with no platform rung left, the customer's other
+                # registered key is the next responder, charged to the same
+                # budget, and its answer meets the same gate. A key serving the
+                # model just rejected is skipped, as a same-model sibling is.
+                if next_backend is None and is_customer_attributed(resolved_tenant_id):
+                    next_backend = next_registered_byok_route(
+                        tier=current_tier,
+                        excluded_backend_ids=frozenset(excluded_backend_refs),
+                        excluded_model_ids=frozenset(quality_rejected_model_ids),
+                    )
 
             if next_backend is None:
                 ladder_stop_reason = (
