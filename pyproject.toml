@@ -977,6 +977,10 @@ seed = "omnimarket.cli.cli_seed:seed_command"
 # the bus; the rest publish the node's typed command and wait for its terminal
 # event. Discovered over installed distributions like the groups above.
 scm = "omnimarket.handlers.scm.scm_cli:scm_group"
+# OMN-19998: `onex lab claude-token` -- store, deploy, probe and rotate a lab
+# host's Claude token by reference (node_lab_claude_token_effect). Discovered
+# over installed distributions like the groups above.
+lab = "omnimarket.nodes.node_lab_claude_token_effect.cli:lab_group"
 
 [project.entry-points."onex.contracts"]
 # OMN-19407: config contracts a consumer reads through the installed registry
