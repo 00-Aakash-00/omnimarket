@@ -101,6 +101,16 @@ requirements:
     acceptance:
       - id: "AC18"
         statement: "AC18: hostile-reviewer.yml clones omniintelligence at 3502f0de2f9be25cf68e3dc5877d9cb5580c90e0, a descendant of the previous pin 3fcbf795087a79081c0ceeb676216bf64c5d49ae -- falsifier: uv run pytest tests/ci/test_hostile_reviewer_pin_structured_votes_omn19998.py -q fails over the merge base's workflow, which pins 3fcbf795087a79081c0ceeb676216bf64c5d49ae"
+  - id: "req-prrp-snapshot-publish-node-in-omnimarket"
+    statement: "The placement gate's Actions-variables snapshot publish (one gate read per registry repository merged into one dated file, complete or nothing, copied and read back on every available host, with a heartbeat and a failure record) is an omnimarket node in canonical shape (contract, node, handler) with its topics declared in its contract and the host list handed in by the caller."
+    acceptance:
+      - id: "AC19"
+        statement: "AC19: node_prrp_snapshot_publish_effect publishes no file when one repository's gate read fails, dates the merged snapshot by its oldest read, writes each available host and skips an unavailable one, fails the run on a copy that does not read back identical while the other hosts still get the file, writes heartbeat.json only on a complete run and failure.json otherwise, and declares its command and event topics in its contract -- falsifier: uv run pytest tests/nodes/node_prrp_snapshot_publish_effect/test_prrp_snapshot_publish.py tests/test_golden_chain_prrp_snapshot_publish_effect.py -q fails at the merge base"
+  - id: "req-prrp-snapshot-effects-runtime-owner"
+    statement: "The snapshot publisher command subscription belongs to the effects runtime."
+    acceptance:
+      - id: "AC20"
+        statement: "AC20: node_prrp_snapshot_publish_effect declares descriptor.runtime_profiles exactly [effects], so the effects runtime owns its command subscription -- falsifier: uv run pytest tests/nodes/node_prrp_snapshot_publish_effect/test_prrp_snapshot_publish.py -q -k test_the_effects_runtime_owns_the_publisher_command_subscription fails when the publisher declares [main] and at the merge base"
   - id: "req-hostile-reviewer-large-result-verdict"
     statement: "The Hostile Reviewer verdict step reads cli_review's result from a file, so a review result over the 128 KiB per-string exec limit still yields a verdict instead of failing as unknown with Argument list too long."
     acceptance:
@@ -428,6 +438,36 @@ dod_evidence:
         check_value: "uv run pytest tests/ci/test_hostile_reviewer_pin_structured_votes_omn19998.py tests/ci/test_hostile_reviewer_pin_retry_budget_omn17427.py tests/ci/test_hostile_reviewer_head_sha_omn20947.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC18"]
+  - id: "dod-omn19998-prrp-snapshot-publish-node"
+    description: "The publisher and golden-chain tests pass at the head; at the merge base the node package does not exist and both files fail at collection."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_prrp_snapshot_publish_effect/test_prrp_snapshot_publish.py tests/test_golden_chain_prrp_snapshot_publish_effect.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC19"]
+  - id: "dod-omn19998-prrp-snapshot-publish-deploy-probe"
+    description: "Hosted-runner probe reads the snapshot publisher at this commit and requires its handler class; the base has no such file and the probe finds no match."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_prrp_snapshot_publish_effect/handlers/handler_prrp_snapshot_publish.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -c '^class HandlerPrrpSnapshotPublish'
+  - id: "dod-omn19998-prrp-snapshot-effects-runtime-owner"
+    description: "The publisher's own contract test requires descriptor.runtime_profiles exactly [effects] and the runtime ownership contract test accepts it; at the merge base the node package does not exist and the publisher test fails at collection."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_prrp_snapshot_publish_effect/test_prrp_snapshot_publish.py tests/validation/test_runtime_profile_contracts.py -q -k 'test_the_effects_runtime_owns_the_publisher_command_subscription or test_effectful_command_consumers_declare_effects_runtime_profile'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC20"]
+  - id: "dod-omn19998-prrp-effects-runtime-deploy-probe"
+    description: "Hosted-runner probe reads the publisher contract at this commit and refuses any runtime owner other than effects."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_prrp_snapshot_publish_effect/contract.yaml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys,yaml; c=yaml.safe_load(sys.stdin); assert c["descriptor"]["runtime_profiles"] == ["effects"], "snapshot publisher must belong to effects"'
   - id: "dod-omn19998-hostile-reviewer-large-result-verdict"
     description: "The verdict step reads a review result over 128 KiB from a file and prints its verdict; the merge base's workflow fails the test with Argument list too long."
     source: "manual"
