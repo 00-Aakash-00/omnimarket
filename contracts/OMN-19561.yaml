@@ -63,3 +63,47 @@ dod_evidence:
         check_value: |-
           bash -c 'docker exec "${RUNTIME_CONTAINER:-omninode-runtime}" python -c "import pathlib, yaml, omnimarket.nodes as n; root = pathlib.Path(n.__file__).parent; [(lambda c: (_ for _ in ()).throw(AssertionError(name)) if \"retry_policy\" in (c.get(\"error_handling\") or {}) else None)(yaml.safe_load((root / name / \"contract.yaml\").read_text())) for name in (\"node_delegation_orchestrator\", \"node_delegate_skill_orchestrator\")]"'
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn19561-ac1-accepted-2026-10-17T0645Z"
+    description: "AC1 accepted binding (evidence-only): neither delegation orchestrator contract declares an error_handling.retry_policy. Passes at omnimarket origin/dev 185ccc876 (2 passed) and fails at the parent of omnimarket#3915 (both parametrisations fail on max_retries 1). Proposed by the binder lane, re-run and accepted by a separate acceptor lane."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest 'tests/unit/nodes/node_delegate_skill_orchestrator/test_retry_policy_contract_omn19561.py::test_delegation_contract_declares_no_unhonoured_retry_policy' -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]
+    ac_bindings:
+      - label: "AC1"
+        criterion_hash: "4b206c12852c538cbcf9507b89a4cc1d2be4297f9d5514e0c20dea033d53891e"
+        proposed_by: "lane=dod-closeout-bind-2026-10-17T0645Z-c2"
+        accepted_by: "lane=dod-closeout-accept-2026-10-17T0645Z-c2"
+        accepted_at: "2026-10-17T07:01:41Z"
+  - id: "dod-omn19561-ac2-accepted-2026-10-17T0645Z"
+    description: "AC2 accepted binding (evidence-only, omnibase_infra, local Done gate): wiring in a running loop publishes ModelDelegationFailed and closes a stale persisted row FAILED without any dispatch. Passes at omnibase_infra origin/dev 6ff107fd3 and fails at the parent of omnibase_infra#4806 (row stays ROUTED at version 4). Runs only at the local Done gate because the hosted check carries only this repository."
+    source: "manual"
+    execution_scope: "local_done_gate"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest 'tests/integration/migrations/test_completion_bound_restart_omn19561.py::test_restart_sweep_publishes_terminal_and_closes_persisted_row_without_dispatch' -q"
+        cwd: "${OMNI_HOME}/omnibase_infra"
+    binds_ac: ["AC2"]
+    ac_bindings:
+      - label: "AC2"
+        criterion_hash: "f94b439e9b76e566723e219197c7ff10f58c21fdb5b2b11edb18a3a4b983fb99"
+        proposed_by: "lane=dod-closeout-bind-2026-10-17T0645Z-c2"
+        accepted_by: "lane=dod-closeout-accept-2026-10-17T0645Z-c2"
+        accepted_at: "2026-10-17T07:01:41Z"
+  - id: "dod-omn19561-ac3-accepted-2026-10-17T0645Z"
+    description: "AC3 accepted binding (evidence-only, omnibase_infra, local Done gate): against ephemeral Postgres an absorbing UPDATE leaves delegation_workflow_state updated_at unchanged and a real transition advances it. Passes at omnibase_infra origin/dev 6ff107fd3 and fails at the parent of omnibase_infra#4290, which lacks the migration. Runs only at the local Done gate because the hosted check carries only this repository."
+    source: "manual"
+    execution_scope: "local_done_gate"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest 'tests/integration/migrations/test_delegation_updated_at_absorb_omn19561.py::test_absorb_preserves_timestamp_and_transition_advances_it' -q"
+        cwd: "${OMNI_HOME}/omnibase_infra"
+    binds_ac: ["AC3"]
+    ac_bindings:
+      - label: "AC3"
+        criterion_hash: "776355016eb1431e926adc6fccdb93ad83c0e74a3373a5f83ff906b135bf6133"
+        proposed_by: "lane=dod-closeout-bind-2026-10-17T0645Z-c2"
+        accepted_by: "lane=dod-closeout-accept-2026-10-17T0645Z-c2"
+        accepted_at: "2026-10-17T07:01:41Z"
