@@ -1024,7 +1024,7 @@ dod_evidence:
         check_value: "uv run pytest tests/test_hostile_reviewer_codex_fallback.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC61"]
-  - id: "dod-omn17427-hostile-reviewer-codex-fallback-deploy-probe"
+  - id: "dod-omn17427-codex-fallback-deploy-probe"
     description: "Deploy probe. GitHub serves the hostile-reviewer orchestrator handler at the checked-out HEAD with the fallback route and the fallback fields. It fails at the merge base, which has neither, and needs only GitHub access and Python on the hosted runner."
     source: "manual"
     checks:
