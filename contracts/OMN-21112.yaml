@@ -1,0 +1,55 @@
+---
+schema_version: "1.0.0"
+ticket_id: "OMN-21112"
+title: "Compaction command and receipt event schemas with no free-text receipt field"
+summary: >-
+  Typed schemas for the two restricted compaction commands
+  (onex.cmd.omniintelligence.context-compaction-requested.v1 and -package.v1) and the six
+  receipt events (onex.evt.omnimarket.context-compaction-{prepared,activated,fallback,
+  installed,install-mismatch,install-uncertain}.v1) in omnimarket.models.context_compaction,
+  their closed vocabularies in omnimarket.enums.enum_context_compaction and the eight topic
+  constants in omnimarket.events.topics. Each model carries session_id (the partition key)
+  and names its contracted identity field (IDENTITY_FIELD). The receipt schemas hold no
+  free-text field. Registration of the eight entries in node_emit_daemon/registries/topics.yaml
+  is not in this change: the drift validator refuses an event registered only on the
+  omnimarket side unless the drift baseline declares it, and the canonical-file-shape
+  ratchet refuses growth of that baseline.
+is_seam_ticket: false
+interface_change: true
+interfaces_touched:
+  - "src/omnimarket/models/context_compaction"
+  - "src/omnimarket/enums/enum_context_compaction.py"
+  - "src/omnimarket/events/topics.py"
+requirements:
+  - id: "req-receipt-no-free-text"
+    statement: "Every receipt event schema carries ids, hashes, counts, factor names, token estimates and failure classes only."
+    acceptance:
+      - id: "AC2"
+        statement: >-
+          AC2: every receipt event schema contains no free-text content field -- falsifier:
+          a string field other than an id, hash, enum or name (the schema walk over each
+          receipt model finds a string leaf with no format, enum or pattern; its positive
+          control is a model with two unbounded strings, which the walk reports)
+evidence_requirements:
+  - kind: "tests"
+    description: "The compaction event schema tests, including the free-text schema walk and its positive control."
+    command: "uv run pytest tests/unit/models/context_compaction -q"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn21112-ac2-no-free-text"
+    description: "AC2: the schema walk over each of the six receipt models finds no string leaf without a format, enum or pattern; its positive control reports both unbounded strings; the package reply's only unbounded string is messages[].text. The tests fail at the merge base with ModuleNotFoundError: omnimarket.models.context_compaction does not exist there."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/models/context_compaction/test_context_compaction_event_schemas.py -q"
+    binds_ac: ["AC2"]
+  - id: "dod-omn21112-deploy-receipt-schemas"
+    description: "Deploy probe: read the receipt schema module at the checked-out commit from GitHub and require the six receipt models, each naming its identity field. The base lacks the module and fails this probe. The command uses GitHub and the hosted runner checkout without a lab path."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/models/context_compaction/model_context_compaction_receipt.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; s = sys.stdin.read(); names = ["Prepared", "Activated", "Fallback", "Installed", "InstallMismatch", "InstallUncertain"]; missing = [n for n in names if "class ModelContextCompaction" + n + "(BaseModel):" not in s]; assert not missing, missing; assert s.count("IDENTITY_FIELD: ClassVar[str] = ") == 6'
