@@ -380,3 +380,96 @@ def test_shipped_overlay_validates() -> None:
     overlay = ModelDaemonOverlay.model_validate(yaml.safe_load(path.read_text()))
     names = {daemon.name for daemon in overlay.daemons}
     assert {"landing-controller", "pr-watcher", "omni-plugin", "dispatch-venv"} <= names
+
+
+def test_overlay_expands_set_variables_and_skips_a_daemon_naming_an_unset_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from omnimarket.nodes.node_lab_daemon_sync_effect.__main__ import load_overlay
+
+    path = tmp_path / "overlay.yaml"
+    path.write_text(
+        """\
+schema_version: 1
+fix_lane: ["echo", "${LDS_SET}"]
+daemons:
+  - name: alpha
+    installer: ["${LDS_SET}/install"]
+    installed:
+      kind: command
+      argv: ["git", "-C", "$LDS_SET", "rev-parse", "HEAD"]
+    source:
+      kind: command
+      argv: ["git", "-C", "$LDS_SET", "rev-parse", "HEAD"]
+  - name: beta
+    installer: ["${LDS_UNSET}/install"]
+    installed:
+      kind: command
+      argv: ["git", "rev-parse", "HEAD"]
+    source:
+      kind: command
+      argv: ["git", "rev-parse", "HEAD"]
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("LDS_SET", "/x")
+    monkeypatch.delenv("LDS_UNSET", raising=False)
+    diagnostics: list[str] = []
+
+    overlay = load_overlay(path, diagnostics)
+
+    assert [daemon.name for daemon in overlay.daemons] == ["alpha"]
+    assert overlay.daemons[0].installer == ["/x/install"]
+    assert "/x" in overlay.daemons[0].source.argv
+    assert overlay.fix_lane == ["echo", "/x"]
+    assert diagnostics == ["beta: skipped, unset LDS_UNSET"]
+
+
+def test_overlay_refuses_a_fix_lane_naming_an_unset_variable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from omnimarket.nodes.node_lab_daemon_sync_effect.__main__ import load_overlay
+
+    path = tmp_path / "overlay.yaml"
+    path.write_text(
+        """\
+schema_version: 1
+fix_lane: ["echo", "${LDS_UNSET}"]
+daemons: []
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("LDS_UNSET", raising=False)
+
+    with pytest.raises(ValueError, match="fix_lane names unset LDS_UNSET"):
+        load_overlay(path, [])
+
+
+def test_models_refuse_empty_argv_elements_and_impossible_stamps() -> None:
+    from pydantic import ValidationError
+
+    from omnimarket.nodes.node_lab_daemon_sync_effect.models.model_lab_daemon_sync import (
+        ModelRevisionProbe,
+    )
+
+    with pytest.raises(ValidationError):
+        ModelRevisionProbe(kind="command", argv=["git", ""])
+    with pytest.raises(ValidationError):
+        ModelRevisionProbe(kind="command")
+    with pytest.raises(ValidationError):
+        ModelRevisionProbe(kind="json_file")
+
+    overlay = ModelDaemonOverlay.model_validate(
+        {
+            "schema_version": 1,
+            "daemons": [_daemon("alpha")],
+            "fix_lane": ["echo"],
+        }
+    )
+    with pytest.raises(ValidationError):
+        ModelLabDaemonSyncCommand(
+            host="h200",
+            overlay=overlay,
+            state_dir="/state",
+            now="2026-13-45T99:99:99Z",
+        )

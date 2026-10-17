@@ -4,13 +4,23 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from datetime import datetime
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from omnimarket.models.model_lab_daemon_drift import ModelLabDaemonDrift
 
 _TS = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+
+
+def _valid_stamp(value: str) -> str:
+    datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    return value
+
+
+_Arg = Annotated[str, Field(min_length=1)]
+_Stamp = Annotated[str, Field(pattern=_TS), AfterValidator(_valid_stamp)]
 
 EnumDaemonDecision = Literal[
     "current", "lagging", "branch_expired", "branch_held", "unreadable"
@@ -31,7 +41,7 @@ class ModelRevisionProbe(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     kind: Literal["command", "json_file"]
-    argv: list[str] = Field(default_factory=list)
+    argv: list[_Arg] = Field(default_factory=list)
     path: str | None = None
     key: str | None = Field(
         default=None,
@@ -41,6 +51,14 @@ class ModelRevisionProbe(BaseModel):
             "stdout line."
         ),
     )
+
+    @model_validator(mode="after")
+    def validate_probe(self) -> ModelRevisionProbe:
+        if self.kind == "command" and not self.argv:
+            raise ValueError("command probe requires non-empty argv")
+        if self.kind == "json_file" and not self.path:
+            raise ValueError("json_file probe requires a non-empty path")
+        return self
 
 
 class ModelBranchRecord(BaseModel):
@@ -71,7 +89,7 @@ class ModelDaemonDeclaration(BaseModel):
     source_branch: str = "main"
     installed: ModelRevisionProbe
     source: ModelRevisionProbe
-    installer: list[str] = Field(
+    installer: list[_Arg] = Field(
         min_length=1,
         description="The daemon's own installer, which converges it to the source branch tip.",
     )
@@ -90,7 +108,7 @@ class ModelDaemonOverlay(BaseModel):
 
     schema_version: Literal[1]
     daemons: list[ModelDaemonDeclaration]
-    fix_lane: list[str] = Field(
+    fix_lane: list[_Arg] = Field(
         min_length=1,
         description=(
             "argv template that dispatches one detached fix lane; `{lane}`, `{brief}`, `{daemon}` "
@@ -112,7 +130,7 @@ class ModelLabDaemonSyncCommand(BaseModel):
     host: str = Field(min_length=1)
     overlay: ModelDaemonOverlay
     state_dir: str = Field(min_length=1)
-    now: str = Field(pattern=_TS)
+    now: _Stamp
     mode: Literal["repair", "check"] = "repair"
 
 
@@ -156,7 +174,7 @@ class ModelLabDaemonInstallRefused(BaseModel):
     blocker: str
     installed_revision: str | None = None
     source_revision: str | None = None
-    lagging_since: str = Field(pattern=_TS)
+    lagging_since: _Stamp
     fix_lane: str
     fix_lane_dispatched: bool
     fix_lane_error: str | None = None
@@ -169,7 +187,7 @@ class ModelLabDaemonSyncResult(BaseModel):
 
     correlation_id: str
     host: str
-    at: str = Field(pattern=_TS)
+    at: _Stamp
     mode: Literal["repair", "check"]
     daemons: list[ModelDaemonOutcome]
     drifts: list[ModelLabDaemonDrift]
