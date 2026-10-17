@@ -263,6 +263,18 @@ requirements:
         statement: "AC52: node_lab_story_log_effect writes the ISO week's rulings, incidents and merged pull requests grouped by theme with their timestamps and figures, leaves out rows outside the week and the operator's quoted words, and replaces private repository names, addresses, host names, lane ids and person names by roles -- falsifier: uv run pytest tests/unit/nodes/node_lab_story_log_effect/test_lab_story_log.py -q -k 'no_private_name_survives or only_rows_inside or operators_own_words'"
       - id: "AC53"
         statement: "AC53: a sanitizer that lets a private name through stops the write, and a vocabulary with no private repository names is refused -- falsifier: uv run pytest tests/unit/nodes/node_lab_story_log_effect/test_lab_story_log.py -q -k 'surviving_private_name or no_private_repos or missing_vocabulary'"
+  - id: "req-declared-table-retention"
+    statement: "The retention node prunes every registered lab table to its declared window in bounded, committed batches on the runtime tick, and never touches a ledger, credential, tenant registry or migration history table."
+    acceptance:
+      - id: "AC44"
+        statement: "AC44: node_retention_cleanup registers omninode_internal.consumer_flow_windows, deletes a batched target in bounded batches with one committed transaction each and the tenant GUC first, isolates a failing target, refuses a protected table at load, and runs once per declared interval on the runtime tick -- falsifier: uv run pytest tests/nodes/test_omn17427_retention_cleanup_batched.py -q fails at the merge base"
+  - id: "req-declared-file-retention"
+    statement: "The retention node retires the lab hosts' unbounded file paths from the same contract, with a keep window set by each path's readers, archives history before removing it, and reports bytes and files removed and archived per run."
+    acceptance:
+      - id: "AC57"
+        statement: "AC57: node_retention_cleanup declares ledger-detail, worktree-pins, worktree-removal-snapshots, lane-scratch, remote-lane-receipts, lab-run-lane-dirs, lane-reports and claude-transcripts in retention_policy.file_retention, each with its readers and a keep window of at least seven days, and retires a unit only when every file in it is older than the window -- falsifier: uv run pytest tests/nodes/test_omn17427_file_retention.py -q fails at the merge base"
+      - id: "AC58"
+        statement: "AC58: an archive entry removes a unit only after the copy is read back and every checksum matches, removes nothing without an archive tree, never follows symlinks and never touches memory directories or the live ledger, and the cleanup run reports bytes and files removed and archived -- falsifier: the archive, verify-failure, symlink and protected-path cases in tests/nodes/test_omn17427_file_retention.py fail at the merge base"
   - id: "req-sweep-root-no-registry-fallback"
     statement: "Sweep orchestrators refuse a stale ONEX_CC_REPO_PATH instead of locating a change-control clone through OMNI_HOME."
     acceptance:
@@ -833,6 +845,36 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_lab_story_log_effect/handlers/handler_lab_story_log.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import ast, sys; source = sys.stdin.read(); tree = ast.parse(source); assert any(isinstance(n, ast.ClassDef) and n.name == "HandlerLabStoryLog" for n in tree.body); assert "LabStoryLogLeakError" in source and "clean.leaks" in source; print("lab story log deploy probe: PASS")'
+  - id: "dod-omn17427-ac44-declared-table-retention"
+    description: "The retention node's batched, scheduled, protected-table tests pass."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/test_omn17427_retention_cleanup_batched.py tests/nodes/test_omn15797_retention_cleanup_tenant_seam.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC44"]
+  - id: "dod-omn17427-declared-table-retention-deploy-probe"
+    description: "Deploy probe. GitHub serves the retention handler and contract at the checked-out HEAD with batched deletes, the protected-table refusal and the consumer_flow_windows target. It fails at the merge base, which has none of them, and needs no lab network on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_retention_cleanup/handlers/handler_retention_cleanup.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("_run_batched", "_PROTECTED_MARKERS", "ModelRuntimeTick", "batch_order_column")); print("declared table retention deploy probe: PASS")'
+  - id: "dod-omn17427-ac46-ac47-declared-file-retention"
+    description: "The file retention contract entries, keep-window floor, archive-then-remove order and per-run totals pass their tests."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/test_omn17427_file_retention.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC57", "AC58"]
+  - id: "dod-omn17427-declared-file-retention-deploy-probe"
+    description: "Deploy probe. GitHub serves the file retention handler and the contract's file_retention block at the checked-out HEAD. It fails at the merge base, which has neither, and needs no lab network on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_retention_cleanup/handlers/handler_file_retention.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("MIN_KEEP_DAYS", "_verify_archive", "NodeFileRetention")); print("declared file retention deploy probe: PASS")'
   - id: "dod-omn17427-ac50-sweep-root-no-registry-fallback"
     description: "Both sweep resolvers refuse stale environment roots without locating an OMNI_HOME registry clone; explicit and valid environment roots still resolve."
     source: "manual"
