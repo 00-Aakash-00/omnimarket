@@ -376,3 +376,11 @@ dod_evidence:
         check_value: "uv run pytest benchmarks/delegation_ladder/tests/test_rung_results.py::test_an_executing_task_of_each_scorer_rescores_on_every_rung -q -n 0 -p no:randomly --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC16"]
+  - id: "dod-omn20844-ac3-onboarding-overlay-default"
+    description: "AC3 as amended: onboarding stores the default model the onboarding overlay declares when no model is named, the customer changes it with onex models use, and the onboarding and BYOK files name no model id. Falsifiers: with no overlay the same call is still refused with BYOK_MODEL_NOT_CHOSEN; a default the key's list does not name is refused with nothing stored; a broken overlay is refused, not read as absent; a planted model id is found by the scan."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/cli/test_omn20844_onboarding_overlay_default_model.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC3"]

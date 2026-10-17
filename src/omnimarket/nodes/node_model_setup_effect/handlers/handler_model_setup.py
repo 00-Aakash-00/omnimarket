@@ -33,6 +33,7 @@ from typing import get_args
 
 import yaml
 
+from omnimarket.handlers.node_overlay_reader import load_node_overlay
 from omnimarket.inference.local_byok_credential_adapter import (
     registered_local_byok_providers,
     resolve_local_byok_credential_model,
@@ -54,6 +55,34 @@ PROVIDERS: tuple[ModelProvider, ...] = get_args(ModelProvider)
 
 #: The backend onboarding points at Ollama.
 OLLAMA_BACKEND = "local-coder"
+
+#: The node whose overlay (``<root>/node_model_setup_effect/overlay.yaml`` under
+#: ``ONEX_SKILL_OVERLAY_ROOTS``) declares what onboarding does for a developer who
+#: names no model (OMN-20844, AC3). The package ships no model id: a deployment
+#: supplies it, and with none supplied nothing is picked for the developer.
+MODEL_SETUP_OVERLAY_NODE = "node_model_setup_effect"
+
+#: The overlay fields: ``<provider>_default_model`` for each provider the BYOK
+#: catalogue routes a key for (Ollama holds no key and has no catalogue row).
+ONBOARDING_DEFAULT_MODEL_FIELDS: frozenset[str] = frozenset(
+    f"{provider}_default_model"
+    for provider in PROVIDERS
+    if resolve_byok_provider_backend(provider) is not None
+)
+
+
+def onboarding_default_model(provider: str) -> str | None:
+    """The default model the onboarding overlay declares for ``provider``, or ``None``.
+
+    OMN-20844. ``None`` when no overlay root supplies one, or the overlay does not
+    name this provider. A present overlay that is broken raises
+    ``NodeOverlayError``: a broken overlay must not read as an absent one.
+    """
+    overlay = load_node_overlay(
+        MODEL_SETUP_OVERLAY_NODE, fields=ONBOARDING_DEFAULT_MODEL_FIELDS
+    )
+    return overlay.get(f"{provider}_default_model")
+
 
 #: Leading characters of each provider's keys, most specific first: an
 #: OpenRouter or Anthropic key also starts with ``sk-``.
@@ -174,7 +203,7 @@ class HandlerModelSetup:
                 operation="status",
                 providers=tuple(self._status(p) for p in PROVIDERS),
             )
-        if request.operation in ("add_models", "reorder", "remove_model"):
+        if request.operation in ("add_models", "reorder", "remove_model", "use_model"):
             return self._edit_models(request)
         if request.operation == "forget":
             if request.provider is not None:
@@ -217,6 +246,10 @@ class HandlerModelSetup:
                     f"{', '.join(stored)}"
                 )
             wanted = (*stored, *asked)
+        elif request.operation == "use_model":
+            if len(asked) != 1:
+                raise ModelSetupRefusedError("name the one model to use")
+            wanted = asked
         elif request.operation == "reorder":
             if set(asked) != set(stored):
                 raise ModelSetupRefusedError(
@@ -409,10 +442,13 @@ class HandlerModelSetup:
 
 
 __all__ = [
+    "MODEL_SETUP_OVERLAY_NODE",
     "OLLAMA_BACKEND",
+    "ONBOARDING_DEFAULT_MODEL_FIELDS",
     "PROVIDERS",
     "DelegateRunner",
     "HandlerModelSetup",
     "key_looks_like",
+    "onboarding_default_model",
     "run_pinned_delegation",
 ]

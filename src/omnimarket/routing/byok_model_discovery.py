@@ -7,7 +7,7 @@ Why this exists
 The BYOK catalogue used to pin one model id per provider. A provider retires
 ids for NEW accounts while old accounts keep them: on 2026-09-30 a fresh Google
 AI Studio key got HTTP 404 "no longer available to new users" for the pinned
-``gemini-2.5-flash-lite``, while the lab's older project still answered on it.
+the one model it pinned, while the lab's older project still answered on it.
 A pin tested on our own key therefore says nothing about a customer's key.
 
 So the catalogue declares a model PREFERENCE per provider row

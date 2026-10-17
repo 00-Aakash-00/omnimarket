@@ -49,6 +49,7 @@ import yaml
 from omnibase_core.errors.model_onex_error import ModelOnexError
 from pydantic import SecretStr, ValidationError
 
+from omnimarket.handlers.node_overlay_reader import NodeOverlayError
 from omnimarket.inference.local_byok_credential_adapter import (
     LocalByokCredentialStore,
     local_credential_registered_at,
@@ -87,6 +88,7 @@ from omnimarket.nodes.node_model_setup_effect.handlers.handler_model_setup impor
     HandlerModelSetup,
     ModelSetupRefusedError,
     key_looks_like,
+    onboarding_default_model,
 )
 from omnimarket.nodes.node_model_setup_effect.models.model_model_setup_request import (
     ModelModelSetupRequest,
@@ -246,6 +248,25 @@ def _resolve_plan(
     )
 
 
+def _overlay_default_model(provider: str) -> str | None:
+    """The default model the onboarding overlay declares for ``provider`` (OMN-20844).
+
+    Says where it came from and the one command that changes it. A broken
+    overlay is refused with its path, never read as an absent one.
+    """
+    try:
+        default = onboarding_default_model(provider)
+    except NodeOverlayError as error:
+        raise click.ClickException(f"{error}. Nothing was stored.") from None
+    if default is not None:
+        click.echo(
+            f"No --model given: using the default model your onboarding overlay "
+            f"declares for {provider}. Change it any time with: "
+            f"onex models use {provider} <model id>"
+        )
+    return default
+
+
 def _ask_model(provider: str) -> str:
     """The model the customer names at a terminal; a script is refused (OMN-20844).
 
@@ -318,12 +339,14 @@ def _resolve_model(
     OMN-20844. ``chosen`` is the model the customer named with ``--model``; it
     is checked against the key's list and stored as named. For a provider whose
     catalogue row says the customer chooses the model, no ``--model`` means the
-    customer is asked at a terminal and a script is refused: the preference is
-    never used to pick one for them.
+    default the onboarding overlay declares for the provider, checked the same
+    way; with no overlay default the customer is asked at a terminal and a
+    script is refused. The catalogue preference is never used to pick one for
+    them, and no model id is written in code.
     """
     backend = resolve_byok_provider_backend(provider, plan=plan)
     if chosen is None and backend is not None and backend.customer_chooses_model:
-        chosen = _ask_model(provider)
+        chosen = _overlay_default_model(provider) or _ask_model(provider)
     if chosen is not None:
         return _check_chosen_model(provider, plan, value, chosen)
     if known is not None:
@@ -956,8 +979,9 @@ def _fold_credential_events(result: ModelLocalSecretResult, db_path: Path) -> No
     default=None,
     help=(
         "The model this provider key runs, checked against the provider's list "
-        "for the key. Required for a provider where you choose the model "
-        "(openrouter): without it a terminal is asked and a script is refused."
+        "for the key. For a provider where you choose the model (openrouter) "
+        "without it the default your onboarding overlay declares is used; with "
+        "no such default a terminal is asked and a script is refused."
     ),
 )
 def set_secret(
@@ -1278,7 +1302,8 @@ models_group = click.Group(
     help=(
         "A model your key runs, checked against the provider's list for it; "
         "repeat it to choose several, first is tried first. For OpenRouter you "
-        "choose it: without --model a terminal is asked and a script is refused."
+        "choose it: without --model the default your onboarding overlay declares "
+        "is used; with no such default a terminal is asked and a script is refused."
     ),
 )
 @_model_json
@@ -1427,6 +1452,39 @@ def add_model_to_key(provider: str, model_options: tuple[str, ...]) -> None:
     )
 
 
+@models_group.command("use")
+@click.argument("provider", type=_model_choice)
+@click.argument("model")
+def use_model(provider: str, model: str) -> None:
+    """Make MODEL the one model PROVIDER's stored key runs, with no key asked.
+
+    The one-command change of the model onboarding stored (OMN-20844): MODEL is
+    checked against the provider's list for your key, then replaces the key's
+    whole model list. Keep others beside it with ``onex models add-model``.
+    """
+    name = provider.lower()
+    if name == "ollama":
+        raise click.ClickException(
+            f"Ollama has no key to choose a model for. {_OLLAMA_HOW}"
+        )
+    store = LocalByokCredentialStore()
+    key = asyncio.run(store.get_secret(f"llm.{name}.api_key"))
+    if key is None:
+        raise click.ClickException(
+            f"no {_MODEL_LABELS[name]} key is stored; add one with: "
+            f"onex models add {name}"
+        )
+    _check_chosen_model(name, resolve_local_byok_credential_plan(name), key, model)
+    _edit_model_list(
+        _model_handler(),
+        ModelModelSetupRequest(
+            operation="use_model",
+            provider=cast(ModelProvider, name),
+            models=(model,),
+        ),
+    )
+
+
 @models_group.command("reorder")
 @click.argument("provider", type=_model_choice)
 @click.argument("models", nargs=-1, required=True)
@@ -1498,7 +1556,7 @@ _REVIEW_GATEWAY_DRY_RUN_PAYLOAD: dict[str, object] = {
     "--model",
     "model_option",
     required=True,
-    help="The Claude model every review runs on, e.g. claude-sonnet-5-5.",
+    help="The Claude model id every review runs on.",
 )
 @click.option(
     "--host",

@@ -71,9 +71,15 @@
 #   customer. Registration takes the model the customer names (`--model` on
 #   `onex secret set`, `onex models add` and `onex secret register-tenant-key`,
 #   `model` on the hosted intake), checks it against the key's own list from
-#   `models_url`, and stores it with the credential; with no model named a
-#   terminal is asked for one and a script or the intake is refused with
-#   BYOK_MODEL_NOT_CHOSEN. `onex delegate --model` overrides it per call. A
+#   `models_url`, and stores it with the credential. With no model named, the
+#   CLI uses the default the deployment's onboarding overlay declares
+#   (`openrouter_default_model` in `<root>/node_model_setup_effect/overlay.yaml`
+#   under ONEX_SKILL_OVERLAY_ROOTS), checked against the key's list the same way;
+#   this package ships no model id for it, and `onex models use <provider>
+#   <model id>` changes the model afterwards (OMN-20844, AC3). With no overlay
+#   default a terminal is asked for one, and a script or the hosted intake is
+#   refused with BYOK_MODEL_NOT_CHOSEN. `onex delegate --model` overrides it per
+#   call. A
 #   credential with no stored model is refused the same way at call time, and a
 #   call on a model `model_preference` does not match (one the customer named)
 #   is never re-aimed at one it does. `model_preference` stays, so a credential

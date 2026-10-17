@@ -126,6 +126,8 @@ not_routing_resolution_sites:
     reason: the runtime host a sweep probes; a probe target, not a route for delegated work
   - site: "src/omnimarket/nodes/node_integration_sweep_orchestrator/handlers/handler_integration_sweep_orchestrator.py:load_node_overlay(_NODE_NAME)"
     reason: hosts and URLs a sweep probes; probe targets, not routes for delegated work
+  - site: "src/omnimarket/nodes/node_model_setup_effect/handlers/handler_model_setup.py:load_node_overlay(MODEL_SETUP_OVERLAY_NODE)"
+    reason: the model a developer's own provider key is registered with when none is named; stored with the key and checked against its list, never a choice among backends for delegated work
 not_routing_configs:
   - path: src/omnimarket/configs/adk_invoke.yaml
     reason: one fixed provider invocation with no choice among routes

@@ -230,7 +230,7 @@ class ModelByokPricing(BaseModel):
     """The per-1M-token price of a row's model, when it differs from its tier's.
 
     A call is booked at its tier's rate unless its model declares a price here
-    (OMN-20154): z.ai's general API serves ``glm-4.5-flash`` free inside a
+    (OMN-20154): z.ai's general API serves one model free inside a
     catalogue whose other entries are metered, and a zero-price model booked at a
     tier rate is a phantom paid delegation.
     """
@@ -763,7 +763,7 @@ def byok_declared_price_per_1m(
     """Return the declared ``(input, output)`` USD per 1M tokens, or ``None``.
 
     Keyed on the endpoint and the model together, because a model id alone does
-    not say which product answered (z.ai serves ``glm-4.5-flash`` free on the
+    not say which product answered (z.ai serves one model free on the
     general API only). ``None`` means no price is declared and the caller books
     at the tier rate; it never means free.
     """

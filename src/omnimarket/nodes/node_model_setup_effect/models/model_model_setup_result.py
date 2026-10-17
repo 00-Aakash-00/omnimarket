@@ -44,13 +44,19 @@ class ModelModelStatus(BaseModel):
 
 class ModelModelSetupResult(BaseModel):
     """``tests`` for a ``test`` request, ``providers`` for ``status``, and the
-    key's ordered ``models`` after an ``add_models``, ``reorder`` or
-    ``remove_model``."""
+    key's ordered ``models`` after an ``add_models``, ``reorder``,
+    ``remove_model`` or ``use_model``."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     operation: Literal[
-        "status", "test", "forget", "add_models", "reorder", "remove_model"
+        "status",
+        "test",
+        "forget",
+        "add_models",
+        "reorder",
+        "remove_model",
+        "use_model",
     ]
     tests: tuple[ModelModelTestResult, ...] = ()
     providers: tuple[ModelModelStatus, ...] = ()
