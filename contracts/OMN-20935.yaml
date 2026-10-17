@@ -36,3 +36,17 @@ dod_evidence:
       - check_type: "command"
         check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/routing/routing_tiers_path.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -qF 'node_overlay=find_node_overlay(ROUTING_TIERS_OVERLAY_NODE)'"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20935-ac2-accepted-2026-10-17T0645Z"
+    description: "AC2 accepted binding (evidence-only): the focused tests for the overlay reader, the routing tier resolver and every repointed reader pass at omnimarket origin/dev 185ccc876 (150 passed) and fail to collect at the parent of omnimarket#3754 (6 collection errors), so the check proves this change. Proposed by the binder lane, re-run and accepted by a separate acceptor lane."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/unit/handlers/test_node_overlay_reader_omn20935.py tests/unit/routing/test_routing_tiers_node_overlay_omn20935.py tests/test_golden_chain_data_flow_sweep_collect.py tests/unit/nodes/node_database_sweep tests/test_integration_sweep_deployment_overlay_omn20935.py tests/nodes/node_swarm_registry_compute tests/test_cost_event_publisher.py tests/unit/experiments/adk_eval/type_debt_scout_poc tests/unit/scripts/test_run_delegation_cost_projection_process.py tests/unit/scripts/test_mem_to_content_deployment_env_omn20935.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC2"]
+    ac_bindings:
+      - label: "AC2"
+        criterion_hash: "b3a9783ed4d264957b82493bcd6cdd83a6e78b9fbc53da69397f6b4b0014fca2"
+        proposed_by: "lane=dod-closeout-bind-2026-10-17T0645Z-c2"
+        accepted_by: "lane=dod-closeout-accept-2026-10-17T0645Z-c2"
+        accepted_at: "2026-10-17T07:01:41Z"
