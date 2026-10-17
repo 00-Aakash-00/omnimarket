@@ -126,6 +126,32 @@ def _coerce_http_config(
     return config
 
 
+# Route config is data (contract default or route-config env), and its cli_args
+# are splatted into a subprocess argv. A command may therefore only receive the
+# argument tokens listed here, so an override cannot widen the Codex sandbox
+# (OMN-17427). A command with no entry accepts no cli_args at all.
+_ALLOWED_CLI_ARGS: dict[str, frozenset[str]] = {
+    "codex": frozenset({"exec", "-s", "read-only", "--skip-git-repo-check"}),
+}
+
+
+def _validated_cli_args(key: str, cli_command: str, cli_args: object) -> list[str]:
+    if not isinstance(cli_args, list) or not all(
+        isinstance(arg, str) for arg in cli_args
+    ):
+        msg = f"hostile reviewer route {key!r} cli_args must be a list of strings"
+        raise ValueError(msg)
+    allowed = _ALLOWED_CLI_ARGS.get(Path(cli_command).name, frozenset())
+    refused = [arg for arg in cli_args if arg not in allowed]
+    if refused:
+        msg = (
+            f"hostile reviewer route {key!r} cli_args {refused!r} are not in the "
+            f"allowlist for {cli_command!r}"
+        )
+        raise ValueError(msg)
+    return list(cli_args)
+
+
 def _coerce_cli_config(
     key: str,
     declaration: Mapping[str, Any],
@@ -143,12 +169,7 @@ def _coerce_cli_config(
     }
     cli_args = declaration.get("cli_args")
     if cli_args is not None:
-        if not isinstance(cli_args, list) or not all(
-            isinstance(arg, str) for arg in cli_args
-        ):
-            msg = f"hostile reviewer route {key!r} cli_args must be a list of strings"
-            raise ValueError(msg)
-        config["cli_args"] = list(cli_args)
+        config["cli_args"] = _validated_cli_args(key, cli_command, cli_args)
     if "fail_on_nonzero_exit" in declaration:
         config["fail_on_nonzero_exit"] = bool(declaration["fail_on_nonzero_exit"])
     return config

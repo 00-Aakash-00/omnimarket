@@ -261,10 +261,13 @@ class AdapterInferenceBridge(ModelInferenceAdapter):
         if not cli_command:
             msg = f"Model route {model_key!r} is missing cli_command"
             raise ValueError(msg)
-        raw_cli_args = cfg.get("cli_args")
-        cli_args = (
-            [str(arg) for arg in raw_cli_args] if isinstance(raw_cli_args, list) else []
-        )
+        raw_cli_args = cfg.get("cli_args", [])
+        if not isinstance(raw_cli_args, list) or not all(
+            isinstance(arg, str) and "\x00" not in arg for arg in raw_cli_args
+        ):
+            msg = f"Model route {model_key!r} cli_args must be a list of strings"
+            raise ValueError(msg)
+        cli_args: list[str] = list(raw_cli_args)
         combined_prompt = f"{system_prompt}\n\n{user_prompt}"
         # Non-blocking subprocess dispatch: a synchronous subprocess.run() here
         # would stall the event loop for the full CLI-model latency, starving

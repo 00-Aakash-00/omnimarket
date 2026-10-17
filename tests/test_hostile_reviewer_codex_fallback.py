@@ -294,3 +294,71 @@ async def test_cli_route_with_fail_on_nonzero_exit_raises() -> None:
 
     with pytest.raises(RuntimeError, match="exited 3"):
         await bridge.infer("codex", "system", "user", timeout_seconds=30.0)
+
+
+@pytest.mark.parametrize(
+    "bad_args",
+    [
+        ["exec", "--dangerously-bypass-approvals-and-sandbox"],
+        ["exec", "-s", "danger-full-access"],
+        ["exec", "-c", "model_provider=evil"],
+        ["exec", "--add-dir", "/"],
+    ],
+)
+def test_fallback_route_refuses_cli_args_outside_the_codex_allowlist(
+    bad_args: list[str],
+) -> None:
+    """Route config is data: an override cannot widen the read-only sandbox."""
+    with pytest.raises(ValueError, match="cli_args"):
+        load_fallback_route(
+            runtime_model_configs={
+                "codex": {
+                    "transport": "cli",
+                    "cli_command": "codex",
+                    "cli_args": bad_args,
+                }
+            }
+        )
+
+
+def test_cli_args_are_refused_for_a_command_with_no_allowlist() -> None:
+    with pytest.raises(ValueError, match="cli_args"):
+        load_fallback_route(
+            runtime_model_configs={
+                "codex": {
+                    "transport": "cli",
+                    "cli_command": "/opt/bin/other-tool",
+                    "cli_args": ["exec"],
+                }
+            }
+        )
+
+
+def test_fallback_route_keeps_the_contract_cli_args() -> None:
+    route = load_fallback_route(runtime_model_configs={})
+
+    assert route is not None
+    assert route.config["cli_args"] == [
+        "exec",
+        "-s",
+        "read-only",
+        "--skip-git-repo-check",
+    ]
+
+
+@pytest.mark.parametrize("bad", ["exec", ["ok", 3], ["ok", "bad\x00arg"]])
+async def test_bridge_refuses_malformed_cli_args(bad: object) -> None:
+    bridge = AdapterInferenceBridge(
+        ModelInferenceBridgeConfig(
+            model_configs={
+                "codex": {
+                    "transport": "cli",
+                    "cli_command": sys.executable,
+                    "cli_args": bad,
+                }
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="cli_args"):
+        await bridge.infer("codex", "system", "user", timeout_seconds=30.0)
