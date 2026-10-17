@@ -1070,7 +1070,7 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/nodes/node_work_ledger_landing_mirror tests/unit/work_ledger_bus/test_landing_decision.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC63"]
-  - id: "dod-omn17427-landing-decision-ledger-mirror-deploy-probe"
+  - id: "dod-omn17427-landing-ledger-mirror-deploy-probe"
     description: "Deploy probe. GitHub serves the landing decision ledger mirror contract at the checked-out HEAD, subscribed to the landing decision completed topic. It fails at the merge base, where the node does not exist, and needs only GitHub access and Python on the hosted runner."
     source: "manual"
     checks:
