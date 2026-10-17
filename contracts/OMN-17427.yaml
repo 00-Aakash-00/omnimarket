@@ -272,6 +272,13 @@ requirements:
         statement: "AC44: node_retention_cleanup registers omninode_internal.consumer_flow_windows, deletes a batched target in bounded batches with one committed transaction each and the tenant GUC first, isolates a failing target, refuses a protected table at load, and runs once per declared interval on the runtime tick -- falsifier: uv run pytest tests/nodes/test_omn17427_retention_cleanup_batched.py -q fails at the merge base"
       - id: "AC45"
         statement: "AC45: the consumer-flow projection declares an index leading with window_start, built concurrently -- falsifier: src/omnimarket/nodes/node_projection_consumer_flow/migrations/0006_add_window_start_index.sql is absent at the merge base"
+  - id: "req-declared-file-retention"
+    statement: "The retention node retires the lab hosts' unbounded file paths from the same contract, with a keep window set by each path's readers, archives history before removing it, and reports bytes and files removed and archived per run."
+    acceptance:
+      - id: "AC46"
+        statement: "AC46: node_retention_cleanup declares ledger-detail, worktree-pins, worktree-removal-snapshots, lane-scratch, remote-lane-receipts, lab-run-lane-dirs, lane-reports and claude-transcripts in retention_policy.file_retention, each with its readers and a keep window of at least seven days, and retires a unit only when every file in it is older than the window -- falsifier: uv run pytest tests/nodes/test_omn17427_file_retention.py -q fails at the merge base"
+      - id: "AC47"
+        statement: "AC47: an archive entry removes a unit only after the copy is read back and every checksum matches, removes nothing without an archive tree, never follows symlinks and never touches memory directories or the live ledger, and the cleanup run reports bytes and files removed and archived -- falsifier: the archive, verify-failure, symlink and protected-path cases in tests/nodes/test_omn17427_file_retention.py fail at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "A Claude-limited Codex-allowed host with free Codex slots reports Codex headroom; other hosts keep their lines."
@@ -822,3 +829,18 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_retention_cleanup/handlers/handler_retention_cleanup.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("_run_batched", "_PROTECTED_MARKERS", "ModelRuntimeTick", "batch_order_column")); print("declared table retention deploy probe: PASS")'
+  - id: "dod-omn17427-ac46-ac47-declared-file-retention"
+    description: "The file retention contract entries, keep-window floor, archive-then-remove order and per-run totals pass their tests."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/test_omn17427_file_retention.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC46", "AC47"]
+  - id: "dod-omn17427-declared-file-retention-deploy-probe"
+    description: "Deploy probe. GitHub serves the file retention handler and the contract's file_retention block at the checked-out HEAD. It fails at the merge base, which has neither, and needs no lab network on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_retention_cleanup/handlers/handler_file_retention.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("MIN_KEEP_DAYS", "_verify_archive", "NodeFileRetention")); print("declared file retention deploy probe: PASS")'
