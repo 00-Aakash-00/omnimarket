@@ -275,10 +275,10 @@ requirements:
   - id: "req-declared-file-retention"
     statement: "The retention node retires the lab hosts' unbounded file paths from the same contract, with a keep window set by each path's readers, archives history before removing it, and reports bytes and files removed and archived per run."
     acceptance:
-      - id: "AC46"
-        statement: "AC46: node_retention_cleanup declares ledger-detail, worktree-pins, worktree-removal-snapshots, lane-scratch, remote-lane-receipts, lab-run-lane-dirs, lane-reports and claude-transcripts in retention_policy.file_retention, each with its readers and a keep window of at least seven days, and retires a unit only when every file in it is older than the window -- falsifier: uv run pytest tests/nodes/test_omn17427_file_retention.py -q fails at the merge base"
-      - id: "AC47"
-        statement: "AC47: an archive entry removes a unit only after the copy is read back and every checksum matches, removes nothing without an archive tree, never follows symlinks and never touches memory directories or the live ledger, and the cleanup run reports bytes and files removed and archived -- falsifier: the archive, verify-failure, symlink and protected-path cases in tests/nodes/test_omn17427_file_retention.py fail at the merge base"
+      - id: "AC50"
+        statement: "AC50: node_retention_cleanup declares ledger-detail, worktree-pins, worktree-removal-snapshots, lane-scratch, remote-lane-receipts, lab-run-lane-dirs, lane-reports and claude-transcripts in retention_policy.file_retention, each with its readers and a keep window of at least seven days, and retires a unit only when every file in it is older than the window -- falsifier: uv run pytest tests/nodes/test_omn17427_file_retention.py -q fails at the merge base"
+      - id: "AC51"
+        statement: "AC51: an archive entry removes a unit only after the copy is read back and every checksum matches, removes nothing without an archive tree, never follows symlinks and never touches memory directories or the live ledger, and the cleanup run reports bytes and files removed and archived -- falsifier: the archive, verify-failure, symlink and protected-path cases in tests/nodes/test_omn17427_file_retention.py fail at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "A Claude-limited Codex-allowed host with free Codex slots reports Codex headroom; other hosts keep their lines."
@@ -836,7 +836,7 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/nodes/test_omn17427_file_retention.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC46", "AC47"]
+    binds_ac: ["AC50", "AC51"]
   - id: "dod-omn17427-declared-file-retention-deploy-probe"
     description: "Deploy probe. GitHub serves the file retention handler and the contract's file_retention block at the checked-out HEAD. It fails at the merge base, which has neither, and needs no lab network on the hosted runner."
     source: "manual"
