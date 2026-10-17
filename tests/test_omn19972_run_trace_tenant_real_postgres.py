@@ -54,6 +54,8 @@ _CHAIN = json.loads(
 _SLUG_A, _UUID_A = "local-ee67b16e7aab", "97b9aa50-f53f-adb8-5404-5c7318dd4cb1"
 _SLUG_B, _UUID_B = "local-0b1c2d3e4f50", "11111111-2222-4333-8444-555555555555"
 _ROLE = "tenant_projection_writer"
+# Every tenant this test can write under, by uuid or by slug.
+_OWN_TENANTS = [_UUID_A, _UUID_B, _SLUG_A, _SLUG_B, "local-nobody-minted"]
 _META = MessageMeta(
     partition=0,
     offset=3,
@@ -87,9 +89,13 @@ async def _owner_or_skip() -> asyncpg.Connection:
 
 
 async def _fresh(owner: asyncpg.Connection) -> None:
-    """The migrations as a lane applies them, with the writer role they grant."""
-    await owner.execute("DROP TABLE IF EXISTS public.run_trace CASCADE")
-    await owner.execute("DROP TABLE IF EXISTS public.tenant_registry_mirror CASCADE")
+    """The migrations as a lane applies them, with the writer role they grant.
+
+    The database is shared with the rest of the integration run, so nothing is
+    dropped: the migrations are idempotent, this test's two tenants are added
+    only if absent, and only their rows are cleared. Dropping the shared tenant
+    mirror took every other test's seeded tenant with it.
+    """
     for role in (_ROLE, "app_dashboard"):
         exists = await owner.fetchval("SELECT 1 FROM pg_roles WHERE rolname = $1", role)
         if not exists:
@@ -100,8 +106,20 @@ async def _fresh(owner: asyncpg.Connection) -> None:
     await owner.execute(f"GRANT SELECT ON public.tenant_registry_mirror TO {_ROLE}")
     await owner.executemany(
         "INSERT INTO public.tenant_registry_mirror (tenant_slug, tenant_uuid, status) "
-        "VALUES ($1, $2, 'active')",
+        "VALUES ($1, $2, 'active') ON CONFLICT (tenant_slug) DO NOTHING",
         [(_SLUG_A, _UUID_A), (_SLUG_B, _UUID_B)],
+    )
+    await owner.execute(
+        "DELETE FROM public.run_trace WHERE tenant_id = ANY($1::text[])", _OWN_TENANTS
+    )
+
+
+async def _own_rows(owner: asyncpg.Connection) -> int:
+    return int(
+        await owner.fetchval(
+            "SELECT count(*) FROM public.run_trace WHERE tenant_id = ANY($1::text[])",
+            _OWN_TENANTS,
+        )
     )
 
 
@@ -171,7 +189,7 @@ async def test_real_postgres_an_unknown_slug_writes_no_row() -> None:
             await _writer(pool)._project_step(
                 {**_CHAIN[1], "tenant_id": "local-nobody-minted"}, _META
             )
-        assert await owner.fetchval("SELECT count(*) FROM public.run_trace") == 0
+        assert await _own_rows(owner) == 0
     finally:
         await pool.close()
         await owner.close()
@@ -192,7 +210,7 @@ async def test_real_postgres_another_tenants_step_never_joins_the_run() -> None:
         assert await _read_as(owner, _UUID_A) == [_UUID_A]
         assert await _read_as(owner, _UUID_B) == [_UUID_B]
         # Positive control: both rows exist, so the reads above were narrowed.
-        assert await owner.fetchval("SELECT count(*) FROM public.run_trace") == 2
+        assert await _own_rows(owner) == 2
     finally:
         await pool.close()
         await owner.close()
