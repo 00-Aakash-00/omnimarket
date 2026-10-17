@@ -325,6 +325,11 @@ requirements:
     acceptance:
       - id: "AC62"
         statement: "AC62: .github/workflows/hook-push-rehearsal.yml runs on pull_request and merge_group, calls omnibase_core's hook-push-rehearsal.yml at a full 40-hex SHA, its path-regex matches the pre-commit config, the hook scripts and the caller and no ordinary source path, and its sample-file is a Python source file under src/omnimarket -- falsifier: uv run pytest tests/ci/test_omn17427_hook_push_rehearsal_caller.py -q fails at the merge base"
+  - id: "req-lab-sli-alerts-board"
+    statement: "The lab's own operations have service-level indicators, each with a target, a window, its own severity and its action held as contract data; a collector reads them from existing sources, an alert node acts per severity deduplicated per indicator, and a board renders each indicator with its trend from the kept history."
+    acceptance:
+      - id: "AC63"
+        statement: "AC63: node_lab_sli_compute returns one verdict per row of its contract sli_table (ok, breach, unknown or not_applicable) with the row's own severity, an indicator with no reading is unknown and never ok, and a reading for an unknown or repeated indicator is rejected; node_lab_sli_alert_effect pushes the operator and requests a fix lane for SEV1, requests a fix lane for SEV2, batches SEV3 and dark indicators into one fix lane, never acts on SEV4, suppresses a still-firing indicator inside its severity's renotify window and records each delivery; node_lab_sli_collect_effect reads the PR watcher state, host probes and the scheduler and lists any unreadable source; node_lab_sli_board_compute keeps the per-indicator history and renders every indicator with its severity and trend -- falsifier: uv run pytest tests/nodes/node_lab_sli_compute -q fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "A Claude-limited Codex-allowed host with free Codex slots reports Codex headroom; other hosts keep their lines."
@@ -1054,3 +1059,18 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/.github/workflows/hook-push-rehearsal.yml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import re, sys, yaml; job = yaml.safe_load(sys.stdin.read())["jobs"]["hook-push-rehearsal"]; path, _, ref = job["uses"].partition("@"); assert path == "OmniNode-ai/omnibase_core/.github/workflows/hook-push-rehearsal.yml"; assert re.fullmatch("[0-9a-f]{40}", ref); assert re.search(job["with"]["path-regex"], ".pre-commit-config.yaml"); print("hook push rehearsal caller deploy probe: PASS")'
+  - id: "dod-omn17427-ac61-lab-sli-alerts-board"
+    description: "The lab SLI golden and error chains pass: one verdict per table row with its own severity, dark sources unknown, severity-driven actions with per-indicator dedup and delivery, collector readings from the watcher state, host and scheduler, and the board with history and trend."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_lab_sli_compute -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC63"]
+  - id: "dod-omn17427-lab-sli-deploy-probe"
+    description: "Deploy probe. GitHub serves node_lab_sli_compute's contract at the checked-out HEAD with an sli_table using all four severities. It fails at the merge base, which has no such node, and needs only GitHub access and Python on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_lab_sli_compute/contract.yaml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys, yaml; table = yaml.safe_load(sys.stdin.read())["sli_table"]; assert {row["severity"] for row in table} == {"SEV1", "SEV2", "SEV3", "SEV4"}; assert len({row["sli_id"] for row in table}) == len(table) >= 15; print("lab sli deploy probe: PASS")'
