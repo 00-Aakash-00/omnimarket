@@ -326,6 +326,7 @@ class NodeRetentionCleanup:
                 dry_run=request.dry_run,
                 host=request.file_host,
                 archive_root=archive_root,
+                synced_marker=policy.synced_marker_xattr,
                 only=request.file_only,
             )
         )

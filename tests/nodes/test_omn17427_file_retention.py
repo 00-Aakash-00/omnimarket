@@ -87,6 +87,7 @@ def _run(
     *,
     archive_root: Path | None = None,
     dry_run: bool = False,
+    synced_marker: str = "",
 ) -> mod.FileRetentionResult:
     return NodeFileRetention().handle(
         FileRetentionRequest(
@@ -95,6 +96,7 @@ def _run(
             dry_run=dry_run,
             host="h-test",
             archive_root=str(archive_root) if archive_root else "",
+            synced_marker=synced_marker,
         )
     )
 
@@ -388,3 +390,59 @@ def test_host_timer_templates_run_the_node_with_files() -> None:
         assert "ONEX_RETENTION_ARCHIVE_ROOT" in text, name
     declared = load_file_policy(_CONTRACT).archive_root_env
     assert declared == "ONEX_RETENTION_ARCHIVE_ROOT"
+
+
+def test_unsynced_archive_copy_keeps_the_local_unit_until_the_marker_appears(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "detail"
+    _file(root / "query-1.txt", b"payload" * 50, days=30)
+    archive = tmp_path / "drive"
+    archive.mkdir()
+    entry = _entry(root, name="ledger-detail", action="archive")
+    marker = "user.sync.item-id"
+
+    monkeypatch.setattr(mod, "_has_marker", lambda _p, _n: False)
+    first = _only(_run([entry], archive_root=archive, synced_marker=marker))
+    assert first.units_pending_sync == 1
+    assert first.files_removed == 0
+    assert first.files_archived == 1
+    assert (root / "query-1.txt").exists()
+    copy = archive / "h-test" / "ledger-detail" / "query-1.txt.gz"
+    assert copy.exists()
+
+    writes: list[Path] = []
+    real = mod._write_archive
+    monkeypatch.setattr(
+        mod, "_write_archive", lambda s, d: (writes.append(d), real(s, d))
+    )
+    monkeypatch.setattr(mod, "_has_marker", lambda _p, _n: True)
+    second = _only(_run([entry], archive_root=archive, synced_marker=marker))
+    assert second.units_pending_sync == 0
+    assert second.files_removed == 1
+    assert not (root / "query-1.txt").exists()
+    assert writes == []
+
+
+def test_archive_copy_that_no_longer_verifies_is_rewritten(tmp_path: Path) -> None:
+    root = tmp_path / "detail"
+    payload = b"payload" * 50
+    _file(root / "query-1.txt", payload, days=30)
+    archive = tmp_path / "drive"
+    archive.mkdir()
+    copy = archive / "h-test" / "ledger-detail" / "query-1.txt.gz"
+    copy.parent.mkdir(parents=True)
+    copy.write_bytes(gzip.compress(b"something else"))
+    res = _only(
+        _run(
+            [_entry(root, name="ledger-detail", action="archive")], archive_root=archive
+        )
+    )
+    assert res.status == "ok"
+    assert gzip.decompress(copy.read_bytes()) == payload
+
+
+def test_contract_names_the_drive_sync_marker() -> None:
+    assert (
+        load_file_policy(_CONTRACT).synced_marker_xattr == "com.google.drivefs.item-id"
+    )

@@ -36,6 +36,7 @@ import hashlib
 import os
 import shutil
 import socket
+import subprocess
 import tarfile
 import zlib
 from collections.abc import Iterator
@@ -78,6 +79,7 @@ class FileRetentionPolicy(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     archive_root_env: str
+    synced_marker_xattr: str = ""
     entries: list[FileRetentionEntry]
 
 
@@ -89,6 +91,13 @@ class FileRetentionRequest(BaseModel):
     dry_run: bool = False
     host: str = ""
     archive_root: str = ""
+    synced_marker: str = Field(
+        default="",
+        description=(
+            "Extended attribute the archive tree's sync client sets on a file once "
+            "it has registered it; an archive copy without it keeps its local unit"
+        ),
+    )
     only: tuple[str, ...] = Field(
         default_factory=tuple, description="Entry names to run; empty runs all"
     )
@@ -109,6 +118,8 @@ class FileRetentionItemResult(BaseModel):
     bytes_archived: int = 0
     bytes_before: int = 0
     bytes_after: int = 0
+    units_pending_sync: int = 0
+    bytes_pending_sync: int = 0
     error: str = ""
     note: str = ""
 
@@ -272,6 +283,40 @@ def _archive_dest(
     return archive_root / host / entry.name / rel.parent / (rel.name + suffix)
 
 
+def _ensure_archive(src: Path, dest: Path) -> int:
+    """Leave a verified copy of ``src`` at ``dest``; reuse one that still verifies."""
+    if dest.exists():
+        try:
+            _verify_archive(src, dest)
+        except OSError:
+            dest.unlink()
+        else:
+            return dest.stat().st_size
+    try:
+        _write_archive(src, dest)
+        _verify_archive(src, dest)
+    except OSError:
+        dest.unlink(missing_ok=True)
+        raise
+    return dest.stat().st_size
+
+
+def _has_marker(path: Path, marker: str) -> bool:
+    """True when the sync client has set ``marker`` (an xattr name) on ``path``."""
+    if hasattr(os, "getxattr"):
+        try:
+            os.getxattr(path, marker)
+        except OSError:
+            return False
+        return True
+    done = subprocess.run(
+        ["xattr", "-p", marker, str(path)],
+        capture_output=True,
+        check=False,
+    )
+    return done.returncode == 0
+
+
 def _remove(unit: Path) -> None:
     if unit.is_dir():
         shutil.rmtree(unit)
@@ -336,7 +381,15 @@ class NodeFileRetention:
         cutoff = (request.now - dt.timedelta(days=entry.keep_days)).timestamp()
         units = _units(root, entry)
         before = sum(u.bytes for u in units)
-        counts = {"units": 0, "files": 0, "bytes": 0, "afiles": 0, "abytes": 0}
+        counts = {
+            "units": 0,
+            "files": 0,
+            "bytes": 0,
+            "afiles": 0,
+            "abytes": 0,
+            "pending": 0,
+            "pbytes": 0,
+        }
         error = ""
         for unit in units:
             if unit.newest >= cutoff:
@@ -352,15 +405,17 @@ class NodeFileRetention:
                     )
                     archived = 0
                     if not request.dry_run:
-                        try:
-                            _write_archive(unit.path, dest)
-                            _verify_archive(unit.path, dest)
-                        except OSError:
-                            dest.unlink(missing_ok=True)
-                            raise
-                        archived = dest.stat().st_size
+                        archived = _ensure_archive(unit.path, dest)
                     counts["afiles"] += len(unit.files)
                     counts["abytes"] += archived
+                    if (
+                        not request.dry_run
+                        and request.synced_marker
+                        and not _has_marker(dest, request.synced_marker)
+                    ):
+                        counts["pending"] += 1
+                        counts["pbytes"] += unit.bytes
+                        continue
                 if not request.dry_run:
                     _remove(unit.path)
             except OSError as exc:
@@ -383,6 +438,8 @@ class NodeFileRetention:
             bytes_archived=counts["abytes"],
             bytes_before=before,
             bytes_after=before - counts["bytes"],
+            units_pending_sync=counts["pending"],
+            bytes_pending_sync=counts["pbytes"],
             error=error,
             note=note,
         )

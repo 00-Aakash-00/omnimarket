@@ -102,8 +102,14 @@ retention_policy:
   # Unit directories that hold a .git entry are git worktrees; onex-lane-closeout
   # owns those and retention skips them. Memory directories, symlinks and the
   # live ledger are never touched.
+  #
+  # Sync check: Google Drive for desktop sets the com.google.drivefs.item-id
+  # extended attribute on a file once Drive has registered it. An archive copy
+  # that lacks it keeps its local unit; the next run finds the verified copy,
+  # reads it back again and removes the unit once the attribute is there.
   file_retention:
     archive_root_env: ONEX_RETENTION_ARCHIVE_ROOT
+    synced_marker_xattr: com.google.drivefs.item-id
     entries:
       # Readers: the lane that ran the ledger verb reads the detail= path in the
       # refusal within the session. Nothing reads one later.
