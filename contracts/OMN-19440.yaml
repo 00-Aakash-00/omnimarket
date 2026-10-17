@@ -69,58 +69,34 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC4"]
   - id: "dod-omn19440-ac1-accepted"
-    description: "Acceptance record (2026-10-17T0045Z) for AC1. A synthetic day with a planted command that has no terminal and a planted double terminal returns verdict measured, terminal_share 0.75, dropped_ids c-dropped and duplicate_terminal_ids c-double; the schedule is .github/workflows/delegation-terminal-join-daily.yml (cron 5 6 * * *, window_hours 24)."
+    description: "Acceptance record (2026-10-17T0045Z) for AC1, proposed by lane=dod-closeout-bind-2026-10-17T0045Z-c2 and accepted by lane=dod-closeout-accept-2026-10-17T0045Z-c2 at 2026-10-17T01:05:14Z. A synthetic day with a planted command that has no terminal and a planted double terminal returns verdict measured, terminal_share 0.75, dropped_ids c-dropped and duplicate_terminal_ids c-double; the schedule is .github/workflows/delegation-terminal-join-daily.yml (cron 5 6 * * *, window_hours 24)."
     source: "manual"
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest -q tests/unit/scripts/test_delegation_terminal_join.py::TestAC1PlantedDropAndDoubleAreReported::test_synthetic_day_reports_both -p no:cacheprovider"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
-    ac_bindings:
-      - label: "AC1"
-        criterion_hash: "79f2977927b3481e454a85a364d433fbcfdb2568c422adc5fde45e8dd5cd788d"
-        proposed_by: "lane=dod-closeout-bind-2026-10-17T0045Z-c2"
-        accepted_by: "lane=dod-closeout-accept-2026-10-17T0045Z-c2"
-        accepted_at: "2026-10-17T01:05:14Z"
   - id: "dod-omn19440-ac2-accepted"
-    description: "Acceptance record (2026-10-17T0045Z) for AC2. A terminal topic read that errors gives verdict indeterminate with terminal_share, correlation_ids, dropped_ids and duplicate_terminal_ids all None."
+    description: "Acceptance record (2026-10-17T0045Z) for AC2, proposed by lane=dod-closeout-bind-2026-10-17T0045Z-c2 and accepted by lane=dod-closeout-accept-2026-10-17T0045Z-c2 at 2026-10-17T01:05:14Z. A terminal topic read that errors gives verdict indeterminate with terminal_share, correlation_ids, dropped_ids and duplicate_terminal_ids all None."
     source: "manual"
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest -q tests/unit/scripts/test_delegation_terminal_join.py::TestAC2UnreadableIsIndeterminateNeverZero::test_unreadable_terminal_topic -p no:cacheprovider"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
-    ac_bindings:
-      - label: "AC2"
-        criterion_hash: "32878915835e21573e9e5d0b0b22f7b5723ee072f7c32c82f47abaf746eb5189"
-        proposed_by: "lane=dod-closeout-bind-2026-10-17T0045Z-c2"
-        accepted_by: "lane=dod-closeout-accept-2026-10-17T0045Z-c2"
-        accepted_at: "2026-10-17T01:05:14Z"
   - id: "dod-omn19440-ac3-accepted"
-    description: "Acceptance record (2026-10-17T0045Z) for AC3. A planted served replay and a planted reused correlation add no second outcome and a planted second outcome adds exactly one, per command id; fails at eb42b6af6, the parent of 795ce6961."
+    description: "Acceptance record (2026-10-17T0045Z) for AC3, proposed by lane=dod-closeout-bind-2026-10-17T0045Z-c2 and accepted by lane=dod-closeout-accept-2026-10-17T0045Z-c2 at 2026-10-17T01:05:14Z. A planted served replay and a planted reused correlation add no second outcome and a planted second outcome adds exactly one, per command id; fails at eb42b6af6, the parent of 795ce6961."
     source: "manual"
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest -q tests/unit/scripts/test_delegation_terminal_join.py::TestAC3CountsPerCommandId::test_planted_replay_reuse_and_second_outcome_together -p no:cacheprovider"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC3"]
-    ac_bindings:
-      - label: "AC3"
-        criterion_hash: "b928742eb2c7ba7e02ebd8b4c1f5eb3ae17ff6a36bbd4d28952ba9d34d3c3051"
-        proposed_by: "lane=dod-closeout-bind-2026-10-17T0045Z-c2"
-        accepted_by: "lane=dod-closeout-accept-2026-10-17T0045Z-c2"
-        accepted_at: "2026-10-17T01:05:14Z"
   - id: "dod-omn19440-ac4-accepted"
-    description: "Acceptance record (2026-10-17T0045Z) for AC4. run() exits 0 and the published summary headline is the single-command duplicate figure (1) with the per-correlation count (2) as a labelled secondary; fails at 9e8419e7a, the parent of c4910bf3c."
+    description: "Acceptance record (2026-10-17T0045Z) for AC4, proposed by lane=dod-closeout-bind-2026-10-17T0045Z-c2 and accepted by lane=dod-closeout-accept-2026-10-17T0045Z-c2 at 2026-10-17T01:05:14Z. run() exits 0 and the published summary headline is the single-command duplicate figure (1) with the per-correlation count (2) as a labelled secondary; fails at 9e8419e7a, the parent of c4910bf3c."
     source: "manual"
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest -q tests/unit/scripts/test_delegation_terminal_join.py::TestAC4PublishedSummaryHeadline::test_headline_is_the_single_command_figure -p no:cacheprovider"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC4"]
-    ac_bindings:
-      - label: "AC4"
-        criterion_hash: "219624c79e3bdaabf352b7ee64a1e9551741e3dd7f6e2a45e0a05114c910a91b"
-        proposed_by: "lane=dod-closeout-bind-2026-10-17T0045Z-c2"
-        accepted_by: "lane=dod-closeout-accept-2026-10-17T0045Z-c2"
-        accepted_at: "2026-10-17T01:05:14Z"
