@@ -96,11 +96,21 @@ requirements:
     acceptance:
       - id: "AC17"
         statement: "AC17: node_rescue_patch_review_compute discards an empty, already-on-base, junk-only or whitespace-only patch and leaves any other change for a read, node_rescue_patch_review_effect writes one VERDICT.json per unreviewed patch, never rewrites one, counts a patch whose clone or base is missing as unjudgeable and writes last-run.json on every run, and both declare their command and event topics in their contracts -- falsifier: uv run pytest tests/nodes/node_rescue_patch_review_compute/test_rescue_patch_review.py tests/test_golden_chain_rescue_patch_review_compute.py tests/test_golden_chain_rescue_patch_review_effect.py -q fails at the merge base"
+  - id: "req-hostile-reviewer-structured-votes-pin"
+    statement: "The Hostile Reviewer clones omniintelligence at the revision that keeps large reviewer votes structured, so a voter's free-text reply no longer leaves the gate degraded."
+    acceptance:
+      - id: "AC18"
+        statement: "AC18: hostile-reviewer.yml clones omniintelligence at 3502f0de2f9be25cf68e3dc5877d9cb5580c90e0, a descendant of the previous pin 3fcbf795087a79081c0ceeb676216bf64c5d49ae -- falsifier: uv run pytest tests/ci/test_hostile_reviewer_pin_structured_votes_omn19998.py -q fails over the merge base's workflow, which pins 3fcbf795087a79081c0ceeb676216bf64c5d49ae"
+  - id: "req-hostile-reviewer-large-result-verdict"
+    statement: "The Hostile Reviewer verdict step reads cli_review's result from a file, so a review result over the 128 KiB per-string exec limit still yields a verdict instead of failing as unknown with Argument list too long."
+    acceptance:
+      - id: "AC21"
+        statement: "AC21: hostile-reviewer.yml writes cli_review's stdout to REVIEW_JSON_FILE and the verdict parser reads that file, so a 300000-byte review result yields its quorum verdict -- falsifier: uv run pytest tests/ci/test_hostile_reviewer_large_result_omn19998.py -q fails over the merge base's workflow with Argument list too long, exit 126"
   - id: "req-lab-claude-token-rotation-node"
     statement: "Claude-token rotation for lab hosts is an omnimarket node in canonical shape (contract, node, handler) with an onex CLI verb: the token is read from stdin only, stored under a per-host, per-account secret-store reference, deployed mode 0600, probed with placement's limit re-probe question, and a limited host is rotated onto a spare pool account with headroom; no script, argv, result, event or line carries a token value."
     acceptance:
-      - id: "AC18"
-        statement: "AC18: node_lab_claude_token_effect, against a fake host and a fake store, stores, deploys and probes a set token and removes the host's .limited marker on an answer, restores the previous token on the host and in the store on a limit notice or failed deploy, rotates a limited host onto the first spare that answers and records the rotation event, says no-spare once per marker, and onex lab claude-token takes no token argument and never echoes the piped token -- falsifier: uv run pytest tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_effect.py tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_cli.py -q fails at the merge base"
+      - id: "AC22"
+        statement: "AC22: node_lab_claude_token_effect, against a fake host and a fake store, stores, deploys and probes a set token and removes the host's .limited marker on an answer, restores the previous token on the host and in the store on a limit notice or failed deploy, rotates a limited host onto the first spare that answers and records the rotation event, says no-spare once per marker, and onex lab claude-token takes no token argument and never echoes the piped token -- falsifier: uv run pytest tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_effect.py tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_cli.py -q fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "Every repo contract binds each criterion to repo pytest evidence."
@@ -415,6 +425,22 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           python3 -c 'from pathlib import Path; import yaml; c=yaml.safe_load(Path("src/omnimarket/nodes/node_rescue_patch_review_effect/contract.yaml").read_text()); assert c["descriptor"]["runtime_profiles"] == ["effects"]'
+  - id: "dod-omn19998-hostile-reviewer-structured-votes-pin"
+    description: "The workflow pins omniintelligence at the structured-votes revision; the merge base's pin fails the test."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_hostile_reviewer_pin_structured_votes_omn19998.py tests/ci/test_hostile_reviewer_pin_retry_budget_omn17427.py tests/ci/test_hostile_reviewer_head_sha_omn20947.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC18"]
+  - id: "dod-omn19998-hostile-reviewer-large-result-verdict"
+    description: "The verdict step reads a review result over 128 KiB from a file and prints its verdict; the merge base's workflow fails the test with Argument list too long."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_hostile_reviewer_large_result_omn19998.py tests/ci/test_hostile_reviewer_quorum_verdict.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC21"]
   - id: "dod-omn19998-lab-claude-token-node"
     description: "The handler and CLI tests pass at the head against a fake host and a fake store; at the merge base the node package does not exist and both files fail at collection."
     source: "manual"
@@ -422,7 +448,7 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_effect.py tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_cli.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC18"]
+    binds_ac: ["AC22"]
   - id: "dod-omn19998-lab-claude-token-deploy-probe"
     description: "Hosted-runner probe reads the token handler at this commit and requires its handler class; the base has no such file and the probe finds no match."
     source: "manual"
