@@ -106,6 +106,11 @@ requirements:
     acceptance:
       - id: "AC21"
         statement: "AC21: hostile-reviewer.yml writes cli_review's stdout to REVIEW_JSON_FILE and the verdict parser reads that file, so a 300000-byte review result yields its quorum verdict -- falsifier: uv run pytest tests/ci/test_hostile_reviewer_large_result_omn19998.py -q fails over the merge base's workflow with Argument list too long, exit 126"
+  - id: "req-pr-merged-projection-reads-watcher-merges"
+    statement: "node_pr_merged_projection also subscribes to onex.evt.omnimarket.repo-merged.v1, which the PR watcher publishes for every merge it observes, and folds each merged event into one pr_merged_events row keyed by the shared (repo, pr_number, merge sha) event id, so the merged-PR feed does not depend on the Actions publisher or the webhook path."
+    acceptance:
+      - id: "AC20"
+        statement: "AC20: a repo-merged event dispatched to HandlerPrMergedProjection.handle with _topic onex.evt.omnimarket.repo-merged.v1 writes one row with event_id pr_merged_event_id(repo, pr_number, merge_sha) and branch refs/pull/<n>/head, a replay or the git mirror's pr-merged event for the same merge leaves one row, an open or closed state writes nothing, and the contract declares the subscription -- falsifier: uv run pytest tests/test_omn19998_pr_merged_projection_repo_merged.py -q fails with the handler and contract at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "Every repo contract binds each criterion to repo pytest evidence."
@@ -436,3 +441,18 @@ dod_evidence:
         check_value: "uv run pytest tests/ci/test_hostile_reviewer_large_result_omn19998.py tests/ci/test_hostile_reviewer_quorum_verdict.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC21"]
+  - id: "dod-omn19998-pr-merged-projection-repo-merged"
+    description: "The repo-merged fold tests pass at the head; at the merge base the handler reads a repo-merged payload as a pr-merged event and the contract does not subscribe to the topic, so the tests fail."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_omn19998_pr_merged_projection_repo_merged.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC20"]
+  - id: "dod-omn19998-watcher-merge-deploy-probe"
+    description: "Hosted-runner probe reads the projection contract at this commit and requires the repo-merged subscription; the base subscribes only to the pr-merged topic and the probe finds no match."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_pr_merged_projection/contract.yaml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -c '^    - onex.evt.omnimarket.repo-merged.v1$'
