@@ -96,6 +96,11 @@ requirements:
     acceptance:
       - id: "AC17"
         statement: "AC17: node_rescue_patch_review_compute discards an empty, already-on-base, junk-only or whitespace-only patch and leaves any other change for a read, node_rescue_patch_review_effect writes one VERDICT.json per unreviewed patch, never rewrites one, counts a patch whose clone or base is missing as unjudgeable and writes last-run.json on every run, and both declare their command and event topics in their contracts -- falsifier: uv run pytest tests/nodes/node_rescue_patch_review_compute/test_rescue_patch_review.py tests/test_golden_chain_rescue_patch_review_compute.py tests/test_golden_chain_rescue_patch_review_effect.py -q fails at the merge base"
+  - id: "req-pr-merged-projection-dedupes-on-repo-pr-number"
+    statement: "node_pr_merged_projection stores one pr_merged_events row per (repo, pr_number): a merge announced twice, under the same or a fresh event_id, leaves one row, and a node migration puts the unique key on the table after collapsing existing duplicates."
+    acceptance:
+      - id: "AC18"
+        statement: "AC18: HandlerPrMergedProjection upserts on (repo, pr_number), so replaying one merged event, or the same merge under a new event_id, yields one row while the same pr_number in two repositories yields two, and migration 0003 deletes all but the lowest projection_cursor row per (repo, pr_number) before adding UNIQUE (repo, pr_number) -- falsifier: at the merge base the new-event_id replay leaves two rows and the 0003 migration file does not exist"
 evidence_requirements:
   - kind: "tests"
     description: "Every repo contract binds each criterion to repo pytest evidence."
@@ -410,3 +415,18 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           python3 -c 'from pathlib import Path; import yaml; c=yaml.safe_load(Path("src/omnimarket/nodes/node_rescue_patch_review_effect/contract.yaml").read_text()); assert c["descriptor"]["runtime_profiles"] == ["effects"]'
+  - id: "dod-omn19998-pr-merged-projection-dedupe"
+    description: "The pr-merged projection golden-chain tests pass at the head; at the merge base a replay under a fresh event_id leaves two rows and the 0003 migration is absent, so two tests fail."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_golden_chain_pr_merged_projection.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC18"]
+  - id: "dod-omn19998-pr-merged-dedupe-deploy-probe"
+    description: "Hosted-runner probe reads the projection handler at this commit and requires its (repo, pr_number) conflict key; the base keys on event_id and the probe finds no match."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_pr_merged_projection/handlers/handler_pr_merged_projection.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -c '^CONFLICT_KEY = "repo,pr_number"'
