@@ -25,6 +25,7 @@ The result is the tick's event, answered whatever happened.
 from __future__ import annotations
 
 import re
+from collections import deque
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 
@@ -228,10 +229,10 @@ class HandlerLabFillTick:
 
         dispatched: list[ModelLabFillTickDispatch] = []
         stopped = ""
-        queue = list(free)
+        queue = deque(free)
         for i, host in enumerate(slots):
             while queue and not stopped:
-                row = queue.pop(0)
+                row = queue.popleft()
                 ticket, row_id = str(row["ticket"]), str(row["id"])
                 lane = lane_name(ticket, request.run_key)
                 priority = priority_class(row, request.mvp_repos, request.process_repos)

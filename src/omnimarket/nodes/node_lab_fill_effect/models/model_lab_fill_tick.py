@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .model_lab_fill_effect import LANE_PATTERN, RUN_KEY_PATTERN
 
@@ -54,6 +54,14 @@ class ModelLabFillTickRequest(BaseModel):
     mvp_repos: tuple[str, ...] = ()
     process_repos: tuple[str, ...] = ()
     window_end_epoch_s: int | None = None
+
+    @field_validator("ledger_path", "approved_work_path", "brief_dir")
+    @classmethod
+    def _path_stays_put(cls, value: str) -> str:
+        """A path is named, never walked up out of its directory, and holds no NUL."""
+        if not value or "\x00" in value or ".." in value.replace("\\", "/").split("/"):
+            raise ValueError("path must be non-empty, hold no NUL and no '..' segment")
+        return value
 
 
 class ModelLabFillTickDispatch(BaseModel):

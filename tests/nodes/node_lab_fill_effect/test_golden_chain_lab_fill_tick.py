@@ -14,7 +14,9 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
+from pydantic import ValidationError
 
 from omnimarket.nodes.node_lab_fill_effect.handlers import (
     HandlerLabFillLaunch,
@@ -214,6 +216,63 @@ def test_slots_respect_per_host_and_run_caps(tmp_path: Path) -> None:
     )
     assert result.free_slots == 3
     assert [d.host for d in result.dispatched] == ["h201", "h201", "h202"]
+
+
+def test_rows_without_a_kind_ticket_or_id_are_skipped_not_launched(
+    tmp_path: Path,
+) -> None:
+    no_kind = {k: v for k, v in _row(1).items() if k != "kind"}
+    bad_ticket = {**_row(2), "ticket": "not-a-ticket"}
+    bad_id = {**_row(3), "id": "row 3/../x"}
+    handler, runner, checks = _tick([no_kind, bad_ticket, bad_id, _row(4)])
+    result = handler.handle(_request(tmp_path))
+    assert [d.ticket for d in result.dispatched] == ["OMN-4"]
+    assert [(s.row_id, s.reason) for s in result.skipped] == [
+        ("row-1", "invalid-row"),
+        ("row-2", "invalid-row"),
+        ("row 3/../x", "invalid-row"),
+    ]
+    assert [c["ticket"] for c in checks.calls] == ["OMN-4"]
+    assert len(runner.calls) == 1
+
+
+def test_rows_of_one_priority_class_keep_list_order(tmp_path: Path) -> None:
+    rows = [_row(n, repo="omniclaude") for n in (7, 3, 9, 1)]
+    handler, _, _ = _tick(rows)
+    result = handler.handle(
+        _request(
+            tmp_path, apply=False, hosts=(ModelLabFillTickHost(host="h201", free=4),)
+        )
+    )
+    assert [d.ticket for d in result.dispatched] == ["OMN-7", "OMN-3", "OMN-9", "OMN-1"]
+
+
+def test_partial_headroom_across_hosts_fills_only_the_free_slots(
+    tmp_path: Path,
+) -> None:
+    handler, _, _ = _tick([_row(n) for n in range(1, 5)])
+    hosts = (
+        ModelLabFillTickHost(host="h201", free=0),
+        ModelLabFillTickHost(host="h202", free=1),
+        ModelLabFillTickHost(host="h203", free=2),
+    )
+    result = handler.handle(_request(tmp_path, hosts=hosts))
+    assert result.free_slots == 3
+    assert [(d.ticket, d.host) for d in result.dispatched] == [
+        ("OMN-1", "h202"),
+        ("OMN-2", "h203"),
+        ("OMN-3", "h203"),
+    ]
+    assert result.untried == ("OMN-4",)
+
+
+@pytest.mark.parametrize("field", ["ledger_path", "approved_work_path", "brief_dir"])
+@pytest.mark.parametrize("bad", ["../etc", "/a/../../etc", "a\x00b", ""])
+def test_request_refuses_paths_that_climb_out_or_are_empty(
+    tmp_path: Path, field: str, bad: str
+) -> None:
+    with pytest.raises(ValidationError):
+        _request(tmp_path, **{field: bad})
 
 
 def test_lane_name_and_priority_class() -> None:
