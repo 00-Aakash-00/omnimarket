@@ -23,6 +23,7 @@ from typing import Any, Literal
 
 from omnimarket.models.model_lab_daemon_drift import ModelLabDaemonDrift
 from omnimarket.nodes.node_lab_daemon_sync_effect.models.model_lab_daemon_sync import (
+    REPO_NAME_PATTERN,
     EnumChoreVerdict,
     EnumCloneVerdict,
     EnumDaemonDecision,
@@ -47,7 +48,7 @@ PROBE_TIMEOUT_S = 120
 FIX_LANE_TIMEOUT_S = 300
 _TAIL = 400
 _SETTLED = {"current", "installed"}
-_REPO_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+_REPO_NAME = re.compile(REPO_NAME_PATTERN)
 
 
 def parse_stamp(value: str) -> datetime:

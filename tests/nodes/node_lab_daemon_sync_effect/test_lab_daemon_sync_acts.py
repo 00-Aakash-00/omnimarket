@@ -11,7 +11,7 @@ from typing import Literal, TypedDict
 
 import pytest
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from omnimarket.nodes.node_lab_daemon_sync_effect.__main__ import (
     DEFAULT_OVERLAY,
@@ -21,6 +21,7 @@ from omnimarket.nodes.node_lab_daemon_sync_effect.handlers.handler_lab_daemon_sy
     HandlerLabDaemonSync,
 )
 from omnimarket.nodes.node_lab_daemon_sync_effect.models.model_lab_daemon_sync import (
+    ModelCloneSet,
     ModelDaemonOverlay,
     ModelLabDaemonInstallRefused,
     ModelLabDaemonSyncCommand,
@@ -528,14 +529,58 @@ def test_extra_repos_file_adds_host_named_clones() -> None:
     )
     host = FakeHost()
     host.files["/hosts/private-clones.json"] = json.dumps(
-        {"repos": ["second-repo", "../x"]}
+        {"repos": ["second-repo", "../x", "..", ".", "-flag"]}
     )
     diagnostics: list[str] = []
     handler = HandlerLabDaemonSync(
         host=host, publisher=FakePublisher(), refused_topic="r", completed_topic="c"
     )
     assert handler._clone_repos(clones, diagnostics) == [REPO, "second-repo"]
-    assert diagnostics == ["clones: '../x' is not a repository name"]
+    assert diagnostics == [
+        f"clones: {name!r} is not a repository name"
+        for name in ("../x", "..", ".", "-flag")
+    ]
+
+
+@pytest.mark.parametrize("repo", ["..", ".", "-flag", "a/b", ""])
+def test_overlay_refuses_unsafe_repo_name(repo: str) -> None:
+    declaration = overlay(clones=True, chores=False)
+    assert declaration.clones is not None
+    clones = declaration.clones.model_dump() | {"repos": [repo]}
+    with pytest.raises(ValidationError):
+        ModelCloneSet.model_validate(clones)
+
+
+@pytest.mark.parametrize(
+    "url", ["http://example.test/{repo}.git", "git@example.test:{repo}.git", "x{repo}"]
+)
+def test_overlay_refuses_non_https_clone_url(url: str) -> None:
+    declaration = overlay(clones=True, chores=False)
+    assert declaration.clones is not None
+    with pytest.raises(ValidationError):
+        ModelCloneSet.model_validate(declaration.clones.model_dump() | {"url": url})
+
+
+@pytest.mark.parametrize(
+    "part", ["{lane.__class__}", "{unknown}", "{host!r}", "{brief:>9}", "{0}"]
+)
+def test_overlay_refuses_fix_lane_part_outside_the_four_fields(part: str) -> None:
+    declaration = overlay(clones=False, chores=False)
+    with pytest.raises(ValidationError, match="fix_lane part"):
+        ModelDaemonOverlay.model_validate(
+            declaration.model_dump() | {"fix_lane": ["runner", part]}
+        )
+
+
+def test_overlay_accepts_the_four_fix_lane_fields() -> None:
+    declaration = overlay(clones=False, chores=False)
+    parts = ["runner", "{lane}", "{brief}", "{daemon}", "{host}", "plain"]
+    assert (
+        ModelDaemonOverlay.model_validate(
+            declaration.model_dump() | {"fix_lane": parts}
+        ).fix_lane
+        == parts
+    )
 
 
 def test_absent_plugin_with_no_marketplace_names_the_source_blocker() -> None:

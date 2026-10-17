@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from string import Formatter
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
@@ -20,6 +21,8 @@ def _valid_stamp(value: str) -> str:
 
 
 _Arg = Annotated[str, Field(min_length=1)]
+REPO_NAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]*$"
+FIX_LANE_FIELDS = frozenset({"lane", "brief", "daemon", "host"})
 _Stamp = Annotated[str, Field(pattern=_TS), AfterValidator(_valid_stamp)]
 
 EnumDaemonDecision = Literal[
@@ -129,12 +132,10 @@ class ModelCloneSet(BaseModel):
         min_length=1, description="The registry root the clones live under."
     )
     url: str = Field(
-        pattern=r"\{repo\}",
-        description="Clone URL template; `{repo}` is the repository name.",
+        pattern=r"^https://[^\s{}]*\{repo\}[^\s{}]*$",
+        description="HTTPS clone URL template; `{repo}` is the repository name.",
     )
-    repos: list[Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]+$")]] = Field(
-        min_length=1
-    )
+    repos: list[Annotated[str, Field(pattern=REPO_NAME_PATTERN)]] = Field(min_length=1)
     extra_repos_file: str | None = Field(
         default=None,
         description='A host JSON file {"repos": [...]} naming more clones, such as private ones.',
@@ -180,6 +181,20 @@ class ModelDaemonOverlay(BaseModel):
         gt=0,
         description="The same blocker dispatches another fix lane only after this long.",
     )
+
+    @model_validator(mode="after")
+    def _fix_lane_placeholders(self) -> ModelDaemonOverlay:
+        """A fix-lane part names only the four plain fields, so formatting it cannot fail or reach an attribute; `${VAR}` is expanded at load."""
+        for part in self.fix_lane:
+            for text, field, spec, conversion in Formatter().parse(part):
+                if field is None or text.endswith("$"):
+                    continue
+                if field not in FIX_LANE_FIELDS or spec or conversion:
+                    raise ValueError(
+                        f"fix_lane part {part!r} names {{{field}}}; "
+                        f"only {', '.join(sorted(FIX_LANE_FIELDS))} are filled, with no spec or conversion"
+                    )
+        return self
 
 
 class ModelLabDaemonSyncCommand(BaseModel):
