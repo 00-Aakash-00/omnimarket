@@ -96,11 +96,21 @@ requirements:
     acceptance:
       - id: "AC17"
         statement: "AC17: node_rescue_patch_review_compute discards an empty, already-on-base, junk-only or whitespace-only patch and leaves any other change for a read, node_rescue_patch_review_effect writes one VERDICT.json per unreviewed patch, never rewrites one, counts a patch whose clone or base is missing as unjudgeable and writes last-run.json on every run, and both declare their command and event topics in their contracts -- falsifier: uv run pytest tests/nodes/node_rescue_patch_review_compute/test_rescue_patch_review.py tests/test_golden_chain_rescue_patch_review_compute.py tests/test_golden_chain_rescue_patch_review_effect.py -q fails at the merge base"
+  - id: "req-hostile-reviewer-structured-votes-pin"
+    statement: "The Hostile Reviewer clones omniintelligence at the revision that keeps large reviewer votes structured, so a voter's free-text reply no longer leaves the gate degraded."
+    acceptance:
+      - id: "AC18"
+        statement: "AC18: hostile-reviewer.yml clones omniintelligence at 3502f0de2f9be25cf68e3dc5877d9cb5580c90e0, a descendant of the previous pin 3fcbf795087a79081c0ceeb676216bf64c5d49ae -- falsifier: uv run pytest tests/ci/test_hostile_reviewer_pin_structured_votes_omn19998.py -q fails over the merge base's workflow, which pins 3fcbf795087a79081c0ceeb676216bf64c5d49ae"
+  - id: "req-hostile-reviewer-large-result-verdict"
+    statement: "The Hostile Reviewer verdict step reads cli_review's result from a file, so a review result over the 128 KiB per-string exec limit still yields a verdict instead of failing as unknown with Argument list too long."
+    acceptance:
+      - id: "AC21"
+        statement: "AC21: hostile-reviewer.yml writes cli_review's stdout to REVIEW_JSON_FILE and the verdict parser reads that file, so a 300000-byte review result yields its quorum verdict -- falsifier: uv run pytest tests/ci/test_hostile_reviewer_large_result_omn19998.py -q fails over the merge base's workflow with Argument list too long, exit 126"
   - id: "req-pr-merged-projection-dedupes-on-repo-pr-number"
     statement: "node_pr_merged_projection stores one pr_merged_events row per (repo, pr_number): a merge announced twice, under the same or a fresh event_id, leaves one row, and a node migration puts the unique key on the table after collapsing existing duplicates."
     acceptance:
-      - id: "AC18"
-        statement: "AC18: HandlerPrMergedProjection upserts on (repo, pr_number), so replaying one merged event, or the same merge under a new event_id, yields one row while the same pr_number in two repositories yields two, and migration 0003 deletes all but the lowest projection_cursor row per (repo, pr_number) before adding UNIQUE (repo, pr_number) -- falsifier: at the merge base the new-event_id replay leaves two rows and the 0003 migration file does not exist"
+      - id: "AC22"
+        statement: "AC22: HandlerPrMergedProjection upserts on (repo, pr_number), so replaying one merged event, or the same merge under a new event_id, yields one row while the same pr_number in two repositories yields two, and migration 0003 deletes all but the lowest projection_cursor row per (repo, pr_number) before adding UNIQUE (repo, pr_number) -- falsifier: at the merge base the new-event_id replay leaves two rows and the 0003 migration file does not exist"
 evidence_requirements:
   - kind: "tests"
     description: "Every repo contract binds each criterion to repo pytest evidence."
@@ -415,6 +425,22 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           python3 -c 'from pathlib import Path; import yaml; c=yaml.safe_load(Path("src/omnimarket/nodes/node_rescue_patch_review_effect/contract.yaml").read_text()); assert c["descriptor"]["runtime_profiles"] == ["effects"]'
+  - id: "dod-omn19998-hostile-reviewer-structured-votes-pin"
+    description: "The workflow pins omniintelligence at the structured-votes revision; the merge base's pin fails the test."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_hostile_reviewer_pin_structured_votes_omn19998.py tests/ci/test_hostile_reviewer_pin_retry_budget_omn17427.py tests/ci/test_hostile_reviewer_head_sha_omn20947.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC18"]
+  - id: "dod-omn19998-hostile-reviewer-large-result-verdict"
+    description: "The verdict step reads a review result over 128 KiB from a file and prints its verdict; the merge base's workflow fails the test with Argument list too long."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_hostile_reviewer_large_result_omn19998.py tests/ci/test_hostile_reviewer_quorum_verdict.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC21"]
   - id: "dod-omn19998-pr-merged-projection-dedupe"
     description: "The pr-merged projection golden-chain tests pass at the head; at the merge base a replay under a fresh event_id leaves two rows and the 0003 migration is absent, so two tests fail."
     source: "manual"
@@ -422,7 +448,7 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/test_golden_chain_pr_merged_projection.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC18"]
+    binds_ac: ["AC22"]
   - id: "dod-omn19998-pr-merged-dedupe-deploy-probe"
     description: "Hosted-runner probe requires the installed infra commit that vendors migration 0003 and the projection handler's (repo, pr_number) conflict key; the prior registry pin has no VCS commit and fails the probe."
     source: "manual"
