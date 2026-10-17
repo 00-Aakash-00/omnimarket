@@ -100,3 +100,16 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/delegation/test_gate_decided_cause_derived_omn19448.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC3"]
+  - id: "dod-omn19448-ticket-ac1-terminal-fields-copied"
+    description: "Ticket AC1: HandlerProjectionDelegation writes the terminal's terminal_failure_cause, operational_outcome and content_verdict unchanged to the in-memory and sqlite delegation_events rows, and the reducer and the canonical converter keep a declared quality_gate_refused cause. Accepted binding of the ticket's own AC1 text."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_terminal_cause_copied_omn19448.py tests/unit/delegation/test_terminal_columns_omn19448.py -k \"quality_gate_refused or inmemory_row_carries or sqlite_local_store\" -q -p no:cacheprovider"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]
+    ac_bindings:
+      - label: "AC1"
+        criterion_hash: "6110e69ac39e467da971b8ae35abd105187156f9bf8750730059edb3f3a2ba0e"
+        proposed_by: "lane=dod-closeout-bind-2026-10-17T0245Z-c2"
+        accepted_by: "lane=dod-closeout-accept-2026-10-17T0245Z-c2"
