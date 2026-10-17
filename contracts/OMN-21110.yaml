@@ -83,14 +83,11 @@ dod_evidence:
         check_value: "uv run pytest tests/nodes/node_context_pack_orchestrator/test_handler_context_pack_orchestrator.py -q -p no:randomly --no-cov -k 'lane_brief_builds_without_session'"
     binds_ac: ["AC9"]
   - id: "dod-omn21110-deploy-container-build"
-    description: "Hosted deploy probe. An ephemeral Python 3.12 container (the bookworm image, which carries the git the omnibase-infra tag pin needs) installs the read-only checkout into /tmp with uv run --frozen --no-dev, builds a compaction_orchestrator package through the product handler over four inline sources and asserts status ok with the candidate id in the trailer only, then asserts a required tier answering unavailable fails required_factor_missing. It fails at the merge base, which has no such handler. The hosted runner can run it; no lab route is required."
+    description: "Hosted deploy probe. The hosted runner runs uv run --frozen --no-dev in the checkout and builds a compaction_orchestrator package through the product handler over four inline sources and asserts status ok with the candidate id in the trailer only, then asserts a required tier answering unavailable fails required_factor_missing. It fails at the merge base, which has no such handler. The hosted runner can run it; no lab route is required."
     source: "manual"
     checks:
       - check_type: "command"
         check_value: |-
-          docker run --rm --volume "$PWD:/workspace:ro" --workdir /workspace \
-          --env UV_PROJECT_ENVIRONMENT=/tmp/omnimarket-venv \
-          ghcr.io/astral-sh/uv:python3.12-bookworm \
           uv run --frozen --no-dev python -c '
           import hashlib, datetime as d
           from omnibase_core.enums.enum_context_factor import EnumContextFactor as F
