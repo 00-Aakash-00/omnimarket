@@ -133,11 +133,16 @@ requirements:
     acceptance:
       - id: "AC25"
         statement: "AC25: no workflow line outside the two carve-outs carries the self-hosted fleet fallback, the Public Runner Placement job is unconditional, hosted, carries a positive control and the same core pin as the hook, and CI Summary registers it -- falsifier: uv run pytest tests/ci/test_public_runner_placement_omn19998.py -q fails at the merge base, where 18 fallback lines name the fleet and neither the job nor the hook exists"
+  - id: "req-pr-merged-projection-reads-watcher-merges"
+    statement: "node_pr_merged_projection also subscribes to onex.evt.omnimarket.repo-merged.v1, which the PR watcher publishes for every merge it observes, and folds each merged event into one pr_merged_events row keyed by the shared (repo, pr_number, merge sha) event id, so the merged-PR feed does not depend on the Actions publisher or the webhook path."
+    acceptance:
+      - id: "AC26"
+        statement: "AC26: a repo-merged event dispatched to HandlerPrMergedProjection.handle with _topic onex.evt.omnimarket.repo-merged.v1 writes one row with event_id pr_merged_event_id(repo, pr_number, merge_sha) and branch refs/pull/<n>/head, a replay or the git mirror's pr-merged event for the same merge leaves one row, an open or closed state writes nothing, and the contract declares the subscription -- falsifier: uv run pytest tests/test_omn19998_pr_merged_projection_repo_merged.py -q fails with the handler and contract at the merge base"
   - id: "req-lab-claude-token-rotation-node"
     statement: "Claude-token rotation for lab hosts is an omnimarket node in canonical shape (contract, node, handler) with an onex CLI verb: the token is read from stdin only, stored under a per-host, per-account secret-store reference, deployed mode 0600, probed with placement's limit re-probe question, and a limited host is rotated onto a spare pool account with headroom; no script, argv, result, event or line carries a token value."
     acceptance:
-      - id: "AC26"
-        statement: "AC26: node_lab_claude_token_effect, against a fake host and a fake store, stores, deploys and probes a set token and removes the host's .limited marker on an answer, restores the previous token on the host and in the store on a limit notice or failed deploy, rotates a limited host onto the first spare that answers and records the rotation event, says no-spare once per marker, and onex lab claude-token takes no token argument and never echoes the piped token -- falsifier: uv run pytest tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_effect.py tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_cli.py -q fails at the merge base"
+      - id: "AC27"
+        statement: "AC27: node_lab_claude_token_effect, against a fake host and a fake store, stores, deploys and probes a set token and removes the host's .limited marker on an answer, restores the previous token on the host and in the store on a limit notice or failed deploy, rotates a limited host onto the first spare that answers and records the rotation event, says no-spare once per marker, and onex lab claude-token takes no token argument and never echoes the piped token -- falsifier: uv run pytest tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_effect.py tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_cli.py -q fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "Every repo contract binds each criterion to repo pytest evidence."
@@ -552,6 +557,21 @@ dod_evidence:
     checks:
       - check_type: "command"
         check_value: "uv run pytest tests/ci/test_public_runner_placement_omn19998.py -q"
+  - id: "dod-omn19998-pr-merged-projection-repo-merged"
+    description: "The repo-merged fold tests pass at the head; at the merge base the handler reads a repo-merged payload as a pr-merged event and the contract does not subscribe to the topic, so the tests fail."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_omn19998_pr_merged_projection_repo_merged.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC26"]
+  - id: "dod-omn19998-watcher-merge-deploy-probe"
+    description: "Hosted-runner probe reads the projection contract at this commit and requires the repo-merged subscription; the base subscribes only to the pr-merged topic and the probe finds no match."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_pr_merged_projection/contract.yaml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -c '^    - onex.evt.omnimarket.repo-merged.v1$'
   - id: "dod-omn19998-lab-claude-token-node"
     description: "The handler and CLI tests pass at the head against a fake host and a fake store; at the merge base the node package does not exist and both files fail at collection."
     source: "manual"
@@ -559,7 +579,7 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_effect.py tests/nodes/node_lab_claude_token_effect/test_lab_claude_token_cli.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC26"]
+    binds_ac: ["AC27"]
   - id: "dod-omn19998-lab-claude-token-deploy-probe"
     description: "Hosted-runner probe reads the token handler at this commit and requires its handler class; the base has no such file and the probe finds no match."
     source: "manual"
@@ -568,13 +588,12 @@ dod_evidence:
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_lab_claude_token_effect/handlers/handler_lab_claude_token.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -c '^class HandlerLabClaudeToken'
   - id: "dod-omn19998-lab-claude-token-local-discovery"
-    description: "The inventory discovers the token node and validates its typed local invocation; the dispatch head fails because the onex.nodes registration is missing."
+    description: "The inventory discovers the token node and validates its typed local invocation at the head. The inventory test is generic and also passes at the merge base, so this item carries no binds_ac; AC27 is bound by the node's own handler and CLI tests."
     source: "manual"
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/test_market_node_runtime_dogfood.py -q -k test_market_node_runtime_dogfood_inventory_classifies_all_entry_points"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC26"]
   - id: "dod-omn19998-lab-claude-token-local-discovery-deploy-probe"
     description: "Hosted-runner readback loads the installed node entry point and validates the local contract's handler models, trigger, empty bus topics and runtime profiles; the dispatch head has no node entry point and fails."
     source: "manual"
