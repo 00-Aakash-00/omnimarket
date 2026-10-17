@@ -567,3 +567,18 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_lab_claude_token_effect/handlers/handler_lab_claude_token.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -c '^class HandlerLabClaudeToken'
+  - id: "dod-omn19998-lab-claude-token-local-discovery"
+    description: "The inventory discovers the token node and validates its typed local invocation; the dispatch head fails because the onex.nodes registration is missing."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_market_node_runtime_dogfood.py -q -k test_market_node_runtime_dogfood_inventory_classifies_all_entry_points"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC26"]
+  - id: "dod-omn19998-lab-claude-token-local-discovery-deploy-probe"
+    description: "Hosted-runner readback loads the installed node entry point and validates the local contract's handler models, trigger, empty bus topics and runtime profiles; the dispatch head has no node entry point and fails."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          uv run python -c 'from importlib.metadata import entry_points; from scripts.audit.market_node_runtime_dogfood import _contract_for, _local_invocation_check; n="node_lab_claude_token_effect"; e=next(e for e in entry_points(group="onex.nodes") if e.name == n); assert e.load().__name__ == "omnimarket.nodes." + n; assert _local_invocation_check(_contract_for(n)) == (True, "")'
