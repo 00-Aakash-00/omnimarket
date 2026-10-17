@@ -28,7 +28,12 @@ LOCAL_EXEC_PATH = "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bi
 
 
 def host_argv(host: ModelLabTokenHost, script: str) -> list[str]:
-    """The argv that runs ``script`` on ``host``; it never carries a token."""
+    """The argv that runs ``script`` on ``host``; it never carries a token.
+
+    ``script`` is always one of the handler's own module-level script constants and
+    interpolates no request field, so no caller-controlled text reaches the shell.
+    Host names and accounts are validated as plain lowercase slugs before they get here.
+    """
     if not host.local:
         assert host.target is not None
         return ["ssh", *SSH_OPTS, host.target, script]
