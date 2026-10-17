@@ -69,3 +69,31 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/delegation/test_step_by_step_causal_prose_omn19401.py -k hash_map -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2", "AC3"]
+  - id: "dod-omn19401-live-ac1-causal-connective-accepted"
+    description: "Live ticket AC1: each of the six causal connectives (because, therefore, consequently, since, as a result, this means), in a sentence carrying no literal marker, passes the step_by_step_explanation check. Fails with the source at the parent of the implementing merge omnimarket#2851."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "env -u PYTHONPATH uv run pytest tests/unit/nodes/node_delegation_quality_gate_reducer/test_step_by_step_explanation_causal_markers_omn19401.py::test_step_by_step_explanation_accepts_causal_connective -q --no-cov -p no:cacheprovider"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]
+    ac_bindings:
+      - label: "AC1"
+        criterion_hash: "99285d385e331297c4db7d3f8502c5f21c2092d07b2f4dee0589133f11d5302d"
+        proposed_by: "lane=dod-closeout-bind-2026-10-17T0445Z-c0"
+        accepted_by: "lane=dod-closeout-accept-2026-10-17T0445Z-c0"
+        accepted_at: "2026-10-17T05:03:09Z"
+  - id: "dod-omn19401-live-ac2-hash-map-reproduction"
+    description: "Live ticket AC2: the hash-map response recorded under correlation_id 174ea493-c4b8-4174-aac4-b158d439b424 (byte-identical to the local delegation_events row) passes the step_by_step_explanation check. Fails with TASK_MISMATCH at the parent of omnimarket#2851."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "env -u PYTHONPATH uv run pytest tests/unit/delegation/test_step_by_step_causal_prose_omn19401.py::test_causal_prose_hash_map_answer_no_longer_vetoed -q --no-cov -p no:cacheprovider"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC2"]
+    ac_bindings:
+      - label: "AC2"
+        criterion_hash: "1477d76ffa0ab062e292157d0e9b412671252468716e5cd05dd1dfd1697de91e"
+        proposed_by: "lane=dod-closeout-bind-2026-10-17T0445Z-c0"
+        accepted_by: "lane=dod-closeout-accept-2026-10-17T0445Z-c0"
+        accepted_at: "2026-10-17T05:03:09Z"
