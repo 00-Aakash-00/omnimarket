@@ -258,6 +258,11 @@ requirements:
     acceptance:
     - id: AC49
       statement: 'AC49: the contract subscribes to the runtime tick with a 01:00 to 05:00 America/New_York window, a tick runs once per interval inside it, and onex lab-archive run is registered and exits 2 on a refused host -- falsifier: the focused pytest finds a run outside the window, a second run inside the interval, or an unregistered verb'
+  - id: "req-duplication-sweep-d3-core-handler"
+    statement: "The duplication sweep's D3 migration-conflict check runs omnibase_core's migration-conflict handler in process, so it reads no onex_change_control checkout and runs no external command."
+    acceptance:
+      - id: "AC50"
+        statement: "AC50: D3 reports a table two repos create with different columns as NAME_CONFLICT, passes distinct tables, finds a conflict with an empty PATH, and ignores a check-migration-conflicts command and suppressions file placed in an onex_change_control directory beside the repos -- falsifier: uv run pytest tests/test_golden_chain_duplication_sweep.py tests/test_sweep_dispatch_scope_resolution.py -q -k d3 fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "A Claude-limited Codex-allowed host with free Codex slots reports Codex headroom; other hosts keep their lines."
@@ -364,6 +369,9 @@ evidence_requirements:
   - kind: tests
     description: 'AC48 and AC49: uploader, overlay, contract and verb tests pass.'
     command: uv run pytest tests/nodes/node_lab_history_archive_effect/test_adapters_overlay_cli.py -q -p no:randomly
+  - kind: "tests"
+    description: "D3 runs omnibase_core's migration-conflict handler with no change-control checkout."
+    command: "uv run pytest tests/test_golden_chain_duplication_sweep.py tests/test_sweep_dispatch_scope_resolution.py -q -k d3"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -759,3 +767,18 @@ dod_evidence:
     binds_ac:
     - AC48
     - AC49
+  - id: "dod-omn17427-ac50-d3-core-handler"
+    description: "D3 decides migration conflicts with omnibase_core's handler and ignores a change-control checkout beside the repos."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_golden_chain_duplication_sweep.py tests/test_sweep_dispatch_scope_resolution.py -q -k d3"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC50"]
+  - id: "dod-omn17427-d3-deploy-probe"
+    description: "Deploy probe. GitHub serves the duplication sweep handler at the checked-out HEAD calling omnibase_core's HandlerMigrationConflicts and no check-migration-conflicts command. It fails at the merge base, which runs that command, and needs no lab network on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_duplication_sweep/handlers/handler_duplication_sweep.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert "HandlerMigrationConflicts" in source; assert "check-migration-conflicts" not in source; print("duplication sweep D3 deploy probe: PASS")'
