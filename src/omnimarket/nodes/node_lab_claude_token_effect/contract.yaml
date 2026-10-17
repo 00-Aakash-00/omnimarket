@@ -2,10 +2,8 @@
 # SPDX-License-Identifier: MIT
 # ONEX Node Contract - Lab Claude Token Effect (OMN-19998)
 #
-# CLI-run effect, like node_local_secret_store_effect: no subscription and no
-# onex.nodes entry point, invoked by the `onex lab claude-token` shim.
-# `experimental` is the drift gate's marker for an intentionally unregistered
-# node; the topic graph sees it as an externally triggered ingress root.
+# CLI-run effect, discovered through onex.nodes and invoked locally by the
+# `onex lab claude-token` shim. It has no bus subscription or runtime consumer.
 name: lab_claude_token_effect
 lifecycle: experimental
 contract_version: {major: 1, minor: 0, patch: 0}
@@ -30,6 +28,7 @@ handler:
   module: omnimarket.nodes.node_lab_claude_token_effect.handlers.handler_lab_claude_token
   class: HandlerLabClaudeToken
   input_model: omnimarket.nodes.node_lab_claude_token_effect.models.model_lab_claude_token_request.ModelLabClaudeTokenRequest
+  output_model: omnimarket.nodes.node_lab_claude_token_effect.models.model_lab_claude_token_result.ModelLabClaudeTokenResult
 
 handler_routing:
   default_handler: omnimarket.nodes.node_lab_claude_token_effect.handlers.handler_lab_claude_token:HandlerLabClaudeToken
@@ -39,8 +38,7 @@ descriptor:
   purity: impure
   idempotent: false  # a rotation moves a host to another account
   timeout_ms: 600000
-  runtime_profiles:
-    - effects
+  runtime_profiles: []
 
 # The node publishes nothing: it RETURNS the rotation event in its result and
 # appends it to the placement directory's rotation record. Declaring a topic
@@ -49,5 +47,8 @@ event_bus:
   subscribe_topics: []
   publish_topics: []
 
+runtime_dispatch:
+  external_trigger: The onex lab claude-token CLI invokes the typed handler locally.
+
 metadata:
-  transport_type: kafka
+  transport_type: local
