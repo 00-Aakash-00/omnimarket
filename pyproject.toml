@@ -142,7 +142,7 @@ dependencies = [
     # TA.2). ModelContextProfile validates them, compaction_orchestrator selects
     # them, and node_context_pack_render_compute classifies chunks by them.
     # Raised in BOTH places.
-    "omnibase-core>=0.47.44,<0.48.0",
+    "omnibase-core>=0.47.46,<0.48.0",
     # OMN-14189 imports the shared OCC PR stamp renderer/parser + models from
     # omnibase-compat 0.5.6 (relocated core->compat under OMN-14223 so the gate
     # and this emitter share one zero-dep vocabulary): the single seam
@@ -339,6 +339,7 @@ node_hook_refusal_row_compute = "omnimarket.nodes.node_hook_refusal_row_compute"
 node_capture_item_identity_effect = "omnimarket.nodes.node_capture_item_identity_effect"
 node_external_deadman_check_compute = "omnimarket.nodes.node_external_deadman_check_compute"
 node_context_compaction_manifest_compute = "omnimarket.nodes.node_context_compaction_manifest_compute"
+node_prrp_snapshot_publish_effect = "omnimarket.nodes.node_prrp_snapshot_publish_effect"
 node_rescue_patch_review_compute = "omnimarket.nodes.node_rescue_patch_review_compute"
 node_rescue_patch_review_effect = "omnimarket.nodes.node_rescue_patch_review_effect"
 node_pr_claim_registry_effect = "omnimarket.nodes.node_pr_claim_registry_effect"
@@ -479,6 +480,7 @@ node_automation_liveness_watchdog_effect = "omnimarket.nodes.node_automation_liv
 node_lab_job_check_schedule_compute = "omnimarket.nodes.node_lab_job_check_schedule_compute"
 node_lab_job_check_effect = "omnimarket.nodes.node_lab_job_check_effect"
 node_ledger_stats_compute = "omnimarket.nodes.node_ledger_stats_compute"
+node_lab_story_log_effect = "omnimarket.nodes.node_lab_story_log_effect"
 node_delegation_ab_runner = "omnimarket.nodes.node_delegation_ab_runner"
 node_platform_readiness = "omnimarket.nodes.node_platform_readiness"
 node_platform_diagnostics = "omnimarket.nodes.node_platform_diagnostics"
@@ -698,6 +700,7 @@ node_pr_lifecycle_merge_effect = "omnimarket.nodes.node_pr_lifecycle_merge_effec
 node_pr_lifecycle_worktree_prune_effect = "omnimarket.nodes.node_pr_lifecycle_worktree_prune_effect"
 node_verification_sweep_orchestrator = "omnimarket.nodes.node_verification_sweep_orchestrator"
 node_retention_cleanup = "omnimarket.nodes.node_retention_cleanup"
+node_lab_history_archive_effect = "omnimarket.nodes.node_lab_history_archive_effect"
 node_environment_health_scanner = "omnimarket.nodes.node_environment_health_scanner"
 node_linear_triage = "omnimarket.nodes.node_linear_triage"
 node_autopilot_orchestrator = "omnimarket.nodes.node_autopilot_orchestrator"
@@ -979,6 +982,13 @@ seed = "omnimarket.cli.cli_seed:seed_command"
 # the bus; the rest publish the node's typed command and wait for its terminal
 # event. Discovered over installed distributions like the groups above.
 scm = "omnimarket.handlers.scm.scm_cli:scm_group"
+# OMN-17427: `onex lab-archive` -- archive lab history older than seven days to Drive
+# under a CPU, IO and bandwidth budget, then free the local copy. A shim over
+# node_lab_history_archive_effect, discovered over installed distributions like the groups above.
+lab-archive = "omnimarket.nodes.node_lab_history_archive_effect.cli:lab_archive_group"
+# `onex lab-story-log` -- write one ISO week of the work ledger as a sanitized story log for the
+# lab-journey article series; run weekly by a host tick. Discovered over installed distributions.
+lab-story-log = "omnimarket.nodes.node_lab_story_log_effect.cli:lab_story_log_command"
 
 [project.entry-points."onex.contracts"]
 # OMN-19407: config contracts a consumer reads through the installed registry
@@ -1137,7 +1147,7 @@ override-dependencies = [
     # OMN-20885: floor raised 0.47.36 -> 0.47.39 (core#1935), the ticket-contract
     # refusals Contract Compliance Check relies on. Raised in BOTH places.
     # OMN-21106 / OMN-21109: floor raised 0.47.39 -> 0.47.44 (core#1987, TA.2).
-    "omnibase-core>=0.47.44,<0.48.0",
+    "omnibase-core>=0.47.46,<0.48.0",
     "omnibase-spi>=0.23.3,<0.24.0",
     # OMN-18159: raised in lockstep with the dependency floor above --
     # 0.38.22 is the first release whose derived topology grants let the
