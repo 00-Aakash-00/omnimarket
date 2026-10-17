@@ -260,6 +260,9 @@ def _compare_archive(src: Path, dest: Path) -> None:
             for file in _walk(src):
                 name = str(Path(src.name) / file.relative_to(src))
                 member = members.pop(name, None)
+                # extractfile streams the member's bytes into memory and writes no
+                # path to disk, so the extraction filter (extract/extractall only)
+                # has nothing to constrain; the name is looked up, never joined.
                 extracted = tar.extractfile(member) if member else None
                 if member is None or extracted is None:
                     msg = f"archive verify failed: {name} missing from {dest.name}"
