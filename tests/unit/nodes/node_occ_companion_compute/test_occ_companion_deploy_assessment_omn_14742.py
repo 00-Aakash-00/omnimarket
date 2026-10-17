@@ -310,8 +310,6 @@ class TestDeployItemGateCompliance:
         module = _load_occ_module(
             "scripts/lint_contract_check_values.py", "occ_lint_check_values_14742"
         )
-        if module is None:
-            pytest.skip("onex_change_control checkout not available")
         path = tmp_path / f"{_TICKET}.yaml"
         path.write_text(_contract(compute_companion_plan(_request())), encoding="utf-8")
         violations = module.lint_contract(path)

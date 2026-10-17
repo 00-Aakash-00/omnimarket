@@ -258,6 +258,11 @@ requirements:
     acceptance:
     - id: AC49
       statement: 'AC49: the contract subscribes to the runtime tick with a 01:00 to 05:00 America/New_York window, a tick runs once per interval inside it, and onex lab-archive run is registered and exits 2 on a refused host -- falsifier: the focused pytest finds a run outside the window, a second run inside the interval, or an unregistered verb'
+  - id: req-consumer-gate-parity-on-core
+    statement: The golden-gate consumer-gate parity tests drive omnibase_core's ports of the onex_change_control gate scripts and need no onex_change_control checkout.
+    acceptance:
+    - id: AC50
+      statement: 'AC50: the consumer-gate parity tests import the omnibase_core ports of lint_contract_check_values, check_contract_substance_floor, contract_compliance_check and evidence_admissibility and none of them skips for a missing onex_change_control checkout -- falsifier: the focused pytest reports a skip naming the onex_change_control checkout, or an import of a sibling onex_change_control path'
 evidence_requirements:
   - kind: "tests"
     description: "A Claude-limited Codex-allowed host with free Codex slots reports Codex headroom; other hosts keep their lines."
@@ -759,3 +764,12 @@ dod_evidence:
     binds_ac:
     - AC48
     - AC49
+  - id: dod-omn17427-ac50-consumer-gate-parity-on-core
+    description: 'AC50: consumer-gate parity tests run against the omnibase_core ports with no onex_change_control checkout.'
+    source: manual
+    checks:
+    - check_type: test_passes
+      check_value: uv run pytest tests/unit/nodes/node_pr_lifecycle_fix_effect/test_occ_autobind_contention_omn_15247.py tests/unit/nodes/node_pr_lifecycle_fix_effect/test_occ_emitter_literal_pins_omn_15407.py -q -p no:randomly -k "ConsumerGateParity"
+      cwd: ${OMNI_HOME}/omnimarket
+    binds_ac:
+    - AC50
