@@ -142,6 +142,8 @@ dependencies = [
     # TA.2). ModelContextProfile validates them, compaction_orchestrator selects
     # them, and node_context_pack_render_compute classifies chunks by them.
     # Raised in BOTH places.
+    # OMN-17427: floor raised 0.47.44 -> 0.47.46, the first release carrying the
+    # ported OCC contract checks (core#2023). Raised in BOTH places.
     "omnibase-core>=0.47.46,<0.48.0",
     # OMN-14189 imports the shared OCC PR stamp renderer/parser + models from
     # omnibase-compat 0.5.6 (relocated core->compat under OMN-14223 so the gate
@@ -1014,6 +1016,9 @@ omnimarket = "omnimarket.nodes"
 [tool.uv.sources]
 # OMN-19998: infra#5036 vendors the PR merge dedupe migration. Pin its
 # first dev tag so the runtime receives the same unique key as the handler.
+# uv.lock resolves the tag to commit 0f7bee98bd8f and installs that commit, so
+# the install is content-addressed; drop this override once a registry release
+# after 0.38.74 carries migration 0003.
 omnibase-infra = { git = "https://github.com/OmniNode-ai/omnibase_infra.git", tag = "dev-20261016204728-0f7bee98bd8f" }
 # OMN-13878: omnibase-core and omnibase-compat now resolve from PyPI (removed
 # their git-source overrides). The version-range overrides below already target
@@ -1150,6 +1155,7 @@ override-dependencies = [
     # OMN-20885: floor raised 0.47.36 -> 0.47.39 (core#1935), the ticket-contract
     # refusals Contract Compliance Check relies on. Raised in BOTH places.
     # OMN-21106 / OMN-21109: floor raised 0.47.39 -> 0.47.44 (core#1987, TA.2).
+    # OMN-17427: floor raised 0.47.44 -> 0.47.46 (core#2023).
     "omnibase-core>=0.47.46,<0.48.0",
     "omnibase-spi>=0.23.3,<0.24.0",
     # OMN-18159: raised in lockstep with the dependency floor above --
