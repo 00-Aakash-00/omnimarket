@@ -61,7 +61,6 @@ dod_evidence:
         check_value: |-
           docker run --rm -v "${PWD}:/workspace:ro" -v "${COMPOSE_PROJECT_NAME:-omnimarket-terminal-smoke}-${GITHUB_RUN_ID:-local}-uv-cache:/tmp/uv-cache" -w /workspace -e UV_PROJECT_ENVIRONMENT=/tmp/terminal-venv -e UV_CACHE_DIR=/tmp/uv-cache ghcr.io/astral-sh/uv@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 uv run --frozen --no-dev --with pytest==9.1.1 --with pytest-asyncio==1.4.0 pytest tests/unit/delegation/test_terminal_fields_copied_binding_omn19448.py -q -p no:cacheprovider --basetemp=/tmp/terminal-tests
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC1"]
   - id: "dod-stop-reason-columns-ac2"
     description: "The local dispatch payload and the canonical terminal carry the deciding rung's stop reason, and the projection writes both columns, keeps them across a sparse terminal, and leaves them NULL for an unknown stop reason."
     source: "manual"
