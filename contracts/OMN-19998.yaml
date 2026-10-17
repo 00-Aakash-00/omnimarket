@@ -128,6 +128,11 @@ requirements:
     acceptance:
       - id: "AC24"
         statement: "AC24: the runner fallback guard accepts hosted and fleet trusted defaults and refuses self-hosted public defaults, unknown labels, incomplete fleet labels and empty labels; the workflow checks still pass -- falsifier: uv run pytest tests/ci/test_route_runner_reusable_omn16647.py -q fails at the merge base because the hosted fallback guard does not exist"
+  - id: "req-relation-inventory-current-on-dev"
+    statement: "The checked-in relation inventory docs/evidence/OMN-15423-relation-inventory.json matches what scripts/generate_application_relation_inventory.py derives from source on dev, so test_checked_in_inventory_is_source_derived_and_current passes in Tests (Split 6/20)."
+    acceptance:
+      - id: "AC25"
+        statement: "AC25: the inventory lists node_retention_cleanup among the readers of consumer_flow_windows, which omnimarket#4035 declared in node_retention_cleanup's contract without regenerating the inventory, and the generator's --check exits 0 -- falsifier: uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q fails at the merge base a2ac18628"
 evidence_requirements:
   - kind: "tests"
     description: "Every repo contract binds each criterion to repo pytest evidence."
@@ -525,3 +530,18 @@ dod_evidence:
     checks:
       - check_type: "command"
         check_value: "uv run pytest tests/ci/test_route_runner_reusable_omn16647.py -q -k test_runner_fallback_guard_accepts_hosted_and_fleet_seams"
+  - id: "dod-omn19998-relation-inventory-current"
+    description: "The generator's --check passes against the regenerated inventory at the head; at the merge base it prints stale generated inventory and the test fails."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC25"]
+  - id: "dod-omn19998-relation-inventory-deploy-probe"
+    description: "Hosted-runner probe reads the inventory at this commit and requires node_retention_cleanup among the consumer_flow_windows readers; the base lacks it and fails."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/docs/evidence/OMN-15423-relation-inventory.json?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys,json; d=json.load(sys.stdin); assert any(r.get("name") == "consumer_flow_windows" and "node_retention_cleanup" in r.get("readers", []) for r in d["relations"]), "node_retention_cleanup must read consumer_flow_windows"'
