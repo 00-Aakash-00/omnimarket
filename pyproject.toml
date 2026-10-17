@@ -1007,6 +1007,9 @@ code_entity_repository = "omnimarket.plugins.plugin_code_entity_repository:Plugi
 omnimarket = "omnimarket.nodes"
 
 [tool.uv.sources]
+# OMN-19998: infra#5036 vendors the PR merge dedupe migration. Pin its
+# first dev tag so the runtime receives the same unique key as the handler.
+omnibase-infra = { git = "https://github.com/OmniNode-ai/omnibase_infra.git", tag = "dev-20261016204728-0f7bee98bd8f" }
 # OMN-13878: omnibase-core and omnibase-compat now resolve from PyPI (removed
 # their git-source overrides). The version-range overrides below already target
 # the released artifacts: core>=0.46.7,<0.47.0 and

@@ -12,7 +12,7 @@ resolution-markers = [
 overrides = [
     { name = "omnibase-compat", specifier = "==0.5.7" },
     { name = "omnibase-core", specifier = ">=0.47.44,<0.48.0" },
-    { name = "omnibase-infra", specifier = ">=0.38.74,<0.39.0" },
+    { name = "omnibase-infra", git = "https://github.com/OmniNode-ai/omnibase_infra.git?tag=dev-20261016204728-0f7bee98bd8f" },
     { name = "omnibase-spi", specifier = ">=0.23.3,<0.24.0" },
 ]
 
@@ -3068,7 +3068,7 @@ wheels = [
 [[package]]
 name = "omnibase-infra"
 version = "0.38.74"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/OmniNode-ai/omnibase_infra.git?tag=dev-20261016204728-0f7bee98bd8f#0f7bee98bd8fc382f4221ee5f4d87fd794a1d7fc" }
 dependencies = [
     { name = "a2a-sdk" },
     { name = "aiofiles" },
@@ -3121,10 +3121,6 @@ dependencies = [
     { name = "textual" },
     { name = "uvicorn" },
     { name = "watchdog" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/29/4d/d91348ead89213113573a2f208c58816579dbe3806772f556a4a4b7cbaaf/omnibase_infra-0.38.74.tar.gz", hash = "sha256:836a3bf8d156b6b1ac95711fa1838b3c6202f61ef7f118369f1c0df70d656119", size = 22072563, upload-time = "2026-10-16T17:30:11.597Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/dd/f0/8cd4df9a08fdc6dc4c280f1e4a6755401eee929c2f2f43a5814607d1b442/omnibase_infra-0.38.74-py3-none-any.whl", hash = "sha256:549ff1e37cb8fbfb09830aeebb16abcc291f228f58743e12267571cb0c2715a1", size = 7616471, upload-time = "2026-10-16T17:30:07.995Z" },
 ]
 
 [[package]]
@@ -3221,7 +3217,7 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.18.0" },
     { name = "omnibase-compat", specifier = "==0.5.7" },
     { name = "omnibase-core", specifier = ">=0.47.44,<0.48.0" },
-    { name = "omnibase-infra", specifier = ">=0.38.74,<0.39.0" },
+    { name = "omnibase-infra", git = "https://github.com/OmniNode-ai/omnibase_infra.git?tag=dev-20261016204728-0f7bee98bd8f" },
     { name = "omnibase-spi", specifier = ">=0.23.3,<0.24.0" },
     { name = "omninode-memory", specifier = "==0.18.0" },
     { name = "packaging", specifier = ">=24.0" },

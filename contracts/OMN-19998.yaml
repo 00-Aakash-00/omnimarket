@@ -424,9 +424,9 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC18"]
   - id: "dod-omn19998-pr-merged-dedupe-deploy-probe"
-    description: "Hosted-runner probe reads the projection handler at this commit and requires its (repo, pr_number) conflict key; the base keys on event_id and the probe finds no match."
+    description: "Hosted-runner probe requires the installed infra commit that vendors migration 0003 and the projection handler's (repo, pr_number) conflict key; the prior registry pin has no VCS commit and fails the probe."
     source: "manual"
     checks:
       - check_type: "command"
         check_value: >-
-          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_pr_merged_projection/handlers/handler_pr_merged_projection.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -c '^CONFLICT_KEY = "repo,pr_number"'
+          uv run python -c 'import importlib.metadata as m, json; from omnimarket.nodes.node_pr_merged_projection.handlers.handler_pr_merged_projection import CONFLICT_KEY; d=json.loads(m.distribution("omnibase-infra").read_text("direct_url.json") or "{}"); assert d.get("vcs_info", {}).get("commit_id") == "0f7bee98bd8fc382f4221ee5f4d87fd794a1d7fc"; assert CONFLICT_KEY == "repo,pr_number"'
