@@ -299,7 +299,7 @@ class InferenceUsageError(RuntimeError):
     OMN-13408: ``finish_reason=length`` (truncation) and an empty message body
     both fail the inference, but the provider STILL returns a real OpenAI-shaped
     ``usage`` block reporting the prompt/completion tokens it metered (and, on a
-    reasoning model like ``gemini-2.5-flash``, the thinking tokens that pushed the
+    reasoning model, the thinking tokens that pushed the
     response past ``max_tokens``). Carry that served usage on the exception so the
     error-path ``ModelInferenceResponseData`` reports the real tokens consumed
     instead of defaulting them to 0 — the prior behaviour silently dropped the
@@ -1095,7 +1095,7 @@ class HandlerInferenceIntent:
         # OMN-20299: the correlation query parameter is the client's, so the
         # POST below still takes ``intent.base_url`` verbatim (OMN-12815).
         # OMN-18852: httpx's per-phase timeout resets on each keep-alive chunk.
-        # On 2026-10-03 OpenRouter's nvidia/nemotron-3-ultra-550b-a55b:free calls
+        # On 2026-10-03 one free OpenRouter model's calls
         # took 359/502/600/958 s against the 120 s ceiling. Bound headers plus
         # body by the same absolute deadline so the next rung can run.
         deadline = started + timeout

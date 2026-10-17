@@ -7,7 +7,7 @@ Why this exists
 The BYOK catalogue used to pin one model id per provider. A provider retires
 ids for NEW accounts while old accounts keep them: on 2026-09-30 a fresh Google
 AI Studio key got HTTP 404 "no longer available to new users" for the pinned
-``gemini-2.5-flash-lite``, while the lab's older project still answered on it.
+model, while the lab's older project still answered on it.
 A pin tested on our own key therefore says nothing about a customer's key.
 
 So the catalogue declares a model PREFERENCE per provider row
@@ -39,13 +39,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any, Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, SecretStr
 
 from omnimarket.enums.enum_delegation_failure_class import EnumDelegationFailureClass
+from omnimarket.handlers.node_overlay_reader import load_node_overlay
 from omnimarket.inference.provider_response_error import (
     failure_class_for_status,
     provider_message_from_text,
@@ -279,8 +280,39 @@ def model_not_chosen_message(provider: str) -> str:
         f"{BYOK_MODEL_NOT_CHOSEN}: you choose the {provider} model your key runs, "
         "and none was chosen. Name one with --model <model id> (for example "
         f"onex models add {provider} --model <model id>); the provider's model "
-        "page lists the ids. A ':free' model is rate-limited but may be chosen."
+        "page lists the ids. A free-tier model is rate-limited but may be chosen."
     )
+
+
+#: OMN-20844 AC3: the node whose overlay declares the default model onboarding
+#: registers for a provider whose customer chooses the model, and that overlay's
+#: setting. The model id lives in the deployment's overlay, never in code.
+ONBOARDING_OVERLAY_NODE = "node_onboarding"
+ONBOARDING_DEFAULT_MODEL_FIELDS: Mapping[str, str] = {
+    "openrouter": "default_openrouter_model",
+}
+
+
+def onboarding_default_model_setting(provider: str) -> str | None:
+    """The overlay field that names ``provider``'s onboarding default, if it has one."""
+    return ONBOARDING_DEFAULT_MODEL_FIELDS.get(provider)
+
+
+def onboarding_default_model(provider: str) -> str | None:
+    """The default model the onboarding overlay declares for ``provider``, or ``None``.
+
+    OMN-20844 AC3. ``None`` when the provider has no such setting or the overlay
+    does not declare it. A present but invalid overlay raises
+    ``NodeOverlayError``: a broken overlay must not read as an absent one.
+    """
+    setting = onboarding_default_model_setting(provider)
+    if setting is None:
+        return None
+    overlay = load_node_overlay(
+        ONBOARDING_OVERLAY_NODE,
+        fields=frozenset(ONBOARDING_DEFAULT_MODEL_FIELDS.values()),
+    )
+    return overlay.get(setting) or None
 
 
 def describe_discovery_refusal(discovery: ModelByokModelDiscovery) -> str | None:
@@ -334,4 +366,6 @@ __all__: list[str] = [
     "get_models_json",
     "model_not_chosen_message",
     "models_request_headers",
+    "onboarding_default_model",
+    "onboarding_default_model_setting",
 ]

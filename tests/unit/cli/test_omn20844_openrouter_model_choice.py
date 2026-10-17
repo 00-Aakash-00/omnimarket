@@ -10,8 +10,9 @@ model, so a paying customer always ran a free, rate-limited model. Now:
   register-tenant-key`` take ``--model``; the model is checked against the
   provider's own list for that key and stored with the credential;
 * a model the list does not name is refused and nothing is stored;
-* with no ``--model``, a terminal is asked for one and a script is refused:
-  no ``:free`` model is ever picked for the customer;
+* with no ``--model``, the default the onboarding overlay declares is used
+  (AC3, amended); with none declared the registration is refused: no ``:free``
+  model is ever picked for the customer;
 * a ``:free`` model stays a choice the customer may make.
 
 Fakes only: the provider's model list is a stub and no network is used.
@@ -177,25 +178,25 @@ class TestSecretSet:
         assert _stored_key() is None
         assert resolve_local_byok_credential_model("openrouter") is None
 
-    def test_no_model_on_a_terminal_asks_for_one_and_stores_the_answer(
+    def test_no_model_on_a_terminal_with_no_overlay_default_is_refused_not_asked(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # OMN-20844 AC3: nobody is asked which model; the default comes from the
+        # onboarding overlay (see test_omn20844_ac3_onboarding_overlay.py).
         _list(monkeypatch)
-        asked: list[str] = []
+        monkeypatch.delenv("ONEX_SKILL_OVERLAY_ROOTS", raising=False)
         monkeypatch.setattr(cli_secret, "_stdin_is_tty", lambda: True)
         monkeypatch.setattr(cli_secret, "getpass", lambda _prompt="": _KEY)
 
-        def _answer(text: str, **_: Any) -> str:
-            asked.append(text)
-            return _PAID
+        def _never(*_: Any, **__: Any) -> str:
+            raise AssertionError("the developer was asked which model")
 
-        monkeypatch.setattr(cli_secret.click, "prompt", _answer)
+        monkeypatch.setattr(cli_secret.click, "prompt", _never)
         result = CliRunner().invoke(secret_group, ["set", _REF])
 
-        assert result.exit_code == 0, result.output
-        assert len(asked) == 1
-        assert "OpenRouter model" in asked[0] or "openrouter model" in asked[0]
-        assert resolve_local_byok_credential_model("openrouter") == _PAID
+        assert result.exit_code != 0
+        assert "BYOK_MODEL_NOT_CHOSEN" in result.output
+        assert _stored_key() is None
 
     def test_an_unreadable_list_stores_the_chosen_model_unchecked(self) -> None:
         # The autouse network guard makes the list unreadable (inconclusive).

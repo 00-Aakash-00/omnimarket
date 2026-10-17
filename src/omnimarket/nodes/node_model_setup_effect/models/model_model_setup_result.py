@@ -50,7 +50,7 @@ class ModelModelSetupResult(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     operation: Literal[
-        "status", "test", "forget", "add_models", "reorder", "remove_model"
+        "status", "test", "forget", "add_models", "reorder", "remove_model", "use_model"
     ]
     tests: tuple[ModelModelTestResult, ...] = ()
     providers: tuple[ModelModelStatus, ...] = ()

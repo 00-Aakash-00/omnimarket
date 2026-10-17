@@ -174,7 +174,7 @@ class HandlerModelSetup:
                 operation="status",
                 providers=tuple(self._status(p) for p in PROVIDERS),
             )
-        if request.operation in ("add_models", "reorder", "remove_model"):
+        if request.operation in ("add_models", "reorder", "remove_model", "use_model"):
             return self._edit_models(request)
         if request.operation == "forget":
             if request.provider is not None:
@@ -217,6 +217,10 @@ class HandlerModelSetup:
                     f"{', '.join(stored)}"
                 )
             wanted = (*stored, *asked)
+        elif request.operation == "use_model":
+            if len(asked) != 1:
+                raise ModelSetupRefusedError("name exactly one model to use")
+            wanted = (asked[0], *(model for model in stored if model != asked[0]))
         elif request.operation == "reorder":
             if set(asked) != set(stored):
                 raise ModelSetupRefusedError(

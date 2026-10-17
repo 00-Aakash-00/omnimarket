@@ -649,8 +649,8 @@ class HandlerLlmDelegationCall:
         to this key.
         """
         # The throttle or the overload belongs to the slug's upstream, which its
-        # preference-family siblings share (2026-10-02: both google/gemma-4 free
-        # slugs 429 at once), so the one switch leaves the whole family.
+        # preference-family siblings share (2026-10-02: both free slugs of one
+        # family 429 at once), so the one switch leaves the whole family.
         retry = self._resolve_byok_model(
             request,
             byok,

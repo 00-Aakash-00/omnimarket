@@ -875,9 +875,9 @@ repos:
       - id: byok-customer-chooses-model
         name: BYOK customers choose their OpenRouter model
         language: system
-        entry: uv run pytest tests/unit/cli/test_omn20844_openrouter_model_choice.py tests/test_omn20844_chosen_model_never_re_aimed.py tests/unit/nodes/node_delegate_skill_orchestrator/test_delegate_model_choice_omn20844.py -q -p no:randomly
+        entry: uv run pytest tests/unit/cli/test_omn20844_openrouter_model_choice.py tests/unit/cli/test_omn20844_ac3_onboarding_overlay.py tests/test_omn20844_chosen_model_never_re_aimed.py tests/unit/nodes/node_delegate_skill_orchestrator/test_delegate_model_choice_omn20844.py -q -p no:randomly
         pass_filenames: false
-        files: ^(src/omnimarket/(cli/cli_secret|routing/byok_model_discovery|projection/credential_publisher)\.py|src/omnimarket/configs/byok_provider_backends\.v1\.yaml|src/omnimarket/nodes/(node_llm_delegation_call_effect|node_delegate_skill_orchestrator)/.*|tests/test_omn20844_chosen_model_never_re_aimed\.py|tests/unit/cli/test_omn20844_openrouter_model_choice\.py|tests/unit/nodes/node_delegate_skill_orchestrator/test_delegate_model_choice_omn20844\.py)$
+        files: ^(src/omnimarket/(cli/cli_secret|routing/byok_model_discovery|projection/credential_publisher)\.py|src/omnimarket/configs/byok_provider_backends\.v1\.yaml|src/omnimarket/nodes/(node_llm_delegation_call_effect|node_delegate_skill_orchestrator)/.*|tests/test_omn20844_chosen_model_never_re_aimed\.py|tests/unit/cli/test_omn20844_openrouter_model_choice\.py|tests/unit/cli/test_omn20844_ac3_onboarding_overlay\.py|src/omnimarket/nodes/node_model_setup_effect/.*|tests/unit/nodes/node_delegate_skill_orchestrator/test_delegate_model_choice_omn20844\.py)$
         stages: [pre-commit]
 
       # OMN-20287: no new deployment fact (backend, endpoint, model name, secret
@@ -1671,7 +1671,7 @@ repos:
       - id: routing-sources-omn20601
         name: Routing sources, overlay precedence and routing-in-code ratchet (OMN-20601)
         language: system
-        entry: uv run pytest tests/test_routing_sources_omn20601.py tests/unit/nodes/node_deployment_fact_gate_effect/test_routing_in_code_omn20601.py tests/unit/delegation/test_roi_overlay_routing_omn14001.py -q -p no:randomly --no-cov
+        entry: uv run pytest tests/test_routing_sources_omn20601.py tests/unit/nodes/node_deployment_fact_gate_effect/test_routing_in_code_omn20601.py tests/unit/delegation/test_roi_overlay_routing_omn14001.py tests/unit/cli/test_omn20844_ac3_onboarding_overlay.py -q -p no:randomly --no-cov
         files: ^(src/omnimarket/.*\.py|src/omnimarket/(configs/.*|model_policy\.yaml|data/model_registry/.*)|tests/test_routing_sources_omn20601\.py|tests/unit/nodes/node_deployment_fact_gate_effect/test_routing_in_code_omn20601\.py|tests/fixtures/routing_sources/.*)$
         pass_filenames: false
         stages: [pre-commit]

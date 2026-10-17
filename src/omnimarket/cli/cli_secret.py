@@ -49,6 +49,10 @@ import yaml
 from omnibase_core.errors.model_onex_error import ModelOnexError
 from pydantic import SecretStr, ValidationError
 
+from omnimarket.handlers.node_overlay_reader import (
+    NodeOverlayError,
+    not_configured_message,
+)
 from omnimarket.inference.local_byok_credential_adapter import (
     LocalByokCredentialStore,
     local_credential_registered_at,
@@ -120,9 +124,12 @@ from omnimarket.projection.credential_publisher import (
 )
 from omnimarket.projection.sqlite_database import SqliteDatabaseAdapter
 from omnimarket.routing.byok_model_discovery import (
+    ONBOARDING_OVERLAY_NODE,
     describe_discovery_refusal,
     discover_byok_model_sync,
     model_not_chosen_message,
+    onboarding_default_model,
+    onboarding_default_model_setting,
 )
 from omnimarket.routing.byok_plan_detection import detect_byok_plan
 from omnimarket.routing.byok_provider_backends import (
@@ -246,29 +253,32 @@ def _resolve_plan(
     )
 
 
-def _ask_model(provider: str) -> str:
-    """The model the customer names at a terminal; a script is refused (OMN-20844).
+def _onboarding_model(provider: str) -> str:
+    """The model onboarding registers when none is named (OMN-20844 AC3).
 
     Called only for a provider whose catalogue row says the customer chooses
-    the model and when no ``--model`` was given. Nothing is picked for them.
+    the model and when no ``--model`` was given. The default is the one the
+    onboarding overlay declares: no model id lives in code, and nobody is asked.
+    With no default declared the registration is refused and nothing is stored.
     """
-    if not _stdin_is_tty():
-        raise click.ClickException(
-            f"{model_not_chosen_message(provider)} Nothing was stored."
-        )
-    label = _MODEL_LABELS.get(provider, provider)
-    answer = str(
-        click.prompt(
-            f"Which {label} model should your key run? Paste its id from "
-            f"{label}'s model page",
-            type=str,
-        )
-    ).strip()
-    if not answer:
-        raise click.ClickException(
-            f"{model_not_chosen_message(provider)} Nothing was stored."
-        )
-    return answer
+    setting = onboarding_default_model_setting(provider)
+    try:
+        declared = onboarding_default_model(provider)
+    except NodeOverlayError as error:
+        raise click.ClickException(f"{error}. Nothing was stored.") from None
+    if declared is None:
+        why = model_not_chosen_message(provider)
+        if setting is not None:
+            why = (
+                f"{why} Or declare a default: "
+                f"{not_configured_message(ONBOARDING_OVERLAY_NODE, setting)}."
+            )
+        raise click.ClickException(f"{why} Nothing was stored.")
+    click.echo(
+        f"Model: {declared} (the default your onboarding overlay declares; "
+        f"change it any time with: onex models use {provider} <model id>)."
+    )
+    return declared
 
 
 def _check_chosen_model(
@@ -318,12 +328,12 @@ def _resolve_model(
     OMN-20844. ``chosen`` is the model the customer named with ``--model``; it
     is checked against the key's list and stored as named. For a provider whose
     catalogue row says the customer chooses the model, no ``--model`` means the
-    customer is asked at a terminal and a script is refused: the preference is
-    never used to pick one for them.
+    default the onboarding overlay declares (OMN-20844 AC3), and a refusal when
+    it declares none: the preference is never used to pick one for them.
     """
     backend = resolve_byok_provider_backend(provider, plan=plan)
     if chosen is None and backend is not None and backend.customer_chooses_model:
-        chosen = _ask_model(provider)
+        chosen = _onboarding_model(provider)
     if chosen is not None:
         return _check_chosen_model(provider, plan, value, chosen)
     if known is not None:
@@ -1278,7 +1288,8 @@ models_group = click.Group(
     help=(
         "A model your key runs, checked against the provider's list for it; "
         "repeat it to choose several, first is tried first. For OpenRouter you "
-        "choose it: without --model a terminal is asked and a script is refused."
+        "choose it: without --model the default your onboarding overlay declares is "
+        "used, and with none declared nothing is stored."
     ),
 )
 @_model_json
@@ -1427,6 +1438,40 @@ def add_model_to_key(provider: str, model_options: tuple[str, ...]) -> None:
     )
 
 
+@models_group.command("use")
+@click.argument("provider", type=_model_choice)
+@click.argument("model")
+def use_model(provider: str, model: str) -> None:
+    """Make MODEL the one PROVIDER's key runs first: the one-command override.
+
+    Onboarding registers the default its overlay declares (OMN-20844); this
+    changes it afterwards. MODEL is checked against the provider's list for your
+    key, added when the key does not hold it yet, and moved to the front of the
+    key's list. The key is not asked for again and the rest of the list stays.
+    """
+    name = provider.lower()
+    if name == "ollama":
+        raise click.ClickException(
+            f"Ollama has no key to choose a model for. {_OLLAMA_HOW}"
+        )
+    store = LocalByokCredentialStore()
+    key = asyncio.run(store.get_secret(f"llm.{name}.api_key"))
+    if key is None:
+        raise click.ClickException(
+            f"no {_MODEL_LABELS[name]} key is stored; add one with: "
+            f"onex models add {name}"
+        )
+    _check_chosen_model(name, resolve_local_byok_credential_plan(name), key, model)
+    _edit_model_list(
+        _model_handler(),
+        ModelModelSetupRequest(
+            operation="use_model",
+            provider=cast(ModelProvider, name),
+            models=(model,),
+        ),
+    )
+
+
 @models_group.command("reorder")
 @click.argument("provider", type=_model_choice)
 @click.argument("models", nargs=-1, required=True)
@@ -1498,7 +1543,7 @@ _REVIEW_GATEWAY_DRY_RUN_PAYLOAD: dict[str, object] = {
     "--model",
     "model_option",
     required=True,
-    help="The Claude model every review runs on, e.g. claude-sonnet-5-5.",
+    help="The Claude model every review runs on, named by its Claude model id.",
 )
 @click.option(
     "--host",

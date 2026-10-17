@@ -22,12 +22,13 @@ class ModelModelSetupRequest(BaseModel):
     OMN-21059, on the ordered models a stored key may serve (``provider`` and
     ``models`` required): ``add_models`` appends ``models`` after the stored
     ones; ``reorder`` replaces the list with ``models``, which must name exactly
-    the stored set; ``remove_model`` drops the one model in ``models``."""
+    the stored set; ``remove_model`` drops the one model in ``models``; ``use_model`` (OMN-20844) puts the one model
+    in ``models`` first, adding it when the key does not hold it yet."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     operation: Literal[
-        "status", "test", "forget", "add_models", "reorder", "remove_model"
+        "status", "test", "forget", "add_models", "reorder", "remove_model", "use_model"
     ]
     provider: ModelProvider | None = None
     models: tuple[str, ...] = ()

@@ -29,6 +29,7 @@ JOB_KEY = "byok-customer-chooses-model"
 JOB_NAME = "BYOK Customer Chooses Model (OMN-20844)"
 GUARD_TESTS = (
     "tests/unit/cli/test_omn20844_openrouter_model_choice.py",
+    "tests/unit/cli/test_omn20844_ac3_onboarding_overlay.py",
     "tests/test_omn20844_chosen_model_never_re_aimed.py",
     "tests/unit/nodes/node_delegate_skill_orchestrator/test_delegate_model_choice_omn20844.py",
 )

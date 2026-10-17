@@ -113,6 +113,15 @@ sources:
     resolution_sites: []
     precedence:
       probe: inference_bridge_endpoints
+  - id: onboarding_default_model
+    selects: the model onboarding registers for a provider whose customer chooses the model
+    resolver: omnimarket.routing.byok_model_discovery:onboarding_default_model
+    packaged_defaults: []
+    overlay: the node_onboarding node overlay field default_openrouter_model; with none declared the registration is refused and no model is stored
+    resolution_sites:
+      - "src/omnimarket/routing/byok_model_discovery.py:load_node_overlay(ONBOARDING_OVERLAY_NODE)"
+    precedence:
+      existing_test: tests/unit/cli/test_omn20844_ac3_onboarding_overlay.py::test_secret_set_with_no_model_stores_the_overlay_default
 not_routing_resolution_sites:
   - site: "src/omnimarket/delegation/content_grounding.py:resolve_path_config(_CONTRACT_PATH_CONFIG_KEY)"
     reason: reads the quality-gate section of the task-class contract; it judges an answer and selects no route
