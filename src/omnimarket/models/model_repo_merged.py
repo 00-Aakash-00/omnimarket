@@ -16,6 +16,10 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
+# Every repository the PR watcher and the landing controller watch is in this organization,
+# so the owner check is the contract, not a limit on a multi-owner feed. It is carried over
+# unchanged from the model's original home in ``node_canonical_clone_refresh_effect``; both
+# consumers keep the restriction through ``validate_repo_slug``.
 ALLOWED_OWNER = "OmniNode-ai"
 _REPO_RE = re.compile(r"^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$")
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")

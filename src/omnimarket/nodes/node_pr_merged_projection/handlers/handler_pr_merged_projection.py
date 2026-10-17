@@ -24,7 +24,10 @@ whose ``state`` is not ``merged`` writes nothing and
 reports why in ``skipped_reason``.
 
 The reducer performs no broker, no URL, and no filesystem I/O — it folds one
-event into one projection row through the injected database adapter.
+event into one projection row through the injected database adapter. It builds
+no SQL: the row is a dict of typed fields handed to ``DatabaseAdapter.upsert``,
+which binds them as parameters, and the ``refs/pull/<n>/head`` branch is composed
+from the validated integer ``pr_number`` alone.
 """
 
 from __future__ import annotations
