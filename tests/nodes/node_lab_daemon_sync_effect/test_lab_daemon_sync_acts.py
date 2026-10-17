@@ -439,6 +439,7 @@ def test_shipped_overlay_declares_host_actions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("OMNI_HOME", "/registry")
+    monkeypatch.setenv("OMNI_PLUGIN_ROOT", "/plugin")
     monkeypatch.setenv("ONEX_LAB_PRIVATE_CLONES_FILE", "/hosts/private-clones.json")
     declaration = load_overlay(DEFAULT_OVERLAY, [])
     assert declaration.clones is not None
