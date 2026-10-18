@@ -17,9 +17,9 @@ summary: >-
 is_seam_ticket: false
 interface_change: true
 interfaces_touched:
-  - "src/omnimarket/models/context_compaction"
-  - "src/omnimarket/enums/enum_context_compaction.py"
-  - "src/omnimarket/events/topics.py"
+  - "events"
+  - "topics"
+  - "public_api"
 requirements:
   - id: "req-receipt-no-free-text"
     statement: "Every receipt event schema carries ids, hashes, counts, factor names, token estimates and failure classes only."
