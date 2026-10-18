@@ -375,6 +375,13 @@ requirements:
     acceptance:
       - id: "AC71"
         statement: "AC71: a start command with route delegation makes each model call a HandlerDelegateSkill call of task type review pinned to the route key, a delegation that does not complete fails that route, and the completed event carries the verdict and the merged findings (none and no verdict on a failed run) -- falsifier: uv run pytest tests/unit/nodes/node_hostile_reviewer_orchestrator/test_delegation_review_route.py tests/test_golden_chain_hostile_reviewer_orchestrator.py -q -p no:randomly"
+  - id: "req-dev-cause-lane-receiver"
+    statement: "A dev cause-lane request that node_pr_lifecycle_orchestrator publishes for a red landing-branch head reaches a node that starts one cause lane per dispatch key, so ruling 2026-10-14T03:57:46Z item 5 (a component alarm starts a fix lane) has a receiver."
+    acceptance:
+      - id: "AC72"
+        statement: "AC72: the receiver starts one lane for a request, answers duplicate for a redelivery and for a restart, keeps a failed start's key taken and says so, answers dry_run and takes no key while act is false, and fails at load when acting without its host environment -- falsifier: uv run pytest tests/nodes/node_dev_cause_lane_receiver_effect -q -p no:randomly --no-cov fails, or passes with a ledger that forgets (the negative control starts two lanes)"
+      - id: "AC73"
+        statement: "AC73: the red-CI chain gate refuses a receiver contract that no longer takes the dev cause-lane request topic as its command topic or routes it to a deleted handler module, and the required lint job and the dev-cause-lane-receiver pre-commit hook run the receiver suite -- falsifier: uv run pytest tests/ci/test_red_ci_bus_chain_omn20730.py -q -p no:randomly --no-cov -k 'receiver'"
 evidence_requirements:
   - kind: "tests"
     description: "AC71: token-pool unit and contract-handler golden-chain tests use temporary stores and fake tokens."
@@ -514,6 +521,9 @@ evidence_requirements:
   - kind: "tests"
     description: "AC71: the delegation review route and the completed event's verdict and findings."
     command: "uv run pytest tests/unit/nodes/node_hostile_reviewer_orchestrator/test_delegation_review_route.py tests/test_golden_chain_hostile_reviewer_orchestrator.py -q -p no:randomly"
+  - kind: "tests"
+    description: "AC72 and AC73: the dev cause-lane receiver's suite and the chain gate's receiver leg."
+    command: "uv run pytest tests/nodes/node_dev_cause_lane_receiver_effect tests/ci/test_red_ci_bus_chain_omn20730.py -q -p no:randomly --no-cov"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -1336,3 +1346,26 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_hostile_reviewer_orchestrator/handlers/handler_delegation_review_inference.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("REVIEW_TASK_TYPE", "backend_id=model_key", "HandlerDelegateSkill")); print("hostile reviewer delegation route deploy probe: PASS")'
+  - id: "dod-omn17427-ac72-dev-cause-lane-receiver"
+    description: "The receiver starts one lane per dispatch key, answers duplicate for a redelivery and a restart, keeps a failed start's key, and answers dry_run while act is false."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_dev_cause_lane_receiver_effect -q -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC72"]
+  - id: "dod-omn17427-ac73-receiver-chain-leg"
+    description: "The chain gate refuses a receiver contract that drops the request topic or names a deleted handler module."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_red_ci_bus_chain_omn20730.py -q -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC73"]
+  - id: "dod-omn17427-dev-cause-lane-receiver-probe"
+    description: "Deploy probe. GitHub serves the receiver handler at the checked-out HEAD, defining HandlerDevCauseLaneStart and taking the dispatch key before it calls the runner. It fails at the merge base, where the handler does not exist, and needs only GitHub access and Python on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_dev_cause_lane_receiver_effect/handlers/handler_dev_cause_lane_start.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert "class HandlerDevCauseLaneStart" in source and source.index("self._ledger.claim(") < source.index("self._runner.start("); print("dev cause-lane receiver deploy probe: PASS")'
