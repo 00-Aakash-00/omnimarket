@@ -335,6 +335,11 @@ requirements:
     acceptance:
       - id: "AC63"
         statement: "AC63: node_session_capability_digest_effect prints the cached digest inside a registry root, prints nothing outside every root, prints a STALE line with its launchd fix for a missing or over-45-minute digest, prints one pointer line on a compact restart, opens no socket and exits 0 on every input -- falsifier: uv run pytest tests/test_session_capability_digest.py -q -p no:randomly"
+  - id: "req-reviewer-eval-gate"
+    statement: "The hostile reviewer is scored on every change to it against an eval set from recorded history (true catches a later fix confirmed, blocks later overturned, merged heads with no revert), as recall on true catches and the false-block rate on clean heads, and the change fails when either score is worse than the set's baseline or the set shrinks, relabels a case or lowers its baseline; the score is published as an event."
+    acceptance:
+      - id: "AC80"
+        statement: "AC80: node_reviewer_eval_effect scores the recorded set at recall 1.0 and false-block rate 0.25 and regresses on a missed true catch, a new block on a clean head, a case with no verdict, a dropped case, a flipped label or a lowered baseline, and publishes the score on onex.evt.omnimarket.reviewer-eval-scored.v1 -- falsifier: uv run pytest tests/unit/nodes/node_reviewer_eval_effect -q fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "AC64: the core pin compatibility tests cover both dependency floors and the recorded incident's positive and negative controls."
@@ -1126,3 +1131,18 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_session_capability_digest_effect/handlers/handler_session_capability_digest.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("STALE_AFTER_MINUTES = 45", "CAPABILITY DIGEST STALE")); print("session capability digest deploy probe: PASS")'
+  - id: "dod-omn17427-ac80-reviewer-eval"
+    description: "The reviewer eval scores the recorded set and refuses every kind of drop."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_reviewer_eval_effect -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC80"]
+  - id: "dod-omn17427-reviewer-eval-deploy-probe"
+    description: "Deploy probe. GitHub serves the reviewer eval handler and its case set at the checked-out HEAD with the overturned omnimarket#4063 block in the set. It fails at the merge base, which has neither, and needs only GitHub access and Python on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_reviewer_eval_effect/eval_cases.yaml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("reviewer_eval_cases.v1", "d25be197856ff515cd1fd1d5e13396f03a54a91f", "true_catch", "known_clean")); print("reviewer eval deploy probe: PASS")'
