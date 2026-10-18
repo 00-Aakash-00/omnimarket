@@ -329,7 +329,7 @@ requirements:
     statement: "The landing controller's decisions reach the work ledger from the typed landing decision event, hosted by the ledger serve process."
     acceptance:
       - id: "AC63"
-        statement: "AC63: a landing decision event maps to one STATUS row per action, recorded outcome, DEGRADED reason and violation, an idle tick and a withheld observe-only action map to no row, a redelivered event appends once, and the ledger host subscribes to the landing decision completed topic -- falsifier: uv run pytest tests/unit/nodes/node_work_ledger_landing_mirror tests/unit/work_ledger_bus/test_landing_decision.py -q -p no:randomly"
+        statement: "AC63: a landing decision event maps to one STATUS row per action, recorded outcome, DEGRADED reason and violation, an idle tick and a withheld observe-only action map to no row, a redelivered event appends once, and the ledger host subscribes to the landing decision completed topic -- falsifier: uv run pytest tests/unit/nodes/node_work_ledger_landing_mirror/test_landing_decision.py tests/unit/work_ledger_bus/test_landing_decision.py -q -p no:randomly"
 evidence_requirements:
   - kind: "tests"
     description: "A Claude-limited Codex-allowed host with free Codex slots reports Codex headroom; other hosts keep their lines."
@@ -450,7 +450,7 @@ evidence_requirements:
     command: "uv run pytest tests/ci/test_omn17427_hook_push_rehearsal_caller.py -q -p no:randomly"
   - kind: "tests"
     description: "AC63: the landing decision mapping writes one row per action, outcome, degraded reason and violation, none for an idle tick, and the host appends a redelivered event once."
-    command: "uv run pytest tests/unit/nodes/node_work_ledger_landing_mirror tests/unit/work_ledger_bus/test_landing_decision.py -q -p no:randomly"
+    command: "uv run pytest tests/unit/nodes/node_work_ledger_landing_mirror/test_landing_decision.py tests/unit/work_ledger_bus/test_landing_decision.py -q -p no:randomly"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -1067,7 +1067,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/nodes/node_work_ledger_landing_mirror tests/unit/work_ledger_bus/test_landing_decision.py -q -p no:randomly"
+        check_value: "uv run pytest tests/unit/nodes/node_work_ledger_landing_mirror/test_landing_decision.py tests/unit/work_ledger_bus/test_landing_decision.py -q -p no:randomly"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC63"]
   - id: "dod-omn17427-landing-ledger-mirror-deploy-probe"
