@@ -24,11 +24,11 @@ from omnimarket.models.context_pack.model_context_task_kind_condition import (
 from omnimarket.models.context_pack.model_context_task_kind_rule import (
     ModelContextTaskKindRule,
 )
+from omnimarket.models.context_profile_resolve.model_context_profile_resolve_request import (
+    ModelContextProfileResolveRequest,
+)
 from omnimarket.nodes.node_context_profile_resolver_effect.handlers.handler_context_profile_resolver import (
     HandlerContextProfileResolver,
-)
-from omnimarket.nodes.node_context_profile_resolver_effect.models.model_context_profile_resolve_request import (
-    ModelContextProfileResolveRequest,
 )
 from omnimarket.nodes.node_context_task_kind_rules_compute.handlers.handler_context_task_kind_rules import (
     HandlerContextTaskKindRules,
@@ -40,7 +40,10 @@ from omnimarket.nodes.node_context_task_kind_rules_compute.models import (
 )
 from omnimarket.pack.model_context_profile import ModelContextProfile
 
-pytestmark = pytest.mark.unit
+pytestmark = [
+    pytest.mark.unit,
+    pytest.mark.usefixtures("promoted_context_profile_routing"),
+]
 
 F = EnumContextFactor
 

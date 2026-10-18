@@ -15,7 +15,10 @@ from omnimarket.nodes.node_context_pack_orchestrator.handlers.handler_context_pa
 
 from .conftest import SENTINEL, command, orchestrator
 
-pytestmark = pytest.mark.unit
+pytestmark = [
+    pytest.mark.unit,
+    pytest.mark.usefixtures("promoted_context_profile_routing"),
+]
 
 _NODE_DIR = (
     Path(__file__).resolve().parents[3]

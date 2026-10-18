@@ -83,7 +83,7 @@ dod_evidence:
         check_value: "uv run pytest tests/nodes/node_context_pack_orchestrator/test_handler_context_pack_orchestrator.py -q -p no:randomly --no-cov -k 'lane_brief_builds_without_session'"
     binds_ac: ["AC9"]
   - id: "dod-omn21110-deploy-container-build"
-    description: "Hosted deploy probe. The hosted runner runs uv run --frozen --no-dev in the checkout and builds a compaction_orchestrator package through the product handler over four inline sources and asserts status ok with the candidate id in the trailer only, then asserts a required tier answering unavailable fails required_factor_missing. It fails at the merge base, which has no such handler. The hosted runner can run it; no lab route is required."
+    description: "Hosted deploy probe. The hosted runner runs uv run --frozen --no-dev in the checkout and builds an agent_spawn package through the product handler over four inline sources (the profile resolves against the packaged routing authority, which promotes no model-role task class) and asserts status ok with the candidate id in the trailer only, then asserts a required tier answering unavailable fails required_factor_missing. It fails at the merge base, which has no such handler. The hosted runner can run it; no lab route is required."
     source: "manual"
     checks:
       - check_type: "command"
@@ -93,24 +93,24 @@ dod_evidence:
           from omnibase_core.enums.enum_context_factor import EnumContextFactor as F
           from omnibase_core.enums.enum_context_source_status import EnumContextSourceStatus as S
           from omnibase_core.models.context.model_context_access import ModelContextAccess as A
+          from omnibase_core.models.context.model_context_caller_scope import ModelContextCallerScope as M
           from omnibase_core.models.context.model_context_source_entry import ModelContextSourceEntry as E
           from omnibase_core.models.context.model_context_source_result import ModelContextSourceResult as R
           from omnimarket.models.context_pack_orchestrator import ModelContextPackCommand as C, ModelContextPackRequest as Q
           from omnimarket.nodes.node_context_pack_orchestrator.handlers.handler_context_pack_orchestrator import HandlerContextPackOrchestrator as H
-          T = "2026-10-15T08:14:15Z | RULING | lane=orchestrator-x | probe"
           class Src:
               synchronous_execution = True
               def __init__(self, f, s=S.RESOLVED): self.f, self.s = f, s
               def handle(self, q):
                   if self.s is not S.RESOLVED: return R(status=self.s)
-                  t = T if self.f is F.OPERATOR_RULINGS else "probe " + self.f.value
+                  t = "probe " + self.f.value
                   return R(status=S.RESOLVED, entries=(E(factor=self.f, text=t, source_ref="probe@1", text_sha256=hashlib.sha256(t.encode()).hexdigest(), status=S.RESOLVED, as_of=d.datetime(2026, 10, 17, tzinfo=d.UTC)),))
-          req = (F.OPERATOR_RULINGS, F.OPERATOR_WORDS_UNRECORDED, F.ORCHESTRATION_STATE, F.OPEN_WORK)
-          cmd = C(request=Q(profile_name="compaction_orchestrator", session_id="s1"), access=A(tenant_id="t1"))
+          req = (F.LANE_RULES, F.INVARIANTS, F.CANONICAL_SHAPES, F.EXEMPLAR)
+          cmd = C(request=Q(profile_name="agent_spawn", caller_scope=M(node_archetype="orchestrator")), access=A(tenant_id="t1"))
           ok = H({f: Src(f) for f in req}).handle(cmd)
           assert ok.status.value == "ok", ok.errors
           assert ok.candidate_id in ok.messages[-1].text and ok.candidate_id not in ok.messages[0].text, ok
-          bad = H({**{f: Src(f) for f in req}, F.OPEN_WORK: Src(F.OPEN_WORK, S.UNAVAILABLE)}).handle(cmd)
+          bad = H({**{f: Src(f) for f in req}, F.LANE_RULES: Src(F.LANE_RULES, S.UNAVAILABLE)}).handle(cmd)
           assert bad.status.value == "failed" and bad.failure_class.value == "required_factor_missing", bad
           print(ok.candidate_id, ok.assembly_hash, ok.body_hash)'
   - id: "dod-omn21110-deploy-probe"

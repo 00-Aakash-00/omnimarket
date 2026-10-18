@@ -47,7 +47,10 @@ from .conftest import (
     sources,
 )
 
-pytestmark = pytest.mark.unit
+pytestmark = [
+    pytest.mark.unit,
+    pytest.mark.usefixtures("promoted_context_profile_routing"),
+]
 
 
 def test_fixture_source_is_a_protocol_context_tier_source() -> None:
@@ -220,10 +223,13 @@ def test_task_kind_unknown_when_rule_descriptor_absent(profiles_dir: Path) -> No
     assert all(
         r.task_kind == TASK_KIND_UNKNOWN for s in bound.values() for r in s.requests
     )
+    # plan_excerpts is named by a rule that did not match: it is withheld, never read.
+    assert bound[EnumContextFactor.PLAN_EXCERPTS].requests == []
 
 
 def test_task_kind_matches_a_supplied_descriptor(profiles_dir: Path) -> None:
-    built = orchestrator(profiles_dir=profiles_dir).handle(
+    bound = sources()
+    built = orchestrator(bound, profiles_dir).handle(
         command(
             profile_name="lane_brief",
             session_id=None,
@@ -232,6 +238,9 @@ def test_task_kind_matches_a_supplied_descriptor(profiles_dir: Path) -> None:
         )
     )
     assert built.task_kind == "node_build"
+    assert [r.task_kind for r in bound[EnumContextFactor.PLAN_EXCERPTS].requests] == [
+        "node_build"
+    ]
 
 
 def test_same_fixture_twice_returns_the_same_identities() -> None:

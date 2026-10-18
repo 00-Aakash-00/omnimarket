@@ -19,7 +19,6 @@ deterministic factors only; ``final_pack_hash`` is the builder's hash over the w
 
 from __future__ import annotations
 
-import fnmatch
 import hashlib
 import importlib.metadata
 import json
@@ -35,9 +34,6 @@ from omnibase_core.enums.enum_context_source_error_code import (
     EnumContextSourceErrorCode,
 )
 from omnibase_core.enums.enum_context_source_status import EnumContextSourceStatus
-from omnibase_core.models.context.model_context_caller_scope import (
-    ModelContextCallerScope,
-)
 from omnibase_core.models.context.model_context_source_entry import (
     ModelContextSourceEntry,
 )
@@ -50,6 +46,9 @@ from omnibase_core.models.context.model_context_source_result import (
 from omnibase_core.models.pack.model_context_pack import ModelContextPack
 from omnibase_core.utils.util_context_pack import compute_chunk_id
 
+from omnimarket.models.context_pack.model_context_task_kind_rule import (
+    TASK_KIND_UNKNOWN,
+)
 from omnimarket.models.context_pack_orchestrator import (
     EnumContextPackOrchestratorStatus,
     ModelContextPackBuilt,
@@ -84,6 +83,13 @@ from omnimarket.nodes.node_context_pack_render_compute.handlers.handler_context_
 from omnimarket.nodes.node_context_profile_resolver_effect.handlers.handler_context_profile_resolver import (
     HandlerContextProfileResolver,
 )
+from omnimarket.nodes.node_context_task_kind_rules_compute.handlers.handler_context_task_kind_rules import (
+    HandlerContextTaskKindRules,
+)
+from omnimarket.nodes.node_context_task_kind_rules_compute.models import (
+    EnumContextTaskKindRulesStatus,
+    ModelContextTaskKindRulesRequest,
+)
 from omnimarket.pack.model_context_pack_artifact import ModelContextPackArtifact
 from omnimarket.pack.model_context_pack_builder_request import (
     ModelContextPackBuilderRequest,
@@ -94,7 +100,6 @@ from omnimarket.pack.model_context_pack_builder_result import (
 from omnimarket.pack.model_context_profile import ModelContextProfile
 
 REDUCER_VERSION = "context-pack-orchestrator/1"
-TASK_KIND_UNKNOWN = "unknown"
 
 _NODES_DIR = Path(__file__).resolve().parents[2]
 _BUILDER_CONTRACT = _NODES_DIR / "node_context_pack_builder_compute" / "contract.yaml"
@@ -114,6 +119,10 @@ _IMPLEMENTATION_MODULES = (
     / "node_context_profile_resolver_effect"
     / "handlers"
     / "handler_context_profile_resolver.py",
+    _NODES_DIR
+    / "node_context_task_kind_rules_compute"
+    / "handlers"
+    / "handler_context_task_kind_rules.py",
 )
 _CANDIDATE_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "onex:context-pack-candidate/1")
 # Model-dependent factors stay out of the assembly hash (plan section 6, v6).
@@ -167,41 +176,13 @@ def default_implementation_identity() -> dict[str, str]:
     return identity
 
 
-def _scope_values(scope: ModelContextCallerScope, field: str) -> tuple[str, ...]:
-    value = getattr(scope, field)
-    if value is None:
-        return ()
-    if isinstance(value, tuple):
-        return tuple(str(item) for item in value)
-    return (str(value),)
-
-
-def resolve_task_kind(
-    profile: ModelContextProfile, scope: ModelContextCallerScope
-) -> tuple[str | None, frozenset[EnumContextFactor]]:
-    """First matching rule over the caller scope; ``unknown`` when rules exist and none match.
-
-    A descriptor the caller does not supply never matches: nothing is read from prompt text.
-    Returns the task kind and the factors the matched rule names (empty: every factor).
-    """
-    if not profile.task_kind_rules:
-        return None, frozenset()
-    for rule in profile.task_kind_rules:
-        values = _scope_values(scope, rule.scope_field)
-        if rule.equals is not None and rule.equals in values:
-            return rule.task_kind, frozenset(rule.factors)
-        if rule.glob is not None and any(
-            fnmatch.fnmatchcase(value, rule.glob) for value in values
-        ):
-            return rule.task_kind, frozenset(rule.factors)
-    return TASK_KIND_UNKNOWN, frozenset()
-
-
-def _selected_factors(profile: ModelContextProfile) -> tuple[EnumContextFactor, ...]:
+def _selected_factors(
+    profile: ModelContextProfile, admitted: frozenset[EnumContextFactor]
+) -> tuple[EnumContextFactor, ...]:
     excluded = set(profile.excluded_factors)
     seen: list[EnumContextFactor] = []
     for factor in (*profile.required_factors, *profile.optional_factors):
-        if factor not in excluded and factor not in seen:
+        if factor in admitted and factor not in excluded and factor not in seen:
             seen.append(factor)
     return tuple(seen)
 
@@ -272,6 +253,7 @@ class HandlerContextPackOrchestrator:
         profile_resolver: HandlerContextProfileResolver | None = None,
         builder: HandlerContextPackBuilder | None = None,
         renderer: HandlerContextPackRender | None = None,
+        task_kind_rules: HandlerContextTaskKindRules | None = None,
         implementation_identity: Callable[[], Mapping[str, str]] | None = None,
         render_contract_version: str = RENDER_CONTRACT_VERSION,
     ) -> None:
@@ -279,6 +261,7 @@ class HandlerContextPackOrchestrator:
         self._resolver = profile_resolver or HandlerContextProfileResolver()
         self._builder = builder or HandlerContextPackBuilder()
         self._renderer = renderer or HandlerContextPackRender()
+        self._task_kind_rules = task_kind_rules or HandlerContextTaskKindRules()
         self._implementation_identity = (
             implementation_identity or default_implementation_identity
         )
@@ -315,13 +298,29 @@ class HandlerContextPackOrchestrator:
                 update={"token_budget": request.token_budget_override}
             )
 
-        task_kind, task_kind_factors = resolve_task_kind(profile, request.caller_scope)
+        evaluated = self._task_kind_rules.handle(
+            ModelContextTaskKindRulesRequest(
+                profile_name=request.profile_name,
+                profile=profile,
+                caller_scope=request.caller_scope,
+            )
+        )
+        if evaluated.status is not EnumContextTaskKindRulesStatus.OK:
+            return _failed(
+                request,
+                EnumContextPackFailure.INVALID_PROFILE,
+                evaluated.error or "task-kind rules could not be evaluated",
+                profile=profile,
+                profile_content_hash=content_hash,
+            )
+        task_kind = evaluated.task_kind if profile.task_kind_rules else None
+        admitted = frozenset(evaluated.admitted_factors)
         required = set(profile.required_factors)
         session_scopes = _session_scopes(request)
         revision = request.session_barrier or request.newest_turn or "head"
 
         reads: list[tuple[EnumContextFactor, ModelContextSourceResult]] = []
-        for factor in _selected_factors(profile):
+        for factor in _selected_factors(profile, admitted):
             source = self._sources.get(factor)
             if source is None:
                 reads.append(
@@ -336,11 +335,7 @@ class HandlerContextPackOrchestrator:
             source_request = ModelContextSourceRequest(
                 factor=factor,
                 scopes=(*profile.scopes, *session_scopes),
-                task_kind=(
-                    task_kind
-                    if not task_kind_factors or factor in task_kind_factors
-                    else None
-                ),
+                task_kind=task_kind,
                 caller_scope=request.caller_scope,
                 access=command.access,
                 revision=revision,
@@ -649,5 +644,4 @@ __all__ = [
     "TASK_KIND_UNKNOWN",
     "HandlerContextPackOrchestrator",
     "default_implementation_identity",
-    "resolve_task_kind",
 ]

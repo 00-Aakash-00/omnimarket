@@ -86,8 +86,9 @@ token_budget: 4000
 task_kind_rules:
   - rule_id: node-work
     task_kind: node_build
-    scope_field: node_archetype
-    equals: orchestrator
+    conditions:
+      - {scope_field: node_archetype, operator: equals, value: orchestrator}
+    factors: [plan_excerpts]
 """
 
 
