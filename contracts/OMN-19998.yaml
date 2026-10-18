@@ -150,6 +150,11 @@ requirements:
     acceptance:
       - id: "AC28"
         statement: "AC28: hostile-reviewer.yml clones omniintelligence at 037af72c2a7f49fda953fed6a99edd5ec588dede, the merge commit of omniintelligence#1095 and a descendant of the previous pin 3502f0de2f9be25cf68e3dc5877d9cb5580c90e0 -- falsifier: uv run pytest tests/ci/test_hostile_reviewer_pin_budget_timeout_omn19998.py -q fails over the merge base's workflow, which pins 3502f0de2f9be25cf68e3dc5877d9cb5580c90e0"
+  - id: "req-queue-full-suite-once"
+    statement: "The native queue tests the full selection on its synthetic commit; pull requests use changed-zone tests with CI changes escalating to the full suite; dev pushes inherit a verified tree pass and run no heavy tests."
+    acceptance:
+      - id: "AC29"
+        statement: "AC29: merge_group runs all twenty full-suite shards and the heavy gates, CI Summary refuses skipped heavy jobs or incomplete shards, every required dev context has a queue producer without mirroring full-suite gates, pull_request selection narrows code changes but runs the full suite for CI changes including mixed diffs, and dev push skips heavy jobs only admitting a verified full-suite tree pass -- falsifier: uv run pytest tests/ci/test_queue_run_once_omn19998.py -q -n 0 fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "Every repo contract binds each criterion to repo pytest evidence."
@@ -168,6 +173,20 @@ emergency_bypass:
   justification: ""
   follow_up_ticket_id: ""
 dod_evidence:
+  - id: "dod-omn19998-queue-full-suite-once"
+    description: "Queue admission, skipped and missing shard refusal, required-context coverage, PR selection and dev tree-pass verification are covered by the focused tests."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_queue_run_once_omn19998.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC29"]
+  - id: "dod-omn19998-queue-full-suite-deploy-probe"
+    description: "The hosted runner parses the checked-out workflow and exercises the same admission evaluator against healthy and refused queue snapshots; no lab service is needed."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/ci/test_queue_run_once_omn19998.py -q -n 0 -p no:randomly --no-cov -k 'queue_refuses or workflow_admission or required_contexts'"
   - id: "dod-omn19998-mirror-durable-outbox"
     description: "Mirror outbox regression tests cover publish failure, process restart, broker acknowledgement ordering, partial batch delivery, disk write failure and crash boundaries."
     source: "manual"

@@ -191,7 +191,12 @@ def test_push_cli_reports_applicable_contexts_and_enforces_them(
 def test_poller_passes_branch_to_every_gate_invocation() -> None:
     root = Path(__file__).resolve().parents[4]
     workflow = yaml.safe_load((root / ".github/workflows/ci.yml").read_text())
-    step = workflow["jobs"]["ci-summary"]["steps"][-1]
+    step = next(
+        step
+        for step in workflow["jobs"]["ci-summary"]["steps"]
+        if step.get("name")
+        == "Poll run jobs and compute fail-closed CI Summary verdict"
+    )
     invocations = [
         line
         for line in step["run"].splitlines()

@@ -338,6 +338,9 @@ STRICT_GATE_JOBS: tuple[str, ...] = (
 # plan makes explicit: a job strict in omnibase_core may legitimately skip in
 # omnimarket — here the entire E2E/golden/typecheck lane is docs-only-gated.
 SKIPPABLE_GATE_JOBS: tuple[str, ...] = (
+    "Dev Full Suite Reuse / Full Suite Reuse Probe",
+    "Dev Full Suite Reuse / Full Suite Pass Marker",
+    "Dev Push Full Suite Reuse",
     "typecheck",  # if: docs_only != 'true'
     "Detect Changes",  # if: docs_only != 'true' (also drives the matrix rule)
     "Integration Silent-Skip Guard (OMN-14172)",  # if: docs_only != 'true'
@@ -369,6 +372,21 @@ SKIPPABLE_GATE_JOBS: tuple[str, ...] = (
     # success OR skipped, real failure still fails closed.
     "Merge test durations",  # merge-test-durations
 )
+
+# OMN-19998: these jobs must actually pass on the queue commit. PR-scoped
+# metadata verdicts may be inherited; the full-suite verdict never is.
+QUEUE_HEAVY_GATE_JOBS: tuple[str, ...] = (
+    "Detect Changes",
+    "Integration Silent-Skip Guard (OMN-14172)",
+    "E2E Workflow Runner (inmemory bus)",
+    "Golden Chain Suite (inmemory bus)",
+    "SEA E2E Acceptance + Error Chains (OMN-12660)",
+    "Generated-Node Golden Chain Gate (OMN-13624)",
+    "Generated Event Chains (walker paths)",
+    "Coverage Sweep Gate",
+    "Merge test durations",
+)
+DEV_SUITE_REUSE_JOB = "Dev Push Full Suite Reuse"
 
 # --------------------------------------------------------------------------- #
 # OMN-16662: the docs-only skip tier.
@@ -926,6 +944,7 @@ def _evaluate_test_matrix(
     *,
     detect_changes_job: str = DETECT_CHANGES_JOB,
     split_prefix: str = TEST_SPLIT_PREFIX,
+    require_full_suite: bool = False,
 ) -> str:
     """Return one of ``"ok"``, ``"pending"``, ``"waived"`` for the test matrix.
 
@@ -952,6 +971,10 @@ def _evaluate_test_matrix(
         return "pending"
     if any(s.status != "completed" for s in splits):
         return "pending"
+    if require_full_suite and {
+        name for name in latest if name.startswith(split_prefix)
+    } != {f"Tests (Split {i}/20)" for i in range(1, 21)}:
+        return "pending"
     return "ok"
 
 
@@ -967,10 +990,30 @@ def evaluate(
     allowlist: frozenset[str] = SOFT_ALLOWLIST,
     docs_only_marker: str = DOCS_ONLY_MARKER_JOB,
     docs_only_gates: tuple[str, ...] = DOCS_ONLY_SKIPPABLE_GATE_JOBS,
+    event: str | None = None,
+    ref_name: str | None = None,
 ) -> tuple[int, str]:
     """Return ``(exit_code, human_report)`` for the current job snapshot."""
 
     latest = dedup_latest(jobs, run_attempt=run_attempt)
+    queue_run = event == "merge_group"
+    dev_push = event == "push" and ref_name == "dev"
+    reuse_state = latest.get(DEV_SUITE_REUSE_JOB)
+    dev_reuse = (
+        dev_push
+        and reuse_state is not None
+        and reuse_state.status == "completed"
+        and reuse_state.conclusion == "success"
+    )
+    # A job-level skipped reusable caller has no inner job rows. The verdict
+    # job below waits for the caller and verifies its outputs; these optional
+    # inner rows remain covered by the default-deny failure/running sweep.
+    skippable_gates = tuple(
+        g for g in skippable_gates if not g.startswith("Dev Full Suite Reuse / ")
+    )
+    if queue_run:
+        strict_gates = tuple(dict.fromkeys((*strict_gates, *QUEUE_HEAVY_GATE_JOBS)))
+        skippable_gates = tuple(g for g in skippable_gates if g not in strict_gates)
     gate_names = frozenset(strict_gates) | frozenset(skippable_gates)
     provisional_own_cancellations = sorted(
         name
@@ -992,7 +1035,8 @@ def evaluate(
     # why the bit travels as a job rather than as `needs.<job>.outputs`.
     marker_state = latest.get(docs_only_marker)
     docs_only = (
-        marker_state is not None
+        not queue_run
+        and marker_state is not None
         and marker_state.status == "completed"
         and marker_state.conclusion == "success"
     )
@@ -1004,18 +1048,30 @@ def evaluate(
         if docs_only
         else frozenset()
     )
+    if dev_reuse:
+        relaxed |= frozenset(QUEUE_HEAVY_GATE_JOBS) & frozenset(strict_gates)
     # The tier can skip before the marker finishes on another runner. Only
     # postpone a skipped tier gate while that marker is visibly in flight;
     # failures and terminal/absent markers retain the strict verdict.
     pending_docs_only_skips = frozenset(
         g
         for g in frozenset(docs_only_gates) & frozenset(strict_gates)
-        if marker_state is not None
+        if not queue_run
+        and marker_state is not None
         and marker_state.status != "completed"
         and (st := latest.get(g)) is not None
         and st.status == "completed"
         and st.conclusion == "skipped"
     )
+    if dev_push and (reuse_state is None or reuse_state.status != "completed"):
+        pending_docs_only_skips |= frozenset(
+            g
+            for g in QUEUE_HEAVY_GATE_JOBS
+            if g in strict_gates
+            and (st := latest.get(g)) is not None
+            and st.status == "completed"
+            and st.conclusion == "skipped"
+        )
 
     # (1) Strict aggregate gates: present + completed + conclusion == success.
     #     Members of `relaxed` widen to success/skipped for THIS run only; a
@@ -1062,6 +1118,22 @@ def evaluate(
         and name not in provisional_names
         and j.conclusion not in GOOD_CONCLUSIONS
     )
+    if queue_run:
+        sweep_failures.extend(
+            name
+            for name, state in latest.items()
+            if name.startswith(TEST_SPLIT_PREFIX)
+            and state.status == "completed"
+            and state.conclusion == "skipped"
+        )
+    # A dev push has no heavy fallback: only a verified tree pass admits it.
+    if (
+        dev_push
+        and not dev_reuse
+        and reuse_state is not None
+        and reuse_state.status == "completed"
+    ):
+        sweep_failures.append(DEV_SUITE_REUSE_JOB)
     sweep_running = sorted(
         j.name
         for name, j in latest.items()
@@ -1073,7 +1145,7 @@ def evaluate(
     )
 
     # (3) Test-matrix completeness (dynamic split jobs).
-    matrix_state = _evaluate_test_matrix(latest)
+    matrix_state = _evaluate_test_matrix(latest, require_full_suite=queue_run)
 
     # Completeness anchor: every named gate present AND completed.
     gate_missing_or_pending = [
@@ -2163,6 +2235,8 @@ def main(argv: list[str] | None = None) -> int:
         run_attempt=args.run_attempt,
         now=observation_time,
         superseded_by_newer_run=superseded_by_newer_run,
+        event=args.event,
+        ref_name=args.ref_name,
     )
     print(report)
 
