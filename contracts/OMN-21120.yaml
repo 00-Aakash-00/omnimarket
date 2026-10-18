@@ -40,3 +40,20 @@ dod_evidence:
       - check_type: test_passes
         check_value: "uv run pytest tests/nodes/node_tool_result_reduce_compute/test_tool_result_reduce.py -q --no-cov"
     binds_ac: [AC1]
+  - id: dod-bash-result-published-handler
+    description: >-
+      AC1 compute-only publication probe: read the handler source from GitHub
+      at the checked-out commit and require the explicit request exit-status
+      assignment. The handler is absent at the merge base, so a missing or
+      unpublished commit, missing handler, or missing assignment fails.
+      This checks the published compute artifact; client replacement and
+      stored-original retrieval remain outside this AC1 slice.
+    source: manual
+    execution_scope: hosted_and_local
+    checks:
+      - check_type: command
+        check_value: >-
+          bash -o pipefail -c 'gh api
+          "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_tool_result_reduce_compute/handlers/handler_tool_result_reduce.py?ref=$(git rev-parse HEAD)"
+          --jq .content | base64 --decode | grep -Fq "exit_status=request.exit_status,"'
+    binds_ac: [AC1]
