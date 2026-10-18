@@ -70,6 +70,10 @@ from omnimarket.models.context_profile_resolve.model_context_profile_resolve_req
 from omnimarket.models.context_profile_resolve.model_context_profile_resolve_result import (
     EnumContextProfileResolveStatus,
 )
+from omnimarket.models.context_task_kind_rules import (
+    EnumContextTaskKindRulesStatus,
+    ModelContextTaskKindRulesRequest,
+)
 from omnimarket.nodes.node_context_pack_builder_compute.handlers.handler_context_pack_builder import (
     HandlerContextPackBuilder,
 )
@@ -85,10 +89,6 @@ from omnimarket.nodes.node_context_profile_resolver_effect.handlers.handler_cont
 )
 from omnimarket.nodes.node_context_task_kind_rules_compute.handlers.handler_context_task_kind_rules import (
     HandlerContextTaskKindRules,
-)
-from omnimarket.nodes.node_context_task_kind_rules_compute.models import (
-    EnumContextTaskKindRulesStatus,
-    ModelContextTaskKindRulesRequest,
 )
 from omnimarket.pack.model_context_pack_artifact import ModelContextPackArtifact
 from omnimarket.pack.model_context_pack_builder_request import (
