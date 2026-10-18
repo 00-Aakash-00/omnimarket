@@ -19,9 +19,6 @@ from omnibase_core.models.context.model_context_source_request import (
 from omnibase_core.models.context.model_context_source_result import (
     ModelContextSourceResult,
 )
-from omnibase_spi.protocols.intelligence.protocol_context_source import (
-    ProtocolContextSource,
-)
 from pydantic import ValidationError
 
 from omnimarket.models.context_pack_orchestrator import (
@@ -34,6 +31,9 @@ from omnimarket.models.context_profile_resolve.model_context_profile_resolve_req
 from omnimarket.nodes.node_context_pack_orchestrator.handlers.handler_context_pack_orchestrator import (
     TASK_KIND_UNKNOWN,
     default_implementation_identity,
+)
+from omnimarket.nodes.node_context_pack_orchestrator.protocols import (
+    ProtocolContextTierSource,
 )
 from omnimarket.nodes.node_context_profile_resolver_effect.handlers.handler_context_profile_resolver import (
     HandlerContextProfileResolver,
@@ -50,8 +50,10 @@ from .conftest import (
 pytestmark = pytest.mark.unit
 
 
-def test_fixture_source_is_a_protocol_context_source() -> None:
-    assert isinstance(FixtureSource(EnumContextFactor.OPEN_WORK), ProtocolContextSource)
+def test_fixture_source_is_a_protocol_context_tier_source() -> None:
+    assert isinstance(
+        FixtureSource(EnumContextFactor.OPEN_WORK), ProtocolContextTierSource
+    )
 
 
 def test_compaction_fixture_builds_with_four_required_factors() -> None:

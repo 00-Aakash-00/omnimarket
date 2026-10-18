@@ -25,7 +25,7 @@ runtime_profiles: [effects]
 description: >
   The one callable path to a context package. Resolves the named profile, reads
   each tier it selects from the source bound to that factor through
-  ProtocolContextSource, passing the caller scope and the envelope's access into
+  ProtocolContextTierSource, passing the caller scope and the envelope's access into
   every source request, builds the pack and renders it. A required tier that is
   not resolved fails REQUIRED_FACTOR_MISSING; an optional tier's other statuses
   are listed per tier and the tier is omitted; optional tiers that do not fit

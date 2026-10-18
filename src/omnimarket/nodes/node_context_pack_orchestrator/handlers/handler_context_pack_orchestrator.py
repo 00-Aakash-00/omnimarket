@@ -4,7 +4,7 @@
 
 ``handle(ModelContextPackCommand) -> ModelContextPackBuilt``. It resolves the profile by
 name, reads each tier the profile selects from the source bound to that factor through
-``ProtocolContextSource`` (the knowledge assembler's fan-out shape), builds the pack and
+``ProtocolContextTierSource`` (the knowledge assembler's fan-out shape), builds the pack and
 renders it. A required tier whose source answers anything but ``resolved`` fails the build
 ``REQUIRED_FACTOR_MISSING``; an optional tier's other statuses are listed per tier and the
 tier is omitted. Optional tiers that do not fit the budget are dropped lowest precedence
@@ -49,9 +49,6 @@ from omnibase_core.models.context.model_context_source_result import (
 )
 from omnibase_core.models.pack.model_context_pack import ModelContextPack
 from omnibase_core.utils.util_context_pack import compute_chunk_id
-from omnibase_spi.protocols.intelligence.protocol_context_source import (
-    ProtocolContextSource,
-)
 
 from omnimarket.models.context_pack_orchestrator import (
     EnumContextPackOrchestratorStatus,
@@ -76,6 +73,9 @@ from omnimarket.models.context_profile_resolve.model_context_profile_resolve_res
 )
 from omnimarket.nodes.node_context_pack_builder_compute.handlers.handler_context_pack_builder import (
     HandlerContextPackBuilder,
+)
+from omnimarket.nodes.node_context_pack_orchestrator.protocols import (
+    ProtocolContextTierSource,
 )
 from omnimarket.nodes.node_context_pack_render_compute.handlers.handler_context_pack_render import (
     RENDER_CONTRACT_VERSION,
@@ -254,7 +254,7 @@ def _ruling_ref(entry: ModelContextSourceEntry) -> tuple[str | None, str | None]
     )
 
 
-def _source_identity(source: ProtocolContextSource) -> str:
+def _source_identity(source: ProtocolContextTierSource) -> str:
     contract_hash = getattr(source, "contract_hash", None)
     if isinstance(contract_hash, str) and contract_hash:
         return contract_hash
@@ -267,7 +267,7 @@ class HandlerContextPackOrchestrator:
 
     def __init__(
         self,
-        sources: Mapping[EnumContextFactor, ProtocolContextSource] | None = None,
+        sources: Mapping[EnumContextFactor, ProtocolContextTierSource] | None = None,
         *,
         profile_resolver: HandlerContextProfileResolver | None = None,
         builder: HandlerContextPackBuilder | None = None,
