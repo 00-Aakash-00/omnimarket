@@ -7,9 +7,7 @@ from uuid import UUID
 
 import pytest
 
-from omnimarket.nodes.node_pr_landing_decision_compute.models.model_landing_decision import (
-    ModelLandingDecision,
-)
+from omnimarket.models.landing_decision import ModelLandingDecision
 from omnimarket.nodes.node_work_ledger_landing_mirror import (
     HandlerWorkLedgerLandingMirror,
 )

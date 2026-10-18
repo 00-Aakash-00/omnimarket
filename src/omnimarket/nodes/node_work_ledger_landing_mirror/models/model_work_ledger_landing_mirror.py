@@ -6,10 +6,8 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
+from omnimarket.models.landing_decision import ModelLandingDecision
 from omnimarket.models.work_ledger_append import ModelWorkLedgerAppendRequest
-from omnimarket.nodes.node_pr_landing_decision_compute.models.model_landing_decision import (
-    ModelLandingDecision,
-)
 
 
 class ModelWorkLedgerLandingMirrorRequest(BaseModel):
