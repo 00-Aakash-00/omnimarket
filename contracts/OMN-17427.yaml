@@ -350,6 +350,11 @@ requirements:
     acceptance:
       - id: "AC67"
         statement: "AC67: with github_source local the triage handler completes without a GITHUB_TOKEN, a merged squash commit in the clone and a merged or closed watcher record answer the merged and closed-unmerged searches, an id never matches a longer id, a merged record with no merge time is dropped, a missing watcher state returns status error, and the default github_source stays api -- falsifier: uv run pytest tests/nodes/node_linear_triage/test_local_github_pr_reads.py -q fails when the local client is removed"
+  - id: "req-retire-remaining-change-control-paths"
+    statement: "Evidence stays in the product repository and no companion writer or observer is registered."
+    acceptance:
+      - id: "AC68"
+        statement: "AC68: retired writer and observer nodes are absent from disk and discovery, queued companion commands refuse without a writer, product evidence readback requires its current head and passing repository evidence checks, and binding fields are accepted without another checkout while unknown fields refuse -- falsifier: uv run --frozen pytest tests/test_omn17427_occ_retirement.py -q fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "AC64: the core pin compatibility tests cover both dependency floors and the recorded incident's positive and negative controls."
@@ -1199,3 +1204,18 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_linear_triage/handlers/handler_linear_triage.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("LocalGitHubPrReads", "github_source")); print("linear-triage local github deploy probe: PASS")'
+  - id: "dod-omn17427-ac68-repository-evidence-retirement"
+    description: "Repository evidence retirement regression: discovery, legacy refusal, binding schema, and current-head readback."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run --frozen pytest tests/test_omn17427_occ_retirement.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC68"]
+  - id: "dod-omn17427-repository-evidence-retirement-deploy-probe"
+    description: "Deploy probe. The repository metadata at the checked-out revision registers the repository verifier and no retired writer or observer node. The probe fails on the merge base."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/pyproject.toml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys, tomllib; nodes = tomllib.loads(sys.stdin.read())["project"]["entry-points"]["onex.nodes"]; assert "node_dod_verify" in nodes; assert not any(name.startswith("node_occ_") for name in nodes); print("repository evidence retirement deploy probe: PASS")'
