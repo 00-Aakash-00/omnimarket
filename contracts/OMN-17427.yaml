@@ -412,6 +412,11 @@ requirements:
     acceptance:
       - id: "AC78"
         statement: "AC78: the review class declares lab_rubric verdict fail with its 25 of 60 measurement for Qwen3.8-27B, the recorded verdict is the one that measurement earns against the policy bar, and the shipped contracts still pass the lab-first routing check -- falsifier: uv run pytest tests/unit/delegation/test_lab_first_routing_omn17427.py -q -p no:randomly --no-cov -k review_measurement fails while the class reads unmeasured"
+  - id: "req-rehome-leaf-nodes-s2"
+    statement: "The friction synthesis and host thermal observe nodes live in omnimarket with their contracts, handlers, models and tests."
+    acceptance:
+      - id: "AC91"
+        statement: "AC91: node_friction_synthesis_effect and node_host_thermal_observe_effect resolve from omnimarket, each contract names an omnimarket terminal event, and their handlers produce the accounting and thermal reading the nodes had before the move -- falsifier: uv run pytest tests/nodes/node_friction_synthesis_effect tests/nodes/node_host_thermal_observe_effect -q -p no:randomly"
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -570,6 +575,8 @@ evidence_requirements:
   - kind: "tests"
     description: "AC78: the review class records its measured lab verdict, earned against the policy bar, and the shipped contracts still pass the lab-first check."
     command: "uv run pytest tests/unit/delegation/test_lab_first_routing_omn17427.py -q -p no:randomly --no-cov"
+    description: "AC91: the friction synthesis and host thermal observe node tests pass in omnimarket."
+    command: "uv run pytest tests/nodes/node_friction_synthesis_effect tests/nodes/node_host_thermal_observe_effect -q -p no:randomly"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -1504,3 +1511,11 @@ dod_evidence:
           print("review lab rubric deploy probe: PASS")
           PY
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac91-rehome-leaf-nodes-s2"
+    description: "The friction synthesis and host thermal observe node tests pass against the omnimarket copies."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_friction_synthesis_effect tests/nodes/node_host_thermal_observe_effect -q -p no:randomly"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC91"]
