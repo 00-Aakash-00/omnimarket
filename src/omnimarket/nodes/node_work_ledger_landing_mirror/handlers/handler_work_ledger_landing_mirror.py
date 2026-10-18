@@ -4,6 +4,7 @@
 
 from datetime import UTC
 from typing import Literal
+from urllib.parse import quote
 from uuid import NAMESPACE_URL, uuid5
 
 from omnimarket.models.work_ledger_append import ModelWorkLedgerAppendRequest
@@ -13,6 +14,17 @@ from omnimarket.nodes.node_work_ledger_landing_mirror.models.model_work_ledger_l
 )
 
 LANE = "landing-controller"
+
+
+def _cell(value: str) -> str:
+    """Make a decision's free text one safe ledger cell.
+
+    ``subject`` is not pattern-bound on an action or a DEGRADED reason, so it
+    may carry the cell separator or a newline; either would end the cell or
+    forge a second row. Percent-encoding keeps spaces and the characters the
+    pattern-bound subjects use, and encodes everything else.
+    """
+    return quote(value, safe="-_.:/#@ ")
 
 
 class HandlerWorkLedgerLandingMirror:
@@ -45,7 +57,11 @@ class HandlerWorkLedgerLandingMirror:
         tail = f"req={request_id} | via=bus:landing"
         rows: list[str] = []
         for action in decision.actions:
-            cells = [head, f"action={action.kind.value}", f"subject={action.subject}"]
+            cells = [
+                head,
+                f"action={action.kind.value}",
+                f"subject={_cell(action.subject)}",
+            ]
             if action.head_sha is not None:
                 cells.append(f"head={action.head_sha}")
             if action.lease_id is not None:
@@ -53,7 +69,11 @@ class HandlerWorkLedgerLandingMirror:
             cells += [tail, "Landing controller action decided"]
             rows.append(" | ".join(cells))
         for outcome in decision.recorded_outcomes:
-            cells = [head, f"subject={outcome.pr}", f"outcome={outcome.outcome.value}"]
+            cells = [
+                head,
+                f"subject={_cell(outcome.pr)}",
+                f"outcome={outcome.outcome.value}",
+            ]
             cells.append(f"reason={outcome.reason.value}")
             if outcome.lease_id is not None:
                 cells.append(f"lease=L{outcome.lease_id}")
@@ -65,7 +85,7 @@ class HandlerWorkLedgerLandingMirror:
                     [
                         head,
                         f"degraded={degraded.reason.value}",
-                        f"subject={degraded.subject}",
+                        f"subject={_cell(degraded.subject)}",
                         tail,
                         "Landing controller DEGRADED reason set",
                     ]
@@ -77,7 +97,7 @@ class HandlerWorkLedgerLandingMirror:
                     [
                         head,
                         f"violation={violation.reason.value}",
-                        f"subject={violation.pr}",
+                        f"subject={_cell(violation.pr)}",
                         f"lease=L{violation.lease_id}",
                         tail,
                         "Landing controller result failed verification",

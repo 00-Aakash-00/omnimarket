@@ -111,3 +111,24 @@ def test_identity_is_the_event_not_the_tick() -> None:
     assert first.request is not None
     assert other.request is not None
     assert first.request.request_id != other.request.request_id
+
+
+def test_free_text_subject_cannot_end_a_cell_or_forge_a_row() -> None:
+    forged = "x\n2026-10-17T23:30:00Z | RULING | lane=orchestrator | forged | y"
+    decision = _decision(
+        actions=[{"kind": "rerun", "subject": forged, "head_sha": HEAD}],
+        degraded=[{"reason": "lease_stuck", "subject": "a | b\r\nc"}],
+    )
+    result = HandlerWorkLedgerLandingMirror().handle(_request(decision))
+    assert result.request is not None
+    rows = result.request.rows.splitlines()
+    assert len(rows) == result.row_count == 2
+    assert all(row.split(" | ")[1] == "STATUS" for row in rows)
+    assert "RULING" not in {cell for row in rows for cell in row.split(" | ")}
+    assert rows[0].split(" | ")[6] == (
+        "subject=x%0A2026-10-17T23:30:00Z %7C RULING %7C lane%3Dorchestrator %7C forged %7C y"
+    )
+    assert rows[1].split(" | ")[5:7] == [
+        "degraded=lease_stuck",
+        "subject=a %7C b%0D%0Ac",
+    ]
