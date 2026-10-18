@@ -390,6 +390,11 @@ requirements:
     acceptance:
       - id: "AC73"
         statement: "AC73: the gateway pr_text result carries head_repo and is_cross_repository: True for a fork head and for a head repository that is gone, False for a same-repository head compared without regard to letter case."
+  - id: "req-repo-evidence-caller-verifier-floor"
+    statement: "The repo-evidence caller workflow refuses a verifier below the receipt gate's floor, and the commit-stage hook and the CI lint step that run that refusal stay wired."
+    acceptance:
+      - id: "AC74"
+        statement: "AC74: the call-repo-evidence-gate-verifier-floor pre-commit hook and its paired ci.yml lint step run the caller verifier-floor test, and the caller's verifier-version is at or above 0.4.303 -- falsifier: uv run pytest tests/ci/test_repo_evidence_caller_floor_wiring_omn17427.py tests/ci/test_repo_evidence_caller_verifier_floor_omn20032.py -q -p no:randomly --no-cov fails when the hook or the lint step is removed or the caller's verifier-version is below 0.4.303"
   - id: "req-ci-summary-external-default-deny"
     statement: |-
       CI Summary judges every head check-run that earlier layers do not account for with a success-only external sweep, known non-PR event exemptions and validated expiring exclusions.
@@ -547,6 +552,9 @@ evidence_requirements:
   - kind: "tests"
     description: "AC73: the gateway pr_text read reports head_repo and is_cross_repository for same-repository, fork and gone-repository heads."
     command: "uv run pytest tests/nodes/node_github_repo_gateway_effect/test_github_repo_gateway_scm_reads.py -q -k pr_text"
+  - kind: "tests"
+    description: "AC74: the caller verifier-floor hook and lint step are wired, and the caller's verifier-version is at or above 0.4.303."
+    command: "uv run pytest tests/ci/test_repo_evidence_caller_floor_wiring_omn17427.py tests/ci/test_repo_evidence_caller_verifier_floor_omn20032.py -q -p no:randomly --no-cov"
   - kind: "tests"
     description: "AC74: default-deny external sweep, bounded exclusions and the production poller refuse unregistered reds with passing controls."
     command: >-
@@ -1414,6 +1422,14 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_github_repo_gateway_effect/read_operations.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert "is_cross_repository" in source; assert "head_repo" in source; print("gateway pr_text cross-repository deploy probe: PASS")'
+  - id: "dod-repo-evidence-caller-verifier-floor"
+    description: "The call-repo-evidence-gate-verifier-floor pre-commit hook and its paired ci.yml lint step run the caller verifier-floor test, and the caller's verifier-version is at or above 0.4.303. The wiring test fails when the hook or the lint step is removed."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_repo_evidence_caller_floor_wiring_omn17427.py tests/ci/test_repo_evidence_caller_verifier_floor_omn20032.py -q -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC74"]
   - id: "dod-omn17427-ac63-external-default-deny"
     description: "The external sweep, exclusion validation and main() fixture tests pass with refusal and success controls."
     source: "manual"
