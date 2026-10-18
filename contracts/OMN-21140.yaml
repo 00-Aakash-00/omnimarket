@@ -1,0 +1,51 @@
+---
+schema_version: "1.0.0"
+ticket_id: "OMN-21140"
+title: "Context-service role task classes, routed through the routing contract (plan task TE.3)"
+summary: >-
+  Declare the extraction_proposer, tail_summary and context_selection task
+  classes as internal classes of the task-class contract, each served by the
+  local Qwen3.8-27B rung on backend local-coder with cloud routing blocked.
+is_seam_ticket: false
+interface_change: true
+interfaces_touched: ["events"]
+requirements:
+  - id: "req-te3-role-task-classes"
+    statement: "Each context-service model role is a task class reachable through the existing routing contract."
+    acceptance:
+      - id: "AC1"
+        statement: "AC1: extraction_proposer, tail_summary and context_selection are internal task classes that resolve through the routing reducer to tier local, backend local-coder, model Qwen3.8-27B, and no other tier serves them -- falsifier: a class that resolves elsewhere, or a non-local tier that lists it"
+      - id: "AC2"
+        statement: "AC2: no lab host, port or backend is added to the public omnibase_infra -- falsifier: such a line in the diff"
+evidence_requirements:
+  - kind: "tests"
+    description: "Role task-class declaration and routing resolution for OMN-21140."
+    command: "uv run pytest tests/unit/delegation/test_context_role_task_classes_omn21140.py -q -n 0"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn21140-ac1-role-routing"
+    description: "The three role classes are internal, local-only and resolve to local-coder Qwen3.8-27B."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_context_role_task_classes_omn21140.py -q -n 0"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]
+  - id: "dod-omn21140-ac2-no-infra-lab-backend"
+    description: "This change touches no omnibase_infra file; the role classes are declared in omnimarket only."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_context_role_task_classes_omn21140.py -q -n 0 -k served_only_by_first_local_model"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC2"]
+  - id: "dod-omn21140-deploy-probe"
+    description: "Deploy probe: the task-class contract read from GitHub at the checked-out commit declares extraction_proposer."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: 'gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/configs/task_class_contracts.v1.yaml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -c ''^  extraction_proposer:'''
+        cwd: "${OMNI_HOME}/omnimarket"

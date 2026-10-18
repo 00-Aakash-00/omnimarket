@@ -94,6 +94,14 @@ tiers:
           - validator_generation
           # OMN-16442: restored — see the block comment above.
           - test
+          # OMN-21140: TE.1 ground-truth labels size transcript segments for
+          # 32768/65536/131072-token windows; local-heavy-reasoning's 8192
+          # declaration would exclude every such segment. local-coder and
+          # local-heavy-reasoning are the same physical endpoint, so these
+          # classes add no new endpoint claim.
+          - extraction_proposer
+          - tail_summary
+          - context_selection
         # OMN-13599: AI-PC local-coder is the preferred local code backend when
         # its Tailscale hostname overlay is present. Without a threshold, the
         # fast-path selector can prefer later local models that also declare

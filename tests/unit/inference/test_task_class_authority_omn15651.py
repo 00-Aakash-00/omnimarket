@@ -53,6 +53,9 @@ _EXPECTED_INTERNAL = frozenset(
         "documentation",
         "escalation",
         "validator_generation",
+        "extraction_proposer",
+        "tail_summary",
+        "context_selection",
     }
 )
 
@@ -74,7 +77,7 @@ def _required_task_type_enum(path: Path) -> frozenset[str]:
 def test_committed_authority_has_accepted_total_exposure_partition() -> None:
     authority = load_task_class_authority()
 
-    assert len(authority.universe) == 15
+    assert len(authority.universe) == 18
     assert authority.public_task_classes == _EXPECTED_PUBLIC
     assert authority.internal_task_classes == _EXPECTED_INTERNAL
     assert (

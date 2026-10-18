@@ -716,6 +716,9 @@ execution_budgets:
   summarization: {task_class_timeout_ceiling_seconds: 240, terminal_delivery_margin_seconds: 60}
   agent_delegation: {task_class_timeout_ceiling_seconds: 240, terminal_delivery_margin_seconds: 60}
   escalation: {task_class_timeout_ceiling_seconds: 240, terminal_delivery_margin_seconds: 60}
+  extraction_proposer: {task_class_timeout_ceiling_seconds: 240, terminal_delivery_margin_seconds: 60}
+  tail_summary: {task_class_timeout_ceiling_seconds: 240, terminal_delivery_margin_seconds: 60}
+  context_selection: {task_class_timeout_ceiling_seconds: 240, terminal_delivery_margin_seconds: 60}
 
 # S is value <= s_max, M is <= m_max, L is above. Every class inherits this
 # default; task_classes.<class>.size_band_thresholds may override the same shape.
@@ -2261,3 +2264,107 @@ task_classes:
       tier_order:
         - local
         - claude
+  # OMN-21140: Role A proposes typed events as JSON from an operator-transcript
+  # segment. A deterministic verifier admits or drops them; model output is
+  # never evidence by itself.
+  # Operator transcripts are private: cloud routing is blocked. Any future
+  # cloud rung requires a contract change.
+  extraction_proposer:
+    complexity_contract: {output_kind: structured, verification: exact_match, execution_required: false}
+    gateway_exposure: internal
+    output_contract: {output_shape: json}
+    selection:
+      priority: 0
+      phrases: []
+    required_capabilities:
+      - natural_language_generation
+    pricing_ceiling_per_1k_tokens: 0.002
+    latency_sla_p99_ms: 120000
+    cloud_routing_policy: blocked
+    definition_of_done:
+      deterministic:
+        - response_non_empty
+      heuristic:
+        - no_refusal
+        - semantic_adequacy
+        - identifiers_grounded
+    quality_gate:
+      score_source: quality_gate_graded_score
+      required_bar: 0.8
+      request_override_bounds:
+        min: 0.6
+        max: 1.0
+    escalation_policy:
+      max_escalations: 0
+      tier_order:
+        - local
+  # OMN-21140: Role B writes a labelled prose summary of the conversation tail.
+  # It is never evidence and never restates ledger state.
+  # Operator transcripts are private: cloud routing is blocked. Any future
+  # cloud rung requires a contract change.
+  tail_summary:
+    complexity_contract: {output_kind: prose, verification: grounding, execution_required: false}
+    gateway_exposure: internal
+    output_contract: {output_shape: markdown, start_marker: "### ANSWER"}
+    selection:
+      priority: 0
+      phrases: []
+    required_capabilities:
+      - natural_language_generation
+    pricing_ceiling_per_1k_tokens: 0.002
+    latency_sla_p99_ms: 120000
+    cloud_routing_policy: blocked
+    definition_of_done:
+      deterministic:
+        - response_non_empty
+      heuristic:
+        - no_refusal
+        - concise
+        - accurate_summary
+        - semantic_adequacy
+        - identifiers_grounded
+        - numbers_grounded
+        - claims_grounded
+    quality_gate:
+      score_source: quality_gate_graded_score
+      required_bar: 0.8
+      request_override_bounds:
+        min: 0.6
+        max: 1.0
+    escalation_policy:
+      max_escalations: 0
+      tier_order:
+        - local
+  # OMN-21140: Role C selects candidate ids only from ids supplied in the input.
+  # It returns ids, never text.
+  # Operator transcripts are private: cloud routing is blocked. Any future
+  # cloud rung requires a contract change.
+  context_selection:
+    complexity_contract: {output_kind: structured, verification: exact_match, execution_required: false}
+    gateway_exposure: internal
+    output_contract: {output_shape: json}
+    selection:
+      priority: 0
+      phrases: []
+    required_capabilities:
+      - natural_language_generation
+    pricing_ceiling_per_1k_tokens: 0.002
+    latency_sla_p99_ms: 120000
+    cloud_routing_policy: blocked
+    definition_of_done:
+      deterministic:
+        - response_non_empty
+      heuristic:
+        - no_refusal
+        - semantic_adequacy
+        - identifiers_grounded
+    quality_gate:
+      score_source: quality_gate_graded_score
+      required_bar: 0.8
+      request_override_bounds:
+        min: 0.6
+        max: 1.0
+    escalation_policy:
+      max_escalations: 0
+      tier_order:
+        - local

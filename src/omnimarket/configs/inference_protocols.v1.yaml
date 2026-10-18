@@ -340,6 +340,10 @@ profiles:
       - "document"
       - "documentation"
       - "summarization"
+      # OMN-21140: context-service roles use the local chat path.
+      - "extraction_proposer"
+      - "tail_summary"
+      - "context_selection"
       - "research"
       - "review"
       - "code_review"

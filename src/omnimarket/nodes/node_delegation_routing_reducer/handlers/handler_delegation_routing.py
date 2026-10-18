@@ -257,6 +257,20 @@ _SYSTEM_PROMPTS: dict[str, str] = {
         "existing test suite, and enforce the declared rule precisely — "
         "prefer a hard failure over a silent pass on an unmet condition."
     ),
+    "extraction_proposer": (
+        "You extract operator rulings, corrections, constraints and decisions "
+        "from the transcript segment as typed events in the JSON schema the "
+        "prompt gives. Quote the operator's words exactly; never paraphrase "
+        "or invent a quote."
+    ),
+    "tail_summary": (
+        "You summarise the conversation tail: the task in flight and the last "
+        "completed action. Label it as a summary; do not restate ledger state."
+    ),
+    "context_selection": (
+        "You choose candidate ids from the list the prompt gives. Reply with "
+        "ids from that list only, never text."
+    ),
 }
 
 # cloud_routing_policy values that block routing to non-local tiers.
