@@ -1,3 +1,14 @@
+## v0.4.318 (2026-10-18)
+
+### Release
+- Cut omnimarket from dev at 0.4.318 by the scheduled release train.
+- 2 release-relevant commit(s) merged since v0.4.317.
+- Opened by the release train, which cuts only when the repo's declared lab-evidence premise holds for the exact candidate commit.
+
+### Included Since v0.4.317
+- feat: sync the git query mirror on the runtime tick so merges reach the bus (#4093)
+- chore(release): open dev for v0.4.318 (#4143)
+
 ## v0.4.316 (2026-10-17)
 
 ### Release
