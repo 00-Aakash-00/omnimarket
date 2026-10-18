@@ -3,10 +3,12 @@
 #
 # reviewer-eval.yml — OMN-17427
 #
-# Scores the hostile reviewer against its eval set on every pull request that
-# changes the reviewer: the gate workflow (its omniintelligence pin carries the
-# prompts and the voting code; its verdict parse is the rule), the finding veto
-# node, or the eval itself. node_reviewer_eval_effect reports recall on true
+# Scores the hostile reviewer against its eval set on every pull request. The
+# reviewer is the gate workflow (its omniintelligence pin carries the prompts
+# and the voting code; its verdict parse is the rule), the finding veto node and
+# the eval itself. No `paths:` filter: this context is asserted in CI Summary's
+# EXPECTED_EXTERNAL_CONTEXTS, and an asserted context must report on every pull
+# request shape or CI Summary waits on it. node_reviewer_eval_effect reports recall on true
 # catches and the false-block rate on clean heads, and fails when either is worse
 # than the set's baseline, when a case has no verdict, or when the change drops a
 # case, flips a label or lowers the baseline against the base branch's copy.
@@ -22,11 +24,6 @@ name: Reviewer Eval
 on:
   pull_request:
     branches: [main, dev]
-    paths:
-      - ".github/workflows/hostile-reviewer.yml"
-      - ".github/workflows/reviewer-eval.yml"
-      - "src/omnimarket/nodes/node_reviewer_eval_effect/**"
-      - "src/omnimarket/nodes/node_review_finding_veto_effect/**"
 
 # OMN-19643: cancel only superseded pull request runs.
 concurrency:
