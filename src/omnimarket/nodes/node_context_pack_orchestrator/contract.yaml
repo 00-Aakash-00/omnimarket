@@ -20,7 +20,7 @@ node_version:
   patch: 0
 
 node_type: ORCHESTRATOR_GENERIC
-runtime_profiles: [main]
+runtime_profiles: [effects]
 
 description: >
   The one callable path to a context package. Resolves the named profile, reads
@@ -32,8 +32,8 @@ description: >
   the budget are listed in excluded_by_budget and a required tier over budget
   fails TOKEN_BUDGET_EXCEEDED. Returns candidate_id, assembly_hash,
   final_pack_hash, body_hash and stable_prefix_hash. The result carries package
-  text, so it is published on the restricted onex.cmd.omniintelligence family
-  and no onex.evt topic.
+  text, so it is published only on the restricted omniintelligence command
+  family declared under event_bus, never on an event topic.
 
 input_model:
   name: ModelContextPackCommand
@@ -63,6 +63,7 @@ descriptor:
   purity: effectful
   idempotent: true
   timeout_ms: 30000
+  runtime_profiles: [effects]
 
 dependencies:
   - name: node_context_profile_resolver_effect

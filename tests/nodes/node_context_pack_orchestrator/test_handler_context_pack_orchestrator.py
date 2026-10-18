@@ -28,15 +28,15 @@ from omnimarket.models.context_pack_orchestrator import (
     EnumContextPackOrchestratorStatus,
     ModelContextPackRequest,
 )
+from omnimarket.models.context_profile_resolve.model_context_profile_resolve_request import (
+    ModelContextProfileResolveRequest,
+)
 from omnimarket.nodes.node_context_pack_orchestrator.handlers.handler_context_pack_orchestrator import (
     TASK_KIND_UNKNOWN,
     default_implementation_identity,
 )
 from omnimarket.nodes.node_context_profile_resolver_effect.handlers.handler_context_profile_resolver import (
     HandlerContextProfileResolver,
-)
-from omnimarket.nodes.node_context_profile_resolver_effect.models.model_context_profile_resolve_request import (
-    ModelContextProfileResolveRequest,
 )
 
 from .conftest import (

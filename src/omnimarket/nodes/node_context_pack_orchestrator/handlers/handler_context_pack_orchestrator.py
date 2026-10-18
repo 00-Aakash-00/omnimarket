@@ -68,6 +68,12 @@ from omnimarket.models.context_pack_render import (
     ModelContextPackRenderRequest,
     ModelContextPackRenderResult,
 )
+from omnimarket.models.context_profile_resolve.model_context_profile_resolve_request import (
+    ModelContextProfileResolveRequest,
+)
+from omnimarket.models.context_profile_resolve.model_context_profile_resolve_result import (
+    EnumContextProfileResolveStatus,
+)
 from omnimarket.nodes.node_context_pack_builder_compute.handlers.handler_context_pack_builder import (
     HandlerContextPackBuilder,
 )
@@ -77,12 +83,6 @@ from omnimarket.nodes.node_context_pack_render_compute.handlers.handler_context_
 )
 from omnimarket.nodes.node_context_profile_resolver_effect.handlers.handler_context_profile_resolver import (
     HandlerContextProfileResolver,
-)
-from omnimarket.nodes.node_context_profile_resolver_effect.models.model_context_profile_resolve_request import (
-    ModelContextProfileResolveRequest,
-)
-from omnimarket.nodes.node_context_profile_resolver_effect.models.model_context_profile_resolve_result import (
-    EnumContextProfileResolveStatus,
 )
 from omnimarket.pack.model_context_pack_artifact import ModelContextPackArtifact
 from omnimarket.pack.model_context_pack_builder_request import (

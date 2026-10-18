@@ -113,3 +113,9 @@ dod_evidence:
           bad = H({**{f: Src(f) for f in req}, F.OPEN_WORK: Src(F.OPEN_WORK, S.UNAVAILABLE)}).handle(cmd)
           assert bad.status.value == "failed" and bad.failure_class.value == "required_factor_missing", bad
           print(ok.candidate_id, ok.assembly_hash, ok.body_hash)'
+  - id: "dod-omn21110-deploy-probe"
+    description: "Deploy probe. Reads the orchestrator handler from GitHub at the checked-out head and requires the HandlerContextPackOrchestrator class. It fails at the merge base, which has no such file."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "bash -o pipefail -c 'gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_context_pack_orchestrator/handlers/handler_context_pack_orchestrator.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c \"^class HandlerContextPackOrchestrator\"'"
