@@ -116,17 +116,28 @@ is EMPTY as of OMN-16933; its only entry was the removed CodeRabbit thread
 gate, whose caller carried ``if: github.actor != 'dependabot[bot]'``.
 
 Jobs produced by other workflow files that are NOT in
-:data:`EXPECTED_EXTERNAL_CONTEXTS` are exempt only by explicit, reasoned
-classification — see ``tests/unit/scripts/ci/test_ci_summary_gate.py``'s
+:data:`EXPECTED_EXTERNAL_CONTEXTS` are checked by layer 5 below. The static
+classification census in ``tests/unit/scripts/ci/test_ci_summary_gate.py``'s
 ``EXEMPT_CONTEXTS`` and its completeness test
 (``test_every_pr_triggered_job_is_classified``), which enumerates every job
 reachable from ``on.pull_request`` across ``.github/workflows/*.yml`` and
 proves STRICT | SKIPPABLE | EXTERNAL | EXEMPT covers it, apart from the two
 retained OCC validator workflows whose contexts OMN-20073 S6 explicitly
-retires. The test pins that exact uncovered census; a new, unclassified
-workflow job fails until it is triaged.
+retires, still pins the producer inventory. An EXEMPT census entry does not
+exempt a head check from layer 5.
 
-COVERAGE HONESTY — what ``CI Summary`` does not see even with L4
+LAYER 5 — default-deny over remaining head check-runs (OMN-17427)
+------------------------------------------------------------------
+Every check-run not accounted for by the event's L4 set, this run's jobs and
+allowlists, or the poller itself must conclude ``success``. Running rows and
+the same provisional verdicts and replacement runs as L4 hold PENDING. Only
+KNOWN non-PR Actions events exempt a row: unknown provenance is swept.
+Rows belonging to this run are owned by layers 1-3 even before the jobs API
+lists them. :data:`EXTERNAL_SWEEP_EXCLUSIONS` records the only other exceptions,
+each with a reason, ticket and at most 90 days to expiry. Malformed entries
+fail; expired entries and a missing clock exclude nothing.
+
+COVERAGE HONESTY — presence assertions remain a curated inventory
 ------------------------------------------------------------------
 ``EXPECTED_EXTERNAL_CONTEXTS`` is a fixed, curated tuple, not derived live
 from branch protection. If a context is added to ``required_status_checks``
@@ -144,8 +155,9 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from fnmatch import fnmatchcase
 
 # The poller's own job — excluded to avoid self-deadlock.
@@ -788,6 +800,50 @@ ACTOR_CONDITIONAL_CONTEXTS: dict[str, frozenset[str]] = {}
 # Conclusions that count as "provably passed".
 GOOD_CONCLUSIONS: frozenset[str] = frozenset({"success", "skipped"})
 
+# OMN-17427: only known non-PR provenance exempts an unregistered head check.
+# Missing run ids, App rows and unavailable workflow-run lists are swept.
+SWEEP_NON_PR_EVENTS: frozenset[str] = frozenset(
+    {
+        "push",
+        "merge_group",
+        "schedule",
+        "workflow_dispatch",
+        "release",
+        "deployment",
+        "deployment_status",
+        "repository_dispatch",
+        "create",
+        "delete",
+        "fork",
+        "page_build",
+        "public",
+        "registry_package",
+        "watch",
+    }
+)
+SWEEP_GOOD_CONCLUSIONS: frozenset[str] = frozenset({"success"})
+SWEEP_EXCLUSION_MAX_DAYS: int = 90
+_SWEEP_TICKET_RE = re.compile(r"^OMN-\d+$")
+_SWEEP_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+CANCELLED_WITHOUT_REPLACEMENT = "cancelled_without_replacement"
+
+
+@dataclass(frozen=True)
+class SweepExclusion:
+    """A reasoned, ticketed, dated and expiring exception to the strict sweep."""
+
+    reason: str
+    ticket: str
+    added: str
+    expires: str
+
+
+# Ships EMPTY: no external pull_request-event check-run in this repository is
+# non-success by design (OMN-17427). An entry needs a reason, an OMN ticket, an
+# added date and an expiry at most SWEEP_EXCLUSION_MAX_DAYS later; a malformed
+# entry fails the gate and an expired one stops excluding.
+EXTERNAL_SWEEP_EXCLUSIONS: dict[str, SweepExclusion] = {}
+
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
 EXIT_PENDING = 2
@@ -1397,13 +1453,23 @@ def check_run_workflow_run_id(raw: dict[str, object]) -> int | None:
 
     Read from the row's ``html_url``/``details_url``
     (``.../actions/runs/<run id>/job/<job id>``). ``None`` for a row no Actions
-    run wrote, or whose URL is unreadable.
+    run wrote, or whose URL and check suite carry no readable run id.
     """
 
     for key in ("html_url", "details_url"):
         match = _RUN_ID_RE.search(str(raw.get(key) or ""))
         if match:
             return int(match.group(1))
+    suite = raw.get("check_suite")
+    if isinstance(suite, dict):
+        run = suite.get("workflow_run")
+        run_id = (
+            run.get("id") if isinstance(run, dict) else suite.get("workflow_run_id")
+        )
+        try:
+            return int(str(run_id))
+        except (TypeError, ValueError):
+            pass
     return None
 
 
@@ -2044,6 +2110,262 @@ def evaluate_external(
     return EXIT_SUCCESS, "\n".join(lines)
 
 
+def _parse_exclusion_date(raw: object) -> date | None:
+    """Parse a ``YYYY-MM-DD`` exclusion date, or ``None`` if unreadable."""
+
+    if not isinstance(raw, str) or not _SWEEP_DATE_RE.fullmatch(raw.strip()):
+        return None
+    try:
+        return date.fromisoformat(raw.strip())
+    except ValueError:
+        return None
+
+
+def validate_sweep_exclusions(
+    exclusions: Mapping[str, object],
+) -> list[str]:
+    """Refusal reasons for malformed :data:`EXTERNAL_SWEEP_EXCLUSIONS` entries.
+
+    A non-empty return FAILS the gate. That is the point: an exclusion nobody
+    could have reviewed is worse than no exclusion, because it reads as a
+    considered decision. The four fields are checked for PRESENCE and SHAPE
+    only — no check here can tell whether a reason is a good one.
+
+    Expiry is deliberately NOT a finding. An entry past its date is not
+    malformed, it is spent: :func:`active_sweep_exclusions` drops it and the
+    name is swept again, so the gate RE-ARMS rather than breaking. The repo's
+    own suite pins the shipped entries against a fixed observation time.
+    """
+
+    findings: list[str] = []
+    for name, entry in sorted(exclusions.items()):
+        if not isinstance(entry, SweepExclusion):
+            findings.append(f"{name}: not a SweepExclusion instance")
+            continue
+        findings.extend(_validate_exclusion_fields(name, entry))
+    return findings
+
+
+def _validate_exclusion_fields(
+    name: str,
+    entry: SweepExclusion,
+) -> list[str]:
+    """Validate the reason, ticket and bounded expiry of a sweep exclusion."""
+
+    findings: list[str] = []
+    if not isinstance(entry.reason, str) or not entry.reason.strip():
+        findings.append(f"{name}: reason is empty")
+    if not isinstance(entry.ticket, str) or not _SWEEP_TICKET_RE.fullmatch(
+        entry.ticket.strip()
+    ):
+        findings.append(
+            f"{name}: ticket {entry.ticket!r} is not an OMN-<number> reference"
+        )
+    added = _parse_exclusion_date(entry.added)
+    expires = _parse_exclusion_date(entry.expires)
+    if added is None:
+        findings.append(f"{name}: added {entry.added!r} is not a YYYY-MM-DD date")
+    if expires is None:
+        findings.append(f"{name}: expires {entry.expires!r} is not a YYYY-MM-DD date")
+    if added is not None and expires is not None:
+        if expires <= added:
+            findings.append(
+                f"{name}: expires {entry.expires} is not after added {entry.added}"
+            )
+        elif (expires - added).days > SWEEP_EXCLUSION_MAX_DAYS:
+            findings.append(
+                f"{name}: window {(expires - added).days}d exceeds the "
+                f"{SWEEP_EXCLUSION_MAX_DAYS}d cap"
+            )
+    return findings
+
+
+def active_sweep_exclusions(
+    exclusions: Mapping[str, object],
+    *,
+    now: datetime | None,
+) -> tuple[frozenset[str], tuple[str, ...]]:
+    """Return ``(names still excluding, names whose entry has expired)``.
+
+    An entry excludes on every day STRICTLY BEFORE its ``expires`` date, and
+    stops on that date. ``now is None`` excludes NOTHING — a caller with no
+    clock cannot judge an expiry, and the fail-closed answer to that is to
+    enforce, which is the same rule :func:`cancellation_is_provisional` applies
+    to a missing clock.
+    """
+
+    if now is None:
+        return frozenset(), tuple(sorted(exclusions))
+    today = now.date()
+    active: set[str] = set()
+    expired: list[str] = []
+    for name, entry in exclusions.items():
+        if not isinstance(entry, SweepExclusion):
+            expired.append(name)
+            continue
+        expires = _parse_exclusion_date(entry.expires)
+        if (
+            _validate_exclusion_fields(name, entry)
+            or expires is None
+            or today >= expires
+        ):
+            expired.append(name)
+        else:
+            active.add(name)
+    return frozenset(active), tuple(sorted(expired))
+
+
+def check_run_event_index(
+    workflow_runs: list[dict[str, object]] | None,
+) -> dict[int, str]:
+    """Index triggering events by Actions run id; an absent index exempts nothing."""
+
+    index: dict[int, str] = {}
+    for raw in workflow_runs or []:
+        try:
+            run_id = int(str(raw.get("id") or 0))
+        except (TypeError, ValueError):
+            continue
+        event = str(raw.get("event") or "")
+        if run_id and event:
+            index[run_id] = event
+    return index
+
+
+def resolve_check_run_event(
+    raw: dict[str, object], events: dict[int, str]
+) -> str | None:
+    """Unknown provenance is swept, including App rows and missing run ids."""
+
+    run_id = check_run_workflow_run_id(raw)
+    return None if run_id is None else events.get(run_id)
+
+
+def _sweep_failure_reason(name: str, state: CheckRunState, now: datetime | None) -> str:
+    """One refusal line, naming the remedy when the remedy is a re-run.
+
+    Every other conclusion reports as ``<name> (<conclusion>)``. A settled
+    cancellation reports its own token plus how long past the grace it is, so
+    the line says what to do rather than only what happened.
+    """
+
+    if state.conclusion != "cancelled":
+        return f"{name} ({state.conclusion})"
+    completed = _parse_timestamp(state.completed_at)
+    if completed is None or now is None:
+        return (
+            f"{name} ({CANCELLED_WITHOUT_REPLACEMENT}: no replacement row on this "
+            f"head and no readable completion time; re-run the producer)"
+        )
+    age_s = int((now - completed).total_seconds())
+    return (
+        f"{name} ({CANCELLED_WITHOUT_REPLACEMENT}: cancelled {age_s}s ago, past the "
+        f"{CANCELLED_SUPERSESSION_GRACE_S}s re-run grace, and no replacement row "
+        f"exists on this head; re-running the producer clears it)"
+    )
+
+
+def evaluate_external_sweep(
+    check_runs: list[dict[str, object]] | None,
+    *,
+    expected: tuple[str, ...] = EXPECTED_EXTERNAL_CONTEXTS,
+    in_run_names: frozenset[str] = frozenset(),
+    allowlist: frozenset[str] = SOFT_ALLOWLIST,
+    self_name: str = SELF_JOB_NAME,
+    exclusions: Mapping[str, object] | None = None,
+    workflow_runs: list[dict[str, object]] | None = None,
+    own_run_ids: frozenset[int] = frozenset(),
+    now: datetime | None = None,
+) -> tuple[int, str]:
+    """Return the layer-5 verdict for head checks unaccounted for by layers 1-4.
+
+    Only success passes. Reuse layer 4's latest-wins resolution, skip
+    supersession, provisional windows and replacement-run evidence. Scope
+    BEFORE deduplication so an exempt row cannot hide a PR refusal of the
+    same name. Unknown provenance never exempts a row.
+    """
+
+    if exclusions is None:
+        exclusions = EXTERNAL_SWEEP_EXCLUSIONS
+    findings = validate_sweep_exclusions(exclusions)
+    active, expired = active_sweep_exclusions(exclusions, now=now)
+    events = check_run_event_index(workflow_runs)
+    accounted = frozenset(expected) | in_run_names | {self_name}
+    rows = [
+        raw
+        for raw in check_runs or []
+        if str(raw.get("name") or "") not in accounted
+        and not _is_allowlisted(str(raw.get("name") or ""), allowlist)
+        and check_run_workflow_run_id(raw) not in own_run_ids
+        and resolve_check_run_event(raw, events) not in SWEEP_NON_PR_EVENTS
+    ]
+    failures: list[str] = []
+    running: list[str] = []
+    swept: list[str] = []
+    excluded: list[str] = []
+    provisional: list[str] = []
+    for name, state in sorted(dedup_latest_check_runs(rows).items()):
+        if name in active:
+            excluded.append(name)
+            continue
+        swept.append(name)
+        if state.status != "completed":
+            running.append(name)
+        elif state.conclusion in SWEEP_GOOD_CONCLUSIONS:
+            continue
+        elif verdict_is_provisional(state, now) or replacement_run_in_flight(
+            state, workflow_runs
+        ):
+            provisional.append(name)
+        else:
+            failures.append(_sweep_failure_reason(name, state, now))
+
+    code = EXIT_SUCCESS
+    if check_runs is None or running or provisional:
+        code = EXIT_PENDING
+    if findings or failures:
+        code = EXIT_FAILURE
+    verdict = {
+        EXIT_SUCCESS: "SUCCESS",
+        EXIT_FAILURE: "FAILURE",
+        EXIT_PENDING: "PENDING",
+    }[code]
+    lines = [
+        f"External sweep verdict: {verdict}",
+        f"  external default-deny sweep: {len(swept)} unregistered context(s) judged",
+    ]
+    if check_runs is None:
+        lines.append(
+            "  check-runs fetch failed or not yet attempted; sweep unobserved."
+        )
+    for failure in failures:
+        lines.append(
+            f"  external sweep failures (red, and named by NOTHING else): {failure}"
+        )
+    if excluded:
+        lines.append("  external sweep exclusions applied: " + ", ".join(excluded))
+    if expired:
+        lines.append(
+            "  external sweep exclusions EXPIRED (no longer excluding): "
+            + ", ".join(expired)
+        )
+    if provisional:
+        lines.append(
+            "  external sweep rows awaiting an automatic replacement "
+            "(PENDING, re-polled): " + ", ".join(provisional)
+        )
+    if running:
+        lines.append(
+            "  external sweep rows still running (PENDING, re-polled): "
+            + ", ".join(running)
+        )
+    if findings:
+        lines.append(
+            "  external sweep exclusion registry REFUSED: " + "; ".join(findings)
+        )
+    return code, "\n".join(lines)
+
+
 def _worse(a: int, b: int) -> int:
     """FAILURE beats PENDING beats SUCCESS, regardless of numeric exit value."""
 
@@ -2087,25 +2409,19 @@ def _load_check_runs(path: str | None) -> list[dict[str, object]] | None:
 
 
 def _load_workflow_runs(path: str | None) -> list[dict[str, object]] | None:
-    """Load a workflow-runs payload. ``None`` means unavailable (fail-closed)."""
+    """Load run evidence; unavailable data grants no holds or event exemptions."""
 
     if path is None:
         return None
     try:
         with open(path, encoding="utf-8") as handle:
-            raw = handle.read()
-    except OSError:
+            data = json.load(handle)
+    except (OSError, ValueError):
         return None
-    if not raw.strip():
-        return None
-    data = json.loads(raw)
     workflow_runs = data.get("workflow_runs", []) if isinstance(data, dict) else data
     if not isinstance(workflow_runs, list):
-        raise ValueError(
-            "workflow-runs payload must be a list or an object with a "
-            "'workflow_runs' array"
-        )
-    return workflow_runs
+        return None
+    return [run for run in workflow_runs if isinstance(run, dict)]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2120,7 +2436,7 @@ def main(argv: list[str] | None = None) -> int:
         "--check-runs-file",
         default=None,
         help="Path to the commits/{sha}/check-runs JSON for the PR head SHA "
-        "(L4 external-context layer). Omit to skip L4 evaluation entirely "
+        "(L4 external-context layer and L5 default-deny sweep). Omit to skip both "
         "(exit code reflects layers 1-3 only) — used by the unit tests and by "
         "any caller not yet wired for L4.",
     )
@@ -2158,9 +2474,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--workflow-runs-file",
         default=None,
-        help="Path to recent ci.yml workflow runs. Used only to prove that a "
+        help="Path to recent ci.yml workflow runs. Used to prove that a "
         "cancelled own job belongs to a run superseded by a newer run for the "
-        "same pull request.",
+        "same pull request, and to resolve L5 event provenance.",
     )
     parser.add_argument(
         "--current-run-id",
@@ -2171,10 +2487,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--head-workflow-runs-file",
         default=None,
-        help="Path to actions/runs?head_sha=<PR head> JSON. Read ONLY to hold a "
+        help="Path to actions/runs?head_sha=<PR head> JSON. Used to hold a "
         "non-green external context PENDING while its producer is demonstrably "
-        "running again on this head (OMN-17427). Missing/unreadable holds "
-        "nothing, the strict reading.",
+        "running again on this head, and to exempt known non-PR events from "
+        "L5 (OMN-17427). Missing/unreadable grants neither hold nor exemption.",
     )
     parser.add_argument(
         "--pr-number",
@@ -2204,6 +2520,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check_runs_file is not None:
         check_runs = _load_check_runs(args.check_runs_file)
+        head_workflow_runs = _load_workflow_runs(args.head_workflow_runs_file)
+        expected = expected_external_contexts(args.event, ref_name=args.ref_name)
         # The observation time the OMN-17864 / OMN-18355 windows are measured
         # against. It is the process's own wall clock and has NO CLI surface --
         # deliberately, because a caller-assertable time would let a long-dead
@@ -2219,13 +2537,32 @@ def main(argv: list[str] | None = None) -> int:
         # test green.
         ext_code, ext_report = evaluate_external(
             check_runs,
-            expected=expected_external_contexts(args.event, ref_name=args.ref_name),
+            expected=expected,
             actor=args.actor,
             now=observation_time,
-            head_workflow_runs=_load_workflow_runs(args.head_workflow_runs_file),
+            head_workflow_runs=head_workflow_runs,
         )
         print(ext_report)
         code = _worse(code, ext_code)
+        own_run_ids = {
+            run_id
+            for raw in jobs
+            if (run_id := _run_int(raw, "run_id") or check_run_workflow_run_id(raw))
+        }
+        if args.current_run_id:
+            own_run_ids.add(args.current_run_id)
+        sweep_code, sweep_report = evaluate_external_sweep(
+            check_runs,
+            expected=expected,
+            in_run_names=frozenset(dedup_latest(jobs, run_attempt=args.run_attempt))
+            | frozenset(STRICT_GATE_JOBS)
+            | frozenset(SKIPPABLE_GATE_JOBS),
+            own_run_ids=frozenset(own_run_ids),
+            workflow_runs=[*(workflow_runs or []), *(head_workflow_runs or [])],
+            now=observation_time,
+        )
+        print(sweep_report)
+        code = _worse(code, sweep_code)
 
     if args.report_only:
         return EXIT_SUCCESS

@@ -360,6 +360,11 @@ requirements:
     acceptance:
       - id: "AC69"
         statement: "AC69: the fold counts wrong and not_applicable as noise, computes one-round pass share, five-or-more-round share and mean rounds to pass per repo, returns exactly one class-fix request for a class on three distinct PRs inside the window and none for two PRs, many findings on one PR or answers older than the window, and a worker result accepts finding_dispositions -- falsifier: uv run pytest tests/test_golden_chain_node_review_finding_disposition_compute.py -q fails at the merge base"
+  - id: "req-external-default-deny"
+    statement: "CI Summary fails on any pull-request-event check-run on the head that no other layer accounts for unless it carries a dated, ticketed, expiring exclusion, so an unregistered context cannot go red while the umbrella reads green."
+    acceptance:
+      - id: "AC70"
+        statement: "AC70: CI Summary judges every check-run outside this run and the registered contexts and passes only success, holds a running row pending, exempts only a row whose run event is a known non-pull-request event, and refuses a malformed or spent exclusion registry -- falsifier: uv run pytest tests/unit/scripts/ci/test_ci_summary_gate.py -q fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "AC64: the core pin compatibility tests cover both dependency floors and the recorded incident's positive and negative controls."
@@ -490,6 +495,9 @@ evidence_requirements:
   - kind: "tests"
     description: "AC68: the lab-first routing check passes the shipped contracts and refuses each cloud-first mutation."
     command: "uv run pytest tests/unit/delegation/test_lab_first_routing_omn17427.py -q"
+  - kind: "tests"
+    description: "AC70: CI Summary sweeps every unregistered external check-run default-deny with a strict success bar, event scoping and an expiring exclusion registry."
+    command: "uv run pytest tests/unit/scripts/ci/test_ci_summary_gate.py -q"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -1242,3 +1250,18 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_review_finding_disposition_compute/handlers/handler_review_finding_disposition.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("NOISE_DISPOSITIONS", "class_fix_key_for", "_recurring")); print("review finding disposition deploy probe: PASS")'
+  - id: "dod-omn17427-ac70-external-default-deny"
+    description: "CI Summary layer 5 sweeps every unregistered external check-run default-deny: only success passes, a running row holds the verdict, known non-pull-request events are exempt, and the exclusion registry is validated and expires. The tests fail at the merge base, where the layer does not exist."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/scripts/ci/test_ci_summary_gate.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC70"]
+  - id: "dod-omn17427-external-default-deny-deploy-probe"
+    description: "Deploy probe. GitHub serves the CI Summary gate at the checked-out HEAD with the layer-5 sweep. It fails at the merge base, which has no such function, and needs only GitHub access and Python on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/scripts/ci/ci_summary_gate.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert "def evaluate_external_sweep" in source; assert "EXTERNAL_SWEEP_EXCLUSIONS" in source; print("external default-deny deploy probe: PASS")'
