@@ -92,3 +92,29 @@ dod_evidence:
           v = {x.backend_id: x.verdict.value for x in r.rungs}
           assert v["openrouter-nemotron-ultra"] == "UNRESOLVED" and sum(1 for x in r.rungs if x.probed) == 1, v
           print(v["openrouter-nemotron-ultra"], len(r.rungs))'
+  - id: "dod-omn16987-deploy-container-unresolved"
+    description: "Hosted deploy probe: a disposable Python 3.12 container installs this checkout without development dependencies and executes the canary handler over the committed bifrost configuration. One backend has an endpoint and an unresolved secret; it must return UNRESOLVED, every other backend must be skipped, and no transport call or wrong-key control may occur. An installed package without this handler or with a request sent for an unresolved secret fails. Hosted Ubuntu with Docker and public registry access can run the probe."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: |-
+          env docker run --rm --mount type=bind,source="$PWD",target=/workspace,readonly --workdir /workspace -e UV_PROJECT_ENVIRONMENT=/tmp/omn16987-venv -e PYTHONDONTWRITEBYTECODE=1 ghcr.io/astral-sh/uv:python3.12-bookworm uv run --frozen --no-dev python -c '
+          import asyncio, yaml, tempfile, pathlib
+          from omnimarket.nodes.node_provider_rung_canary_effect.handlers import HandlerProviderRungCanary as H
+          from omnimarket.nodes.node_provider_rung_canary_effect.models import ModelProviderRungCanaryRequest as R
+          d = yaml.safe_load(pathlib.Path("src/omnimarket/configs/bifrost_delegation.yaml").read_text())
+          target = "openrouter-nemotron-ultra"
+          for b in d["backends"]:
+              b["endpoint_url"] = "https://openrouter.ai/api/v1/chat/completions" if b["backend_id"] == target else None
+          async def unresolved(ref, env): return None
+          def forbidden(*args): raise SystemExit("request sent for an unresolved ref")
+          with tempfile.TemporaryDirectory() as tmp:
+              p = pathlib.Path(tmp) / "bifrost.yaml"
+              p.write_text(yaml.safe_dump(d))
+              r = asyncio.run(H(unresolved, forbidden).handle(R(contract_path=str(p))))
+          v = {x.backend_id: x.verdict.value for x in r.rungs}
+          assert len(v) == len(d["backends"]) == len(r.rungs), v
+          assert v[target] == "UNRESOLVED" and sum(x.probed for x in r.rungs) == 1, v
+          assert all(value == "SKIPPED_NO_ENDPOINT" for key, value in v.items() if key != target), v
+          assert not any(x.request_sent for x in r.rungs) and not r.controls, r
+          print("container canary readback:", v[target], len(r.rungs), "backends; zero requests; zero controls")'
