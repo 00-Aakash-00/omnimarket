@@ -1,0 +1,83 @@
+---
+schema_version: "1.0.0"
+ticket_id: "OMN-21132"
+title: "TC.9 context-evaluation harness: retrieval metrics compute node (port item AP-E1)"
+summary: "A pure, definition-B compute node, node_retrieval_eval_compute, ports the archived retrieval metrics (recall and precision at k, average precision, reciprocal rank, per-slice aggregation) with their defects fixed: recall divides by the relevant set even when fewer than k items are retrieved, a failed query counts in every denominator, the recall target is a required typed input built from the node contract's config block, and recall at the target cutoff carries a fixed-seed percentile bootstrap interval that is identical between runs. This is the first slice of plan task TC.9; the per-profile manifests, the supersession set and the context-ROI success signal are later slices."
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: "req-tc9-retrieval-metrics"
+    statement: "The TC.9 retrieval metrics are a pure compute node whose definitions fix the archived defects."
+    acceptance:
+      - id: "AC1"
+        statement: "AC1: the retrieval metrics (recall and precision at k, average precision, reciprocal rank) divide recall by the relevant set (so fewer than k retrieved is not zero) -- falsifier: a fixture with fewer than k retrieved that scores zero recall."
+      - id: "AC2"
+        statement: "AC2: a failed query counts in the denominator of every slice mean -- falsifier: a failed query dropped from the denominator."
+      - id: "AC3"
+        statement: "AC3: the recall target and cutoff are a required typed input built from the node contract's config block, with no default in the handler -- falsifier: a request without targets accepted, or a report judged against a target other than the request's."
+      - id: "AC4"
+        statement: "AC4: recall at the target cutoff carries a deterministic interval (fixed-seed bootstrap) -- falsifier: an interval that varies between runs."
+evidence_requirements:
+  - kind: "tests"
+    description: "AC1 to AC4 in the retrieval metric tests and the contract tests."
+    command: "uv run pytest tests/nodes/node_retrieval_eval_compute -q -p no:randomly --no-cov"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn21132-ac1"
+    description: "AC1: one of two relevant items retrieved scores recall 0.5 at k=5 and k=10, not zero; average precision divides by the relevant set."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_retrieval_eval_compute/test_retrieval_eval.py -q -p no:randomly --no-cov -k 'fewer_than_k_retrieved or average_precision'"
+    binds_ac: ["AC1"]
+  - id: "dod-omn21132-ac2"
+    description: "AC2: a perfect query and a failed query in one slice give mean recall 0.5, query_count 2, failed_query_count 1."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_retrieval_eval_compute/test_retrieval_eval.py -q -p no:randomly --no-cov -k 'failed_query_counts or slices_aggregate'"
+    binds_ac: ["AC2"]
+  - id: "dod-omn21132-ac3"
+    description: "AC3: targets built from the contract equal its config defaults and are the report's targets; a request without targets and a missing contract key are refused; the handler reads no file."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_retrieval_eval_compute -q -p no:randomly --no-cov -k 'target or contract_config_defaults or missing_contract or reads_no_file'"
+    binds_ac: ["AC3"]
+  - id: "dod-omn21132-ac4"
+    description: "AC4: two runs over one request give equal reports, and a slice's interval does not depend on the other slices."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_retrieval_eval_compute/test_retrieval_eval.py -q -p no:randomly --no-cov -k 'interval or bootstrap'"
+    binds_ac: ["AC4"]
+  - id: "dod-omn21132-contracts"
+    description: "The node contract declares its topics, resolves its handler, is an onex.nodes entry point and imports no event envelope."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_retrieval_eval_compute/test_contracts.py -q -p no:randomly --no-cov"
+  - id: "dod-omn21132-deploy-container-score"
+    description: "Hosted deploy probe. An ephemeral Python 3.12 container installs the read-only checkout into /tmp with uv run --frozen --no-dev, builds the targets from the node contract's config block, scores one short retrieval and one failed query through the product handler and asserts recall 0.5 at k=10 for the short retrieval, a slice mean of 0.25 over both queries, the contract's target_k of 10, and an interval identical between two runs. It fails at the merge base, which has no such handler. The hosted runner can run it; no lab route is required."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: |-
+          docker run --rm --volume "$PWD:/workspace:ro" --workdir /workspace \
+          --env UV_PROJECT_ENVIRONMENT=/tmp/omnimarket-venv \
+          ghcr.io/astral-sh/uv:python3.12-bookworm-slim \
+          uv run --frozen --no-dev python -c '
+          from omnimarket.models.retrieval_eval import EnumRetrievalQueryOutcome as O, ModelRetrievalEvalQuery as Q, ModelRetrievalEvalRequest as R
+          from omnimarket.nodes.node_retrieval_eval_compute.handlers.handler_retrieval_eval import HandlerRetrievalEval as H, targets_from_contract as T
+          import yaml
+          t = T(yaml.safe_load(open("src/omnimarket/nodes/node_retrieval_eval_compute/contract.yaml", encoding="utf-8")))
+          q = R(targets=t, queries=(Q(query_id="short", slice_name="s", retrieved_ids=("a",), relevant_ids=("a", "b")), Q(query_id="failed", slice_name="s", outcome=O.FAILED, relevant_ids=("a",))), k_values=(10,))
+          a, b = H().handle(q), H().handle(q)
+          assert a.targets.target_k == 10 and a.query_scores[0].recall_at_k[10] == 0.5, a
+          assert a.overall.mean_recall_at_k[10] == 0.25 and a.overall.query_count == 2 and a.overall.failed_query_count == 1, a
+          assert a == b, (a, b)
+          print(a.overall.recall_at_target_k_interval)'

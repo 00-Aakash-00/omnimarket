@@ -1,0 +1,24 @@
+name: node_retrieval_eval_compute
+version: "1.0.0"
+description: "Deterministic retrieval metrics with contract-owned recall targets and percentile bootstrap intervals"
+omnibase_core_compat: ">=0.47.44,<0.48.0"
+entry_points:
+  onex.nodes:
+    node_retrieval_eval_compute: "omnimarket.nodes.node_retrieval_eval_compute"
+capabilities:
+  standalone: true
+  full_runtime: false
+  requires_network: false
+  requires_repo: false
+  requires_secrets: false
+  requires_docker: false
+  side_effect_class: none
+dependencies:
+  - "omnibase_core>=0.47.44"
+authors: ["OmniNode Platform Team"]
+license: "MIT"
+tags: ["compute", "context-eval", "retrieval-metrics", "deterministic"]
+pack: "pipeline"
+display_name: "Retrieval Eval Compute"
+node_role: "compute"
+tickets: ["OMN-21132"]
