@@ -56,4 +56,3 @@ dod_evidence:
           bash -o pipefail -c 'gh api
           "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_tool_result_reduce_compute/handlers/handler_tool_result_reduce.py?ref=$(git rev-parse HEAD)"
           --jq .content | base64 --decode | grep -Fq "exit_status=request.exit_status,"'
-    binds_ac: [AC1]
