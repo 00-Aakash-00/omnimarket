@@ -375,14 +375,39 @@ requirements:
     acceptance:
       - id: "AC71"
         statement: "AC71: a start command with route delegation makes each model call a HandlerDelegateSkill call of task type review pinned to the route key, a delegation that does not complete fails that route, and the completed event carries the verdict and the merged findings (none and no verdict on a failed run) -- falsifier: uv run pytest tests/unit/nodes/node_hostile_reviewer_orchestrator/test_delegation_review_route.py tests/test_golden_chain_hostile_reviewer_orchestrator.py -q -p no:randomly"
+  - id: "req-cli-run-node-on-expected-missing-list"
+    statement: "A node that is run as a CLI and has no onex.nodes entry point is named on the dogfood inventory's expected-missing list, so the inventory check reports no unexplained directory."
+    acceptance:
+      - id: "AC72"
+        statement: "AC72: the market node runtime dogfood inventory classifies node_claude_token_pool_effect as an expected-missing entry point and reports no node directory without an onex.nodes entry point that is not on the list -- falsifier: uv run pytest tests/test_market_node_runtime_dogfood.py -q reports a node directory with no onex.nodes entry point that is not on the list"
+  - id: "req-patch-apply-dispatch"
+    statement: "The patch apply dispatch workflow lives in the portable node package, with typed bus ingress and host-configured registry, runner and ledger writer."
+    acceptance:
+      - id: "AC74"
+        statement: "AC74: the node dispatches unapplied patches, closes applied or expired patches, holds live claims and recent dispatches, and returns a typed terminal through its declared bus contract using host-configured adapters -- falsifier: uv run pytest tests/test_golden_chain_patch_apply_dispatch_effect.py -q fails when the node is absent"
+  - id: "req-gateway-pr-text-cross-repository"
+    statement: "The GitHub gateway's pr_text read reports the head repository and whether the head is cross-repository, so a caller that refuses fork heads reads it from the gateway and needs no gh CLI."
+    acceptance:
+      - id: "AC73"
+        statement: "AC73: the gateway pr_text result carries head_repo and is_cross_repository: True for a fork head and for a head repository that is gone, False for a same-repository head compared without regard to letter case."
+  - id: "req-ci-summary-external-default-deny"
+    statement: |-
+      CI Summary judges every head check-run that earlier layers do not account for with a success-only external sweep, known non-PR event exemptions and validated expiring exclusions.
+    acceptance:
+      - id: "AC74"
+        statement: |-
+          AC74: an unregistered pull_request-event failure reaches a non-zero main() verdict, success passes, running and replacement rows hold PENDING, unknown provenance is swept, known non-PR events are exempt, and malformed or expired exclusions cannot hide a red -- falsifier: the focused external sweep, exclusion and production poller tests fail at the merge base
   - id: "req-dev-cause-lane-receiver"
     statement: "A dev cause-lane request that node_pr_lifecycle_orchestrator publishes for a red landing-branch head reaches a node that starts one cause lane per dispatch key, so ruling 2026-10-14T03:57:46Z item 5 (a component alarm starts a fix lane) has a receiver."
     acceptance:
-      - id: "AC72"
-        statement: "AC72: the receiver starts one lane for a request, answers duplicate for a redelivery and for a restart, keeps a failed start's key taken and says so, answers dry_run and takes no key while act is false, and fails at load when acting without its host environment -- falsifier: uv run pytest tests/nodes/node_dev_cause_lane_receiver_effect -q -p no:randomly --no-cov fails, or passes with a ledger that forgets (the negative control starts two lanes)"
-      - id: "AC73"
-        statement: "AC73: the red-CI chain gate refuses a receiver contract that no longer takes the dev cause-lane request topic as its command topic or routes it to a deleted handler module, and the required lint job and the dev-cause-lane-receiver pre-commit hook run the receiver suite -- falsifier: uv run pytest tests/ci/test_red_ci_bus_chain_omn20730.py -q -p no:randomly --no-cov -k 'receiver'"
+      - id: "AC75"
+        statement: "AC75: the receiver starts one lane for a request, answers duplicate for a redelivery and for a restart, keeps a failed start's key taken and says so, answers dry_run and takes no key while act is false, and fails at load when acting without its host environment -- falsifier: uv run pytest tests/nodes/node_dev_cause_lane_receiver_effect/test_dev_cause_lane_receiver_omn17427.py -q -p no:randomly --no-cov fails, or passes with a ledger that forgets (the negative control starts two lanes)"
+      - id: "AC76"
+        statement: "AC76: the red-CI chain gate refuses a receiver contract that no longer takes the dev cause-lane request topic as its command topic or routes it to a deleted handler module, and the required lint job and the dev-cause-lane-receiver pre-commit hook run the receiver suite -- falsifier: uv run pytest tests/ci/test_red_ci_bus_chain_omn20730.py -q -p no:randomly --no-cov -k 'receiver'"
 evidence_requirements:
+  - kind: "tests"
+    description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
+    command: "uv run pytest tests/test_market_node_runtime_dogfood.py::test_market_node_runtime_dogfood_inventory_classifies_all_entry_points -q"
   - kind: "tests"
     description: "AC71: token-pool unit and contract-handler golden-chain tests use temporary stores and fake tokens."
     command: "uv run pytest tests/nodes/node_claude_token_pool_effect/test_claude_token_pool.py tests/nodes/node_claude_token_pool_effect/test_golden_chain_claude_token_pool_effect.py -q"
@@ -522,13 +547,28 @@ evidence_requirements:
     description: "AC71: the delegation review route and the completed event's verdict and findings."
     command: "uv run pytest tests/unit/nodes/node_hostile_reviewer_orchestrator/test_delegation_review_route.py tests/test_golden_chain_hostile_reviewer_orchestrator.py -q -p no:randomly"
   - kind: "tests"
-    description: "AC72 and AC73: the dev cause-lane receiver's suite and the chain gate's receiver leg."
-    command: "uv run pytest tests/nodes/node_dev_cause_lane_receiver_effect tests/ci/test_red_ci_bus_chain_omn20730.py -q -p no:randomly --no-cov"
+    description: "AC73: the gateway pr_text read reports head_repo and is_cross_repository for same-repository, fork and gone-repository heads."
+    command: "uv run pytest tests/nodes/node_github_repo_gateway_effect/test_github_repo_gateway_scm_reads.py -q -k pr_text"
+  - kind: "tests"
+    description: "AC74: default-deny external sweep, bounded exclusions and the production poller refuse unregistered reds with passing controls."
+    command: >-
+      uv run pytest tests/unit/scripts/ci/test_ci_summary_gate.py -q -p no:cacheprovider -k "TestExternalDefaultDenySweep or TestExternalSweepExclusions or TestSweepIsWiredIntoProductionPoller"
+  - kind: "tests"
+    description: "AC75 and AC76: the dev cause-lane receiver's suite and the chain gate's receiver leg."
+    command: "uv run pytest tests/nodes/node_dev_cause_lane_receiver_effect/test_dev_cause_lane_receiver_omn17427.py tests/ci/test_red_ci_bus_chain_omn20730.py -q -p no:randomly --no-cov"
 emergency_bypass:
   enabled: false
   justification: ""
   follow_up_ticket_id: ""
 dod_evidence:
+  - id: "dod-omn17427-dogfood-inventory-lists-token-pool"
+    description: "The market node runtime dogfood inventory test passes with node_claude_token_pool_effect on the expected-missing entry point list. The list is in the test file, which this pull request changes, so the merge base with the test side laid over it passes the same test. The check names the one inventory test rather than the whole file, which takes longer than the per-check budget."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_market_node_runtime_dogfood.py::test_market_node_runtime_dogfood_inventory_classifies_all_entry_points -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC72"]
   - id: "dod-omn17427-claude-token-pool-unit"
     description: "Account rotation, reset, all-limited alarm, secret-free metadata and CLI refusal paths run against a temporary local secret store. The test file and node are absent at the merge base."
     source: "manual"
@@ -569,6 +609,21 @@ dod_evidence:
           assert {"main", "_pasted"} <= {node.name for node in cli.body if isinstance(node, ast.FunctionDef)}
           print("Claude token pool artifact probe: PASS")
           PY
+  - id: "dod-omn17427-ac74-patch-apply-dispatch"
+    description: "The portable patch dispatch behavior and host adapter boundaries pass the focused suite."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_golden_chain_patch_apply_dispatch_effect.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC74"]
+  - id: "dod-omn17427-patch-apply-dispatch-deploy-probe"
+    description: "Deploy probe. The checked-out package runs its host ingress through the declared event bus with fixture runner and ledger adapters and returns a typed terminal. It fails when the node is absent and requires no network service or credentials."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/test_golden_chain_patch_apply_dispatch_effect.py -q -k test_bus_tick_dispatches_with_configured_host_adapters --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn17427-ac65-ci-red-watcher-facts-only"
     description: "The default runtime handler and compatibility reader retain watcher facts and withhold incomplete observations without raw GitHub subprocesses."
     source: "manual"
@@ -1346,22 +1401,66 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_hostile_reviewer_orchestrator/handlers/handler_delegation_review_inference.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("REVIEW_TASK_TYPE", "backend_id=model_key", "HandlerDelegateSkill")); print("hostile reviewer delegation route deploy probe: PASS")'
-  - id: "dod-omn17427-ac72-dev-cause-lane-receiver"
+  - id: "dod-omn17427-ac70-gateway-pr-text-cross-repository"
+    description: "The gateway pr_text read reports head_repo and is_cross_repository for same-repository, fork and gone-repository heads."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_github_repo_gateway_effect/test_github_repo_gateway_scm_reads.py -q -k pr_text"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC73"]
+  - id: "dod-omn17427-gateway-fork-deploy-probe"
+    description: "Deploy probe. GitHub serves the gateway read operations at the checked-out HEAD reporting is_cross_repository. The probe fails at the merge base, which has no such field, and needs only GitHub access and Python on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_github_repo_gateway_effect/read_operations.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert "is_cross_repository" in source; assert "head_repo" in source; print("gateway pr_text cross-repository deploy probe: PASS")'
+  - id: "dod-omn17427-ac63-external-default-deny"
+    description: "The external sweep, exclusion validation and main() fixture tests pass with refusal and success controls."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: >-
+          uv run pytest tests/unit/scripts/ci/test_ci_summary_gate.py -q -p no:cacheprovider -k "TestExternalDefaultDenySweep or TestExternalSweepExclusions or TestSweepIsWiredIntoProductionPoller"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC74"]
+  - id: "dod-omn17427-external-default-deny-deploy-probe"
+    description: "Deploy probe. The checked-out CI Summary sweep refuses an unregistered failed pull-request check and accepts its success control. The hosted runner needs only Python and this checkout."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: |-
+          python3 - <<'PY'
+          import runpy
+          gate = runpy.run_path("scripts/ci/ci_summary_gate.py")
+          row = {"name": "Unregistered deploy probe", "status": "completed", "conclusion": "failure"}
+          sweep = gate["evaluate_external_sweep"]
+          code, report = sweep([row], expected=(), sweep_exclusions={}, event="pull_request")
+          assert code == gate["EXIT_FAILURE"], report
+          assert row["name"] in report, report
+          row["conclusion"] = "success"
+          code, report = sweep([row], expected=(), sweep_exclusions={}, event="pull_request")
+          assert code == gate["EXIT_SUCCESS"], report
+          print("external default-deny deploy probe: PASS")
+          PY
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac75-dev-cause-lane-receiver"
     description: "The receiver starts one lane per dispatch key, answers duplicate for a redelivery and a restart, keeps a failed start's key, and answers dry_run while act is false."
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/node_dev_cause_lane_receiver_effect -q -p no:randomly --no-cov"
+        check_value: "uv run pytest tests/nodes/node_dev_cause_lane_receiver_effect/test_dev_cause_lane_receiver_omn17427.py -q -p no:randomly --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC72"]
-  - id: "dod-omn17427-ac73-receiver-chain-leg"
+    binds_ac: ["AC75"]
+  - id: "dod-omn17427-ac76-receiver-chain-leg"
     description: "The chain gate refuses a receiver contract that drops the request topic or names a deleted handler module."
     source: "manual"
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/ci/test_red_ci_bus_chain_omn20730.py -q -p no:randomly --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC73"]
+    binds_ac: ["AC76"]
   - id: "dod-omn17427-dev-cause-lane-receiver-probe"
     description: "Deploy probe. GitHub serves the receiver handler at the checked-out HEAD, defining HandlerDevCauseLaneStart and taking the dispatch key before it calls the runner. It fails at the merge base, where the handler does not exist, and needs only GitHub access and Python on the hosted runner."
     source: "manual"
