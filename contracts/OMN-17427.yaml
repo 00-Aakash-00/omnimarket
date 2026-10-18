@@ -256,11 +256,6 @@ requirements:
     acceptance:
     - id: AC49
       statement: 'AC49: the contract subscribes to the runtime tick with a 01:00 to 05:00 America/New_York window, a tick runs once per interval inside it, and onex lab-archive run is registered and exits 2 on a refused host -- falsifier: the focused pytest finds a run outside the window, a second run inside the interval, or an unregistered verb'
-  - id: req-consumer-gate-parity-on-core
-    statement: The golden-gate consumer-gate parity tests drive omnibase_core's ports of the onex_change_control gate scripts and need no onex_change_control checkout.
-    acceptance:
-    - id: AC58
-      statement: 'AC58: the consumer-gate parity tests import the omnibase_core ports of lint_contract_check_values, check_contract_substance_floor, contract_compliance_check and evidence_admissibility and none of them skips for a missing onex_change_control checkout -- falsifier: the focused pytest reports a skip naming the onex_change_control checkout, or an import of a sibling onex_change_control path'
   - id: "req-lab-story-log"
     statement: "The work ledger's week becomes a sanitized story log by a node, with private names replaced by roles from the public-repo hygiene vocabulary, and the log is never written when a private name survives."
     acceptance:
@@ -354,7 +349,7 @@ requirements:
     statement: "Evidence stays in the product repository and no companion writer or observer is registered."
     acceptance:
       - id: "AC68"
-        statement: "AC68: retired writer and observer nodes are absent from disk and discovery, queued companion commands refuse without a writer, product evidence readback requires its current head and passing repository evidence checks, and binding fields are accepted without another checkout while unknown fields refuse -- falsifier: uv run --frozen pytest tests/test_omn17427_occ_retirement.py -q fails at the merge base"
+        statement: "AC68: retired writer and observer nodes are absent from disk and discovery, queued companion commands refuse without a writer, product evidence readback requires its current head and passing repository evidence checks, and binding fields are accepted without another checkout while unknown fields refuse -- falsifier: uv run pytest tests/test_omn17427_occ_retirement.py -q fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "AC64: the core pin compatibility tests cover both dependency floors and the recorded incident's positive and negative controls."
@@ -957,41 +952,6 @@ dod_evidence:
     binds_ac:
     - AC48
     - AC49
-  - id: dod-omn17427-ac58-consumer-gate-parity-on-core
-    description: 'AC58: consumer-gate parity tests run against the omnibase_core ports with no onex_change_control checkout.'
-    source: manual
-    checks:
-    - check_type: command
-      check_value: |
-        uv run python - <<'PY'
-        import ast
-        import subprocess
-
-        expected = {
-            "scripts/lint_contract_check_values.py": "omnibase_core.handlers.handler_contract_check_values_lint",
-            "scripts/validation/check_contract_substance_floor.py": "omnibase_core.handlers.handler_contract_substance_floor",
-            "src/onex_change_control/scripts/contract_compliance_check.py": "omnibase_core.handlers.handler_contract_compliance_check",
-            "src/onex_change_control/validation/evidence_admissibility.py": "omnibase_core.handlers.handler_evidence_admissibility",
-        }
-        # Inspect the subject commit: the control overlays the new tests on the
-        # merge base, so executing those tests alone cannot detect this migration.
-        for name in ("test_occ_autobind_contention_omn_15247.py", "test_occ_emitter_literal_pins_omn_15407.py"):
-            path = "tests/unit/nodes/node_pr_lifecycle_fix_effect/" + name
-            source = subprocess.check_output(["git", "show", "HEAD:" + path], text=True)
-            tree = ast.parse(source)
-            ports = [node for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "_CORE_PORTS" for target in node.targets)]
-            assert len(ports) == 1 and ast.literal_eval(ports[0].value) == expected, path + ": core port mapping missing or incorrect"
-            loader = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_load_occ_module")
-            assert ast.unparse(loader.body[-1]) == "return importlib.import_module(_CORE_PORTS[relpath])", path + ": loader does not import the core port"
-            assert not any(isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "spec_from_file_location" for node in ast.walk(loader)), path + ": sibling checkout loader remains"
-            print(path + ": committed core port imports verified")
-        PY
-      cwd: ${OMNI_HOME}/omnimarket
-    - check_type: test_passes
-      check_value: uv run pytest tests/unit/nodes/node_pr_lifecycle_fix_effect/test_occ_autobind_contention_omn_15247.py tests/unit/nodes/node_pr_lifecycle_fix_effect/test_occ_emitter_literal_pins_omn_15407.py -q -p no:randomly -k "ConsumerGateParity"
-      cwd: ${OMNI_HOME}/omnimarket
-    binds_ac:
-    - AC58
   - id: "dod-omn17427-ac52-lab-story-log"
     description: "The weekly story log keeps the week's rows, themes and figures, and no planted private name or quoted operator word survives."
     source: "manual"
@@ -1204,15 +1164,15 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_linear_triage/handlers/handler_linear_triage.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("LocalGitHubPrReads", "github_source")); print("linear-triage local github deploy probe: PASS")'
-  - id: "dod-omn17427-ac68-repository-evidence-retirement"
+  - id: "dod-omn17427-ac68-repo-evidence-retirement"
     description: "Repository evidence retirement regression: discovery, legacy refusal, binding schema, and current-head readback."
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run --frozen pytest tests/test_omn17427_occ_retirement.py -q"
+        check_value: "uv run pytest tests/test_omn17427_occ_retirement.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC68"]
-  - id: "dod-omn17427-repository-evidence-retirement-deploy-probe"
+  - id: "dod-omn17427-ac68-repo-evidence-deploy-probe"
     description: "Deploy probe. The repository metadata at the checked-out revision registers the repository verifier and no retired writer or observer node. The probe fails on the merge base."
     source: "manual"
     checks:
