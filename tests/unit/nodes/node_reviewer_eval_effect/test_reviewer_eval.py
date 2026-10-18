@@ -164,6 +164,22 @@ def test_a_grown_set_with_a_raised_baseline_holds() -> None:
     assert not scored.regressed
 
 
+@pytest.mark.parametrize(
+    ("true_catches", "match"),
+    [(False, "no true catch"), (True, "no clean case")],
+)
+def test_a_set_without_both_kinds_of_case_is_refused_before_any_division(
+    true_catches: bool, match: str
+) -> None:
+    cases = [
+        c
+        for c in CASES.model_dump(mode="json")["cases"]
+        if (c["label"] == "true_catch") is true_catches
+    ]
+    with pytest.raises(ValidationError, match=match):
+        _with(cases=cases)
+
+
 def test_a_block_case_must_carry_its_recorded_block() -> None:
     cases = CASES.model_dump(mode="json")["cases"]
     cases[0]["recorded_verdict"] = "passed"
@@ -220,7 +236,7 @@ def test_the_cli_scores_live_results_and_publishes_the_score(
 
 
 def test_the_cli_fails_a_live_run_that_misses_a_catch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("KAFKA_BROKERS", raising=False)
     for case in CASES.cases:
@@ -231,6 +247,7 @@ def test_the_cli_fails_a_live_run_that_misses_a_catch(
             encoding="utf-8",
         )
     assert main(["--reviewer-ref", "x", "--observed-dir", str(tmp_path)]) == 1
+    assert "REGRESSION: recall" in capsys.readouterr().err
 
 
 def test_the_cli_refuses_a_lowered_baseline_against_the_base_copy(
