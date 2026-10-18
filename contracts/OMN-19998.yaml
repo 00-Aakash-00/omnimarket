@@ -150,6 +150,11 @@ requirements:
     acceptance:
       - id: "AC28"
         statement: "AC28: hostile-reviewer.yml clones omniintelligence at 037af72c2a7f49fda953fed6a99edd5ec588dede, the merge commit of omniintelligence#1095 and a descendant of the previous pin 3502f0de2f9be25cf68e3dc5877d9cb5580c90e0 -- falsifier: uv run pytest tests/ci/test_hostile_reviewer_pin_budget_timeout_omn19998.py -q fails over the merge base's workflow, which pins 3502f0de2f9be25cf68e3dc5877d9cb5580c90e0"
+  - id: "req-dev-tag-pin-mover"
+    statement: "Operator rulings 2026-10-16T07:34:18Z and 09:35:49Z: when a sibling gets a new dev tag, a consumer's uv git source for it moves to that tag only after the consumer's tests pass on it; node_dev_tag_pin_mover_compute is the pure half of that move."
+    acceptance:
+      - id: "AC29"
+        statement: "AC29: node_dev_tag_pin_mover_compute rewrites exactly the named sibling's git tag pin to a newer dev-<UTC14>-<sha12> tag when consumer_tests is passed, returns the candidate without accepting when not_run, and refuses with consumer_tests_failed, not_a_dev_tag, not_forward or no_tag_pin leaving the file unchanged -- falsifier: uv run pytest tests/nodes/node_dev_tag_pin_mover_compute/test_golden_chain_dev_tag_pin_mover_compute.py -q fails when the handler's failed-tests branch is removed"
 evidence_requirements:
   - kind: "tests"
     description: "Every repo contract binds each criterion to repo pytest evidence."
@@ -618,3 +623,18 @@ dod_evidence:
         check_value: "uv run pytest tests/ci/test_hostile_reviewer_pin_budget_timeout_omn19998.py tests/ci/test_hostile_reviewer_pin_structured_votes_omn19998.py tests/ci/test_hostile_reviewer_pin_retry_budget_omn17427.py tests/ci/test_hostile_reviewer_head_sha_omn20947.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC28"]
+  - id: "dod-omn19998-dev-tag-pin-mover"
+    description: "The dev-tag pin mover golden-chain tests pass at the head; with the failed-tests branch removed two tests fail, and at the merge base the node does not exist."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_dev_tag_pin_mover_compute/test_golden_chain_dev_tag_pin_mover_compute.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC29"]
+  - id: "dod-omn19998-dev-tag-pin-mover-deploy-probe"
+    description: "Hosted-runner probe runs the node module on a consumer pin with failed tests and requires the refusal exit 1; the merge base has no such module and fails."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          printf 'omnibase-infra = { git = "https://github.com/OmniNode-ai/omnibase_infra.git", tag = "dev-20261016204728-0f7bee98bd8f" }\n' > /tmp/omn19998-pin-probe.toml; uv run python -m omnimarket.nodes.node_dev_tag_pin_mover_compute --pyproject /tmp/omn19998-pin-probe.toml --distribution omnibase-infra --repository-url https://github.com/OmniNode-ai/omnibase_infra.git --tag dev-20261018005623-b5f4c2e36e72 --tests failed; test $? -eq 1 && grep -q dev-20261016204728-0f7bee98bd8f /tmp/omn19998-pin-probe.toml
