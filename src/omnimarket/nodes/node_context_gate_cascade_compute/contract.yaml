@@ -1,0 +1,68 @@
+---
+name: node_context_gate_cascade_compute
+contract_version: {major: 1, minor: 0, patch: 0}
+node_version: {major: 1, minor: 0, patch: 0}
+node_type: compute
+runtime_profiles: [main]
+description: >
+  Deterministic TE.7 scoring of recorded gate cascades. Requires every declared
+  case in each of three repeats, compares recall per cell, and reports cost
+  including the gate. No model calls, source content, gate prose or pack output.
+handler_routing:
+  routing_strategy: operation_match
+  handlers:
+    - operation: context_gate_cascade
+      handler:
+        name: HandlerContextGateCascade
+        module: omnimarket.nodes.node_context_gate_cascade_compute.handlers.handler_context_gate_cascade
+handler:
+  module: omnimarket.nodes.node_context_gate_cascade_compute.handlers.handler_context_gate_cascade
+  class: HandlerContextGateCascade
+  input_model: omnimarket.models.context_gate_cascade.model_context_gate_cascade_request.ModelContextGateCascadeRequest
+  output_model: omnimarket.models.context_gate_cascade.model_context_gate_cascade_result.ModelContextGateCascadeResult
+descriptor:
+  node_archetype: compute
+  purity: pure
+  idempotent: true
+  timeout_ms: 5000
+inputs:
+  run_id: {type: str, required: true}
+  profile: {type: str, required: true}
+  role: {type: str, required: true}
+  gate: {type: str, required: true}
+  rung_id: {type: str, required: true}
+  winner_evidence_id: {type: str, required: true}
+  winner_passed: {type: bool, required: true}
+  gate_training_evidence_id: {type: str, required: false}
+  work_unit_repository: {type: str, required: true}
+  repository_visibility: {type: str, required: true}
+  case_ids: {type: tuple, required: true}
+  trials: {type: tuple, required: true}
+outputs:
+  run_id: {type: str}
+  profile: {type: str}
+  role: {type: str}
+  gate: {type: str}
+  rung_id: {type: str}
+  winner_evidence_id: {type: str}
+  gate_training_evidence_id: {type: str}
+  work_unit_repository: {type: str}
+  repository_visibility: {type: str}
+  recommended: {type: bool}
+  reasons: {type: tuple}
+  rows: {type: tuple}
+  ungated_cost_microusd: {type: int}
+  cascade_cost_microusd: {type: int}
+  cost_saved_microusd: {type: int}
+terminal_event: onex.evt.omnimarket.context-gate-cascade-evaluated.v1
+event_bus:
+  subscribe_topics:
+    - onex.cmd.omnimarket.context-gate-cascade-requested.v1
+  publish_topics:
+    - onex.evt.omnimarket.context-gate-cascade-evaluated.v1
+runtime_dispatch:
+  command_topic: onex.cmd.omnimarket.context-gate-cascade-requested.v1
+externally_consumed_topics:
+  - onex.evt.omnimarket.context-gate-cascade-evaluated.v1
+metadata:
+  transport_type: kafka

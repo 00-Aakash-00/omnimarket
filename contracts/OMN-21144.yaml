@@ -1,0 +1,77 @@
+---
+schema_version: "1.0.0"
+ticket_id: "OMN-21144"
+title: "TE.7 recorded gate cascade scoring"
+summary: >-
+  Contract-first compute slice for scoring recorded cascades. Measurements of
+  real gates against upstream winning rungs and the evaluation report remain
+  pending. Synthetic controls test per-cell recall, cost and content boundaries;
+  they are not evidence that a real gate should be adopted.
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: "req-te7-gate-cascade"
+    statement: "Score gate cascades before recommending a gate."
+    acceptance:
+      - id: "AC1"
+        statement: "AC1: a gate is recommended only if the cascade's hard-gate recall equals the ungated rung's in every case and repeat, and the report states the cost saved -- falsifier: a recommended gate with any recall loss."
+      - id: "AC2"
+        statement: "AC2: Jev receives only work units attributed to a public repository -- falsifier: a Jev call log entry for a private work unit."
+      - id: "AC3"
+        statement: "AC3: no gate output appears as text in any package -- falsifier: gate output in a rendered package."
+evidence_requirements:
+  - kind: "tests"
+    description: "Recorded-evidence scorer controls, including the lab adapter/bus path. Real gate runs are pending."
+    command: "uv run pytest tests/nodes/node_context_gate_cascade_compute/test_context_gate_cascade.py -q -n 0"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn21144-ac1-scorer-controls"
+    description: >-
+      Synthetic paired recordings: a loss in one repeat, case-level losses hidden
+      by totals, missing cells, parse failures, absent winners, vacuous recall
+      and gate-inclusive costs are controls on the scorer. Live round pending.
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_context_gate_cascade_compute/test_context_gate_cascade.py -q -n 0 -k ac1"
+    binds_ac: ["AC1"]
+  - id: "dod-omn21144-ac2-evidence-privacy"
+    description: >-
+      Scoring rejects private and unknown Jev recording attribution. This pure
+      node makes no model calls; the live runner and call-log audit are pending.
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_context_gate_cascade_compute/test_context_gate_cascade.py -q -n 0 -k ac2"
+    binds_ac: ["AC2"]
+  - id: "dod-omn21144-ac3-content-free-scoring"
+    description: >-
+      Scoring refuses gate prose and has no rendered package output. Integration
+      of real gate decisions ahead of the winning rung is pending.
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_context_gate_cascade_compute/test_context_gate_cascade.py -q -n 0 -k ac3"
+    binds_ac: ["AC3"]
+  - id: "dod-omn21144-deploy-adapter-probe"
+    description: >-
+      Hosted deploy probe: in an ephemeral Python container, load the checked-out
+      node contract and execute synthetic paired recordings through the existing
+      runtime adapter and in-memory bus. Assert the contract topics, recommended
+      verdict and measured synthetic savings. Fails when the route or handler is
+      absent. No external lab service, credentials or model endpoint is used.
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          docker run --rm --volume "$PWD:/workspace:ro" --workdir /workspace
+          --env UV_PROJECT_ENVIRONMENT=/tmp/cascade-venv
+          --env UV_CACHE_DIR=/tmp/uv-cache
+          ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+          uv run --frozen pytest
+          tests/nodes/node_context_gate_cascade_compute/test_context_gate_cascade.py
+          -q -n 0 -k lab_runtime_adapter_bus_round_trip
