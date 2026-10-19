@@ -18,13 +18,16 @@ reference gets ONE authenticated minimal chat completion and a typed verdict.
   read ``AUTH_DEAD``; a probe that reads 200 whatever it sends measures nothing.
 * No resolved value leaves this handler: every string fact is scrubbed of the
   key sent with the request, the result is scrubbed again as a whole, and a
-  provider that quotes a key back is counted in ``key_echoes``.
+  provider that quotes a key back is counted in ``key_echoes``. The suppression
+  state file holds only backend id, reset instant and quota code, scrubbed,
+  owner-only.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -165,11 +168,31 @@ def _load_state(path: str | None) -> list[ModelProviderRungSuppression]:
     return [ModelProviderRungSuppression.model_validate(r) for r in raw]
 
 
-def _save_state(path: str, rows: tuple[ModelProviderRungSuppression, ...]) -> None:
-    Path(path).write_text(
-        json.dumps([r.model_dump(mode="json") for r in rows], sort_keys=True),
+def _save_state(
+    path: str, rows: tuple[ModelProviderRungSuppression, ...], secrets: set[str]
+) -> None:
+    secret_values = sorted(secrets, key=len, reverse=True)
+    safe_rows: list[dict[str, str | None]] = []
+    for row in rows:
+        fields = {
+            "backend_id": row.backend_id,
+            "until": row.until.isoformat(),
+            "quota_code": row.quota_code,
+        }
+        for name, value in fields.items():
+            if isinstance(value, str):
+                for secret in secret_values:
+                    if secret:
+                        value = value.replace(secret, REDACTED)
+                fields[name] = value
+        safe_rows.append(fields)
+    with os.fdopen(
+        os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600),
+        "w",
         encoding="utf-8",
-    )
+    ) as stream:
+        stream.write(json.dumps(safe_rows, sort_keys=True))
+    os.chmod(path, 0o600)
 
 
 def _table(rungs: tuple[ModelProviderRungVerdict, ...]) -> str:
@@ -395,7 +418,7 @@ class HandlerProviderRungCanary:
         )
         result = _scrub_result(result, secrets)
         if request.state_path:
-            _save_state(request.state_path, result.suppressions)
+            _save_state(request.state_path, result.suppressions, secrets)
         return result
 
 

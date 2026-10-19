@@ -4,7 +4,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import stat
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -338,6 +341,45 @@ async def test_ac5_1310_with_reset_suppresses_reprobe_in_window(tmp_path: Path) 
     result = await HandlerProviderRungCanary(_resolver(KEYS), third).handle(after)
     assert [r.verdict for r in result.rungs if r.backend_id == "cloud-glm"] == [V.LIVE]
     assert result.suppressions == ()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("preexisting", [False, True])
+async def test_state_file_holds_no_key_material_and_is_owner_only(
+    tmp_path: Path, preexisting: bool
+) -> None:
+    ends = {"cloud-glm": GLM_URL}
+    state = tmp_path / "state.json"
+    if preexisting:
+        state.write_text("[]", encoding="utf-8")
+        os.chmod(state, 0o644)
+    answer = {
+        **ZAI_1310,
+        "body": {
+            "error": {
+                **ZAI_1310["body"]["error"],
+                "message": "Weekly limit reached for key "
+                + KEYS["llm.glm.api_key"]
+                + ". Your limit will reset at 2026-10-19 08:00:00",
+            }
+        },
+    }
+    await HandlerProviderRungCanary(
+        _resolver(KEYS), FakeTransport({GLM_URL: answer})
+    ).handle(_request(_contract(tmp_path, ends), state_path=str(state)))
+
+    assert state.exists()
+    text = state.read_text(encoding="utf-8")
+    assert SENTINEL not in text
+    rows = json.loads(text)
+    assert isinstance(rows, list)
+    assert all(set(row) == {"backend_id", "until", "quota_code"} for row in rows)
+    [glm] = [row for row in rows if row["backend_id"] == "cloud-glm"]
+    assert datetime.fromisoformat(glm["until"]) == datetime(
+        2026, 10, 19, 8, 0, tzinfo=UTC
+    )
+    assert stat.S_IMODE(os.stat(state).st_mode) == 0o600
 
 
 @pytest.mark.unit
