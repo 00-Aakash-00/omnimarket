@@ -2190,16 +2190,22 @@ def _stamp_accepting_attempt(
     row: dict[str, object],
     attempts: Iterable[ModelDelegateSkillAttemptRecord],
 ) -> None:
-    """Name the backend and host of the attempt that answered (OMN-20162).
+    """Name the backend, host and model of the attempt that answered (OMN-20162).
 
     The accepting attempt is the first rung whose quality gate passed and that
-    carries no failure class. A terminal with no accepted rung names neither
-    column, so the row stores NULL, never an empty backend.
+    carries no failure class. Its model is the model that answered, the same
+    value the canonical terminal writes as routed_model (OMN-19448).
+    A terminal with no accepted rung names none of the columns, so the row
+    stores NULL, never an empty backend, host or model.
     """
     for attempt in attempts:
         if not attempt.quality_gate_passed or (attempt.failure_class or "").strip():
             continue
-        for key, value in (("backend_id", attempt.backend_id), ("host", attempt.host)):
+        for key, value in (
+            ("backend_id", attempt.backend_id),
+            ("host", attempt.host),
+            ("routed_model", attempt.model_id),
+        ):
             text = _blank_to_none(value)
             if text is not None:
                 row[key] = text

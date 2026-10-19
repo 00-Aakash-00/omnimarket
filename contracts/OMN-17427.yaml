@@ -586,6 +586,11 @@ requirements:
     acceptance:
       - id: "AC109"
         statement: "AC109: the dependency provenance tests accept canonical sibling dev tags without annotations and refuse foreign git sources, branches, bare revisions, malformed tags and conflicting selectors."
+  - id: "req-delegate-skill-routed-model-stored"
+    statement: "delegation_events.routed_model is written from a delegate-skill terminal's accepting attempt (its model_id) by both projection writers, the same value the canonical terminal writes as model_used; a ladder with no accepted rung or a blank model_id leaves it NULL, and a later sparse terminal keeps the stored value. answering_backend stays the terminal's route."
+    acceptance:
+      - id: "AC110"
+        statement: "AC110: the sync and async delegate-skill row builders store the accepting attempt's model_id as routed_model, leave it NULL for a refused ladder, an empty ladder or a blank model_id, keep it across a later sparse terminal, and leave answering_backend NULL -- falsifier: uv run pytest tests/unit/delegation/test_delegate_skill_routed_model_omn19448.py -q fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -2310,4 +2315,20 @@ dod_evidence:
     checks:
       - check_type: "command"
         check_value: "uv run pytest tests/scripts/test_check_dep_provenance.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac110-delegate-skill-routed-model"
+    description: "Both projection writers store a delegate-skill terminal's accepting-attempt model as routed_model. At the merge base 5 of the 15 tests fail (routed_model stays NULL on an accepted ladder, across a sparse terminal and on the async writer's insert) and the 10 null controls pass; at the head all 15 pass. Read of the lab dev lane database (omnidash_analytics) before the change: since 2026-10-19T12:00Z, 1369 of 1788 delegation_events rows had a NULL routed_model while their accepting attempt named model_id, and on all 8005 rows since 2026-10-15 where the canonical terminal wrote routed_model and an accepting attempt exists, routed_model equals that attempt's model_id."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_delegate_skill_routed_model_omn19448.py -q -p no:cacheprovider"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC110"]
+  - id: "dod-omn17427-skill-routed-model-deploy-probe"
+    description: "Deploy probe. The checked-out source of the accepting-attempt stamp shared by both delegate-skill row builders names routed_model from the attempt's model_id. It fails at the merge base, where the stamp names only backend_id and host, and needs only a shell and this checkout on the hosted runner; the behavioural proof stays in the test_passes check bound to AC110."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: |-
+          sh -c 'set -eu; grep -Fq "(\"routed_model\", attempt.model_id)" src/omnimarket/nodes/node_projection_delegation/handlers/handler_projection_delegation.py; echo "delegate-skill routed_model deploy probe: PASS"'
         cwd: "${OMNI_HOME}/omnimarket"
