@@ -440,6 +440,11 @@ requirements:
     acceptance:
       - id: "AC78"
         statement: "AC78: the review class declares lab_rubric verdict fail with its 25 of 60 measurement for Qwen3.8-27B, the recorded verdict is the one that measurement earns against the policy bar, and the shipped contracts still pass the lab-first routing check -- falsifier: uv run pytest tests/unit/delegation/test_lab_first_routing_omn17427.py -q -p no:randomly --no-cov -k review_measurement fails while the class reads unmeasured"
+  - id: "req-rehome-leaf-nodes-s2"
+    statement: "The friction synthesis and host thermal observe nodes live in omnimarket with their contracts, handlers, models and tests."
+    acceptance:
+      - id: "AC92"
+        statement: "AC92: node_friction_synthesis_effect and node_host_thermal_observe_effect resolve from omnimarket, each contract names an omnimarket terminal event, and their handlers produce the accounting and thermal reading the nodes had before the move -- falsifier: uv run pytest tests/nodes/node_friction_synthesis_effect/test_friction_synthesis.py tests/nodes/node_friction_synthesis_effect/test_golden_chain_friction_synthesis_effect.py tests/nodes/node_host_thermal_observe_effect/test_host_thermal_observe.py tests/nodes/node_host_thermal_observe_effect/test_golden_chain_host_thermal_observe_effect.py -q -p no:randomly"
   - id: "req-lab-fill-repeat-limit"
     statement: "Lab-fill stops re-dispatching a ticket whose last repeat_limit lanes all ended blocked, partial or no-op: the cooldown no longer releases it, and only a change to the ticket or its pull requests does, for ordinary tickets and for DoD-verify lanes alike."
     acceptance:
@@ -642,6 +647,9 @@ evidence_requirements:
   - kind: "tests"
     description: "AC79: the summarization gate refuses an answer over a stated word limit and waives the rule for a prompt with no limit."
     command: "uv run pytest tests/unit/delegation/test_omn17427_summarization_word_limit.py tests/test_omn19320_check_register.py -q"
+  - kind: "tests"
+    description: "AC92: the friction synthesis and host thermal observe node tests pass in omnimarket."
+    command: "uv run pytest tests/nodes/node_friction_synthesis_effect/test_friction_synthesis.py tests/nodes/node_friction_synthesis_effect/test_golden_chain_friction_synthesis_effect.py tests/nodes/node_host_thermal_observe_effect/test_host_thermal_observe.py tests/nodes/node_host_thermal_observe_effect/test_golden_chain_host_thermal_observe_effect.py -q -p no:randomly"
   - kind: "tests"
     description: "AC81: check-suite run provenance and unreadable workflow-runs files in the external sweep."
     command: >-
@@ -1675,6 +1683,14 @@ dod_evidence:
           print("review lab rubric deploy probe: PASS")
           PY
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac92-rehome-leaf-nodes-s2"
+    description: "The friction synthesis and host thermal observe node tests pass against the omnimarket copies."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_friction_synthesis_effect/test_friction_synthesis.py tests/nodes/node_friction_synthesis_effect/test_golden_chain_friction_synthesis_effect.py tests/nodes/node_host_thermal_observe_effect/test_host_thermal_observe.py tests/nodes/node_host_thermal_observe_effect/test_golden_chain_host_thermal_observe_effect.py -q -p no:randomly"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC92"]
   - id: "dod-omn17427-ac76-lab-fill-repeat-limit"
     description: "The lab-fill repeat-limit hold passes for ordinary tickets and DoD-verify lanes."
     source: "manual"
