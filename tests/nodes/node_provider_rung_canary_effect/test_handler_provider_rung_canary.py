@@ -356,7 +356,7 @@ async def test_state_file_holds_no_key_material_and_is_owner_only(
     state = tmp_path / "state.json"
     if preexisting:
         state.write_text("[]", encoding="utf-8")
-        os.chmod(state, 0o644)
+        os.chmod(state, 0o700)  # a preexisting mode the handler must replace with 0o600
     answer = {
         **ZAI_1310,
         "body": {
