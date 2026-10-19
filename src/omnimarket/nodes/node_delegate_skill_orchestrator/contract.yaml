@@ -74,6 +74,7 @@ outputs:
       # OMN-20117: the runtime shut down (redeploy, restart, stop) while the
       # run was in flight; the handler answers its cancellation with this.
       - runtime_shutdown
+      - refused_before_dispatch
     description: Stable machine-readable terminal failure cause when known.
   credential_refusal:
     type: dict
@@ -90,10 +91,11 @@ outputs:
     type: int
     required: false
     default: 1
-    minimum: 1
+    minimum: 0
     description: >
       Authoritative total inference calls, including compliance repairs,
-      same-tier retries, and the terminal attempt.
+      same-tier retries, and the terminal attempt. Zero is reserved for a
+      request refused before dispatch; an omitted count retains one.
   queue_wait_ms:
     type: int
     required: false
