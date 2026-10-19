@@ -89,6 +89,23 @@ _GIT_STATUS_TO_GITHUB: Final[dict[str, str]] = {
 # OMN-20886: the evidence-governance repository is never a product repository.
 _GOVERNANCE_REPO_NAME: Final[str] = "onex_change_control"
 
+# OMN-19528: the product repositories that carry ``contracts/<ticket>.yaml``.
+# A runtime image has an ``$OMNI_HOME`` directory and no canonical clone in it,
+# so there is no clone to ask which of them carries a ticket's contract; these
+# are the candidates the merged-PR listing then reads through GitHub. Adding a
+# repository here is the whole change needed to govern its tickets there.
+RUNTIME_CONTRACT_REPOSITORIES: Final[tuple[str, ...]] = (
+    "OmniNode-ai/omnibase_compat",
+    "OmniNode-ai/omnibase_core",
+    "OmniNode-ai/omnibase_infra",
+    "OmniNode-ai/omnibase_spi",
+    "OmniNode-ai/omniclaude",
+    "OmniNode-ai/omnidash",
+    "OmniNode-ai/omniintelligence",
+    "OmniNode-ai/omnimarket",
+    "OmniNode-ai/omnimemory",
+)
+
 # The parsed watcher file, keyed by (path, mtime): one parse per process.
 _STATE_CACHE: dict[tuple[str, float], dict[str, Any]] = {}
 # Gateway answers per (repo, number) for the process, absences included, so a
@@ -654,19 +671,25 @@ class DodEvidenceLocalSource:
         carried ``contracts/<ticket_id>.yaml`` (OMN-20886), sorted.
 
         ``None`` when ``$OMNI_HOME`` is unset, so the caller can tell "no
-        repository carries it" from "no clone could be asked".
+        repository carries it" from "no clone could be asked". When the
+        directory exists but holds no canonical clone at all (a runtime image),
+        the answer is :data:`RUNTIME_CONTRACT_REPOSITORIES`: candidates for the
+        caller to read through GitHub, not repositories known to carry it
+        (OMN-19528).
         """
         registry_root = os.environ.get("OMNI_HOME")
         if not registry_root or not Path(registry_root).is_dir():
             return None
         rel = f"contracts/{ticket_id}.yaml"
         found: list[str] = []
+        asked = 0
         for clone in sorted(Path(registry_root).iterdir()):
             if clone.name == _GOVERNANCE_REPO_NAME or not (clone / ".git").exists():
                 continue
             repo = self.cwd_repo(clone)
             if repo is None or canonical_clone(repo) != clone:
                 continue
+            asked += 1
             branch = self._default_branch(repo)
             ref = self._clone_ref(clone, branch) if branch else None
             if ref is None:
@@ -674,6 +697,8 @@ class DodEvidenceLocalSource:
             rc, out = _git(clone, "log", "-1", "--format=%H", ref, "--", rel)
             if rc == 0 and out.strip():
                 found.append(repo)
+        if asked == 0:
+            return sorted(RUNTIME_CONTRACT_REPOSITORIES)
         return found
 
     def repo_contract_at(

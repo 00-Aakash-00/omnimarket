@@ -76,6 +76,7 @@ def _no_host_local_source(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(hd_mod, "_REQUIRED_CONTEXTS_CACHE", {}, raising=False)
     monkeypatch.setattr(hd_mod, "_MERGED_CHECKS_GREEN_CACHE", {}, raising=False)
+    monkeypatch.setattr(hd_mod, "_MERGED_LISTING_CACHE", {}, raising=False)
 
 
 @pytest.fixture(autouse=True)

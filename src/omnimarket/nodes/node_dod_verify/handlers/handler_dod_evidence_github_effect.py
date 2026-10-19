@@ -58,6 +58,7 @@ import logging
 import os
 import re
 import subprocess
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -171,7 +172,17 @@ _MERGED_CHECKS_GREEN_CACHE: dict[
     tuple[str, int], ModelDodEvidenceGithubLookupResultEvent
 ] = {}
 
-# OMN-20838: both per-process caches above hold at most this many entries; the
+# OMN-19528: the merged PRs that name a ticket in one repository, as ``gh pr
+# list`` returned them, with the time they were read. A clone-less runtime
+# lists every declared product repository for each verification, and one
+# ticket is verified once per delegation run; a listing is reused for
+# ``_MERGED_LISTING_TTL_S`` seconds, so a PR merged inside the window reaches
+# the next verification after it. Only a readable listing is kept.
+_MERGED_LISTING_CACHE: dict[tuple[str, str], tuple[float, list[dict[str, object]]]] = {}
+_MERGED_LISTING_TTL_S: Final[float] = 300.0
+_monotonic = time.monotonic
+
+# OMN-20838: the per-process read caches above hold at most this many entries; the
 # oldest entry is dropped first, so a long-lived process stays bounded.
 _READ_CACHE_MAX_ENTRIES = 256
 
@@ -1284,25 +1295,36 @@ class HandlerDodEvidenceGithubEffect:
                 repo, ticket_id, pattern
             )
             if not candidates:
-                listed, detail = _gh_json(
-                    [
-                        "gh",
-                        "pr",
-                        "list",
-                        "--repo",
-                        repo,
-                        "--search",
-                        ticket_id,
-                        "--state",
-                        "merged",
-                        "--json",
-                        "number,title,headRefName",
-                    ],
-                    _GH_LIST_TIMEOUT_S,
-                )
-                if not isinstance(listed, list):
-                    return _unresolved(f"{repo}: merged PRs unreadable: {detail}")
-                candidates = _exact_ticket_token_candidates(listed, ticket_id)
+                cached = _MERGED_LISTING_CACHE.get((repo, ticket_id))
+                if cached is not None and _monotonic() - cached[0] < (
+                    _MERGED_LISTING_TTL_S
+                ):
+                    candidates = cached[1]
+                else:
+                    listed, detail = _gh_json(
+                        [
+                            "gh",
+                            "pr",
+                            "list",
+                            "--repo",
+                            repo,
+                            "--search",
+                            ticket_id,
+                            "--state",
+                            "merged",
+                            "--json",
+                            "number,title,headRefName",
+                        ],
+                        _GH_LIST_TIMEOUT_S,
+                    )
+                    if not isinstance(listed, list):
+                        return _unresolved(f"{repo}: merged PRs unreadable: {detail}")
+                    candidates = _exact_ticket_token_candidates(listed, ticket_id)
+                    _bounded_put(
+                        _MERGED_LISTING_CACHE,
+                        (repo, ticket_id),
+                        (_monotonic(), candidates),
+                    )
             assert isinstance(candidates, list)
             for candidate in candidates:
                 number = (
