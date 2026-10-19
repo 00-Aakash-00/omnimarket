@@ -228,6 +228,11 @@ _SYSTEM_PROMPTS: dict[str, str] = {
         "You are a summarization assistant. Produce a concise, accurate summary "
         "of the provided content."
     ),
+    "context_compaction": (
+        "You are a context compaction assistant. Produce an accurate tail summary "
+        "of the provided context, preserving identifiers, numbers, and claims "
+        "grounded in that context."
+    ),
     "simple_tasks": (
         "You are a helpful assistant. Complete the requested task accurately."
     ),

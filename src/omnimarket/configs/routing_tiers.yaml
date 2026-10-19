@@ -175,6 +175,7 @@ tiers:
           # contracts) rather than a tier accident.
           - documentation
           - summarization
+          - context_compaction
         fast_path_threshold_tokens: 8192
     eval_before_accept: true
     eval_model: null
