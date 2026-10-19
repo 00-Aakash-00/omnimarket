@@ -320,6 +320,15 @@ requirements:
     acceptance:
       - id: "AC61"
         statement: "AC61: with the 2026-10-17T1730Z run's shape (9 free slots on h101:1, h202:4, h201:4, 2 eligible candidates, 41 implementation-merged) selection plus the dispatch plan dispatch at least 9 lanes where the base dispatches 2; an open or blocked-in-cooldown verify lane, a second row of the same ticket and an out-of-scope origin are not taken -- falsifier: uv run pytest tests/nodes/node_lab_fill_selection_compute/test_lab_fill_dod_verify_fallback.py -q fails at the merge base"
+  - id: "req-review-finding-evidence"
+    statement: "The hostile reviewer blocks only on an Important finding the pull request introduced, with a file and line inside its diff, that is not of a style or cleanup class; after three review rounds on one pull request it re-reviews only the new diff and does not repeat a finding it has posted."
+    acceptance:
+      - id: "AC72"
+        statement: "AC72: a blocking finding on a line the pull request did not add or change is classed Pre-existing and dropped, and a finding whose file the pull request does not change, or whose line is past the end of the file at the head, is refused for want of evidence; a finding on a changed line keeps blocking -- falsifier: uv run pytest tests/unit/nodes/node_review_finding_veto_effect/test_review_finding_policy.py -q -k 'pre_existing or refused or changed or past_the_end' fails at the merge base"
+      - id: "AC73"
+        statement: "AC73: a finding of a style or cleanup class is dropped as a Nit, while a security, logic, integration or contract category, a title that names a defect and a finding bound to a standing rule keep blocking -- falsifier: uv run pytest tests/unit/nodes/node_review_finding_veto_effect/test_review_finding_policy.py -q -k 'style_and_cleanup or real_defect or standing_rule' fails at the merge base"
+      - id: "AC74"
+        statement: "AC74: from the fourth review round of one pull request a finding already posted is not repeated and a finding on a line outside the diff since the previous round does not block, while rounds one to three and a rerun of one head repeat nothing; the gate comment carries the round state only from the Actions bot -- falsifier: uv run pytest tests/unit/nodes/node_review_finding_veto_effect/test_review_finding_policy.py tests/ci/test_hostile_reviewer_finding_policy_omn17427.py -q fails at the merge base"
   - id: "req-hook-push-rehearsal-caller"
     statement: "A pull request that changes the pre-push set runs omnibase_core's hook push rehearsal before it merges."
     acceptance:
@@ -590,6 +599,9 @@ evidence_requirements:
   - kind: "tests"
     description: "AC57: the default repository lists name no change-control repository and a change-control checkout binds as a product repository."
     command: "uv run pytest tests/test_omn17427_default_repo_lists_off_change_control.py tests/test_omn20696_dod_verdict_contract_subject.py -q"
+  - kind: "tests"
+    description: "AC72 to AC74: only an introduced, evidenced, non-style Important finding blocks, and past round three only the new diff is re-reviewed without repeating a posted finding."
+    command: "uv run pytest tests/unit/nodes/node_review_finding_veto_effect tests/ci/test_hostile_reviewer_finding_policy_omn17427.py -q"
   - kind: "tests"
     description: "AC62: the hook push rehearsal caller runs on pull requests and merge-queue entries at a full-SHA pin and its path-regex selects the hook paths."
     command: "uv run pytest tests/ci/test_omn17427_hook_push_rehearsal_caller.py -q -p no:randomly"
@@ -1369,6 +1381,37 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_lab_fill_plan_compute/handlers/handler_lab_fill_dispatch_plan.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("DOD_VERIFY", "dod_verify_item", "origin_kind")); print("lab-fill dod-verify deploy probe: PASS")'
+  - id: "dod-omn17427-ac72-review-finding-evidence"
+    description: "A blocking finding on a line the pull request left unchanged is dropped as Pre-existing, one with no file inside the diff or a line past the end of the file is refused, and the recorded real defect on a changed line keeps blocking."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_review_finding_veto_effect/test_review_finding_policy.py -q -k 'pre_existing or refused or changed or past_the_end'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC72"]
+  - id: "dod-omn17427-ac73-review-finding-nits-never-block"
+    description: "Style and cleanup findings are dropped as Nits; a defect category, a defect-naming title and a standing-rule finding keep blocking."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_review_finding_veto_effect/test_review_finding_policy.py -q -k 'style_and_cleanup or real_defect or standing_rule'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC73"]
+  - id: "dod-omn17427-ac74-review-rounds-re-review-new-diff"
+    description: "Past round three a posted finding is not repeated and only the diff since the previous round is re-reviewed; rounds one to three and a rerun of one head repeat nothing, and only the Actions bot can set the round."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_review_finding_veto_effect/test_review_finding_policy.py tests/ci/test_hostile_reviewer_finding_policy_omn17427.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC74"]
+  - id: "dod-omn17427-review-finding-policy-deploy-probe"
+    description: "Deploy probe. GitHub serves the finding policy handler at the checked-out HEAD with its diff-based classes. It fails at the merge base, which has no such handler, and needs only GitHub access and Python on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_review_finding_veto_effect/handlers/handler_review_finding_policy.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("HandlerReviewFindingPolicy", "PRE_EXISTING", "NO_EVIDENCE", "ROUND_LIMIT")); print("review finding policy deploy probe: PASS")'
   - id: "dod-omn17427-ac62-hook-push-rehearsal-caller"
     description: "The hook push rehearsal caller runs on pull requests and merge-queue entries at a full-SHA pin, and its path-regex selects the hook paths and no source path."
     source: "manual"
