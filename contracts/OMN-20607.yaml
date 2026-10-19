@@ -1,0 +1,36 @@
+---
+schema_version: "1.0.0"
+ticket_id: "OMN-20607"
+title: "A developer's own provider keys join the in-process escalation ladder after its declared tiers"
+summary: "On the in-process delegation path, a developer's registered provider keys are the tier after a task class's declared tier_order: when no declared tier is usable after a platform rung fails or is refused, the first untried key in registration order answers, charged to the escalation budget, with no pin; with no key registered the refusal is unchanged."
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: "req-omn20607-byok-tier-after-ladder"
+    statement: |-
+      An unpinned in-process delegation reaches a developer's own registered provider key when the declared ladder has no usable tier left.
+    acceptance:
+      - id: "AC-BYOK1"
+        statement: |-
+          AC-BYOK1: with a declared local model and registered keys, an unpinned planning delegation whose local answer is refused or whose local model is unreachable is answered on the developer's first registered key, in registration order, as one escalation -- falsifier: uv run pytest tests/unit/nodes/node_delegate_skill_orchestrator/test_byok_tier_after_ladder_omn20607.py -q -p no:randomly --no-cov fails, or its escalation tests pass against the merge base.
+      - id: "AC-BYOK2"
+        statement: |-
+          AC-BYOK2: with no key registered the run ends with a terminal_failure_reason starting no_higher_tier_available and naming tier_order ['local', 'cheap_cloud'], and house-tenant work never escalates to a key registered on the machine -- falsifier: the same test file's negative controls.
+evidence_requirements:
+  - kind: "tests"
+    description: "The BYOK tier after the declared ladder, its registration order, and the no-key and house-tenant controls, on the shipped ladder with only the provider call faked."
+    command: "uv run pytest tests/unit/nodes/node_delegate_skill_orchestrator/test_byok_tier_after_ladder_omn20607.py -q -p no:randomly --no-cov"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn20607-byok-tier-after-ladder"
+    description: "A refused or unreachable local planning answer escalates unpinned to the developer's first registered key; with no key the refusal stays no_higher_tier_available; house work never uses a registered key."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_delegate_skill_orchestrator/test_byok_tier_after_ladder_omn20607.py -q -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC-BYOK1", "AC-BYOK2"]

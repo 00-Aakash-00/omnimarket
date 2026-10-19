@@ -318,6 +318,7 @@ from omnimarket.routing.delegation_backend_resolution import (
     resolve_delegation_backend as _resolve_delegation_backend_uncustomized,
 )
 from omnimarket.routing.local_byok_route import (
+    next_byok_tier_route,
     next_chosen_model_byok_route,
     next_registered_byok_route,
     resolve_pinned_byok_route,
@@ -1966,6 +1967,23 @@ class LocalDelegationDispatchPort:
                         backend, tried_backend_ids=frozenset(excluded_backend_refs)
                     )
 
+                # OMN-20607: the ladder has no usable tier left after a platform
+                # rung, and the developer holds keys. Their keys are the tier
+                # after the ladder, charged to the escalation budget like one.
+                byok_tier_backend: ModelResolvedDelegationBackend | None = None
+                if (
+                    not customer_route
+                    and may_move_on
+                    and transport_sibling is None
+                    and escalated_backend is None
+                    and next_chosen_model is None
+                    and escalation_count < max_escalations
+                    and is_customer_attributed(resolved_tenant_id)
+                ):
+                    byok_tier_backend = next_byok_tier_route(
+                        tried_backend_ids=frozenset(excluded_backend_refs)
+                    )
+
                 # A transport failure never runs the quality gate, so bank its
                 # (typically zero) metered cost directly — mirrors the
                 # post-success banking below without requiring a gate verdict.
@@ -2100,6 +2118,24 @@ class LocalDelegationDispatchPort:
                         transport_failure_message,
                     )
                     backend = _with_model_choice(next_customer_key)
+                    continue
+
+                if byok_tier_backend is not None:
+                    logger.info(
+                        "LocalDelegationDispatch: escalating task_type=%s from "
+                        "tier=%s to the developer's key backend=%s on transport "
+                        "failure_class=%s (attempt %d/%d) correlation=%s reason=%s",
+                        task_type,
+                        current_tier,
+                        byok_tier_backend.backend_id,
+                        transport_failure_class,
+                        escalation_count + 1,
+                        max_escalations,
+                        correlation_id,
+                        transport_failure_message,
+                    )
+                    escalation_count += 1
+                    backend = _with_model_choice(byok_tier_backend)
                     continue
 
                 # Cannot escalate (non-retryable failure_class, budget exhausted,
@@ -2702,6 +2738,20 @@ class LocalDelegationDispatchPort:
             ):
                 next_backend = next_registered_byok_route(
                     backend, tried_backend_ids=frozenset(excluded_backend_refs)
+                )
+            # OMN-20607: no tier offers a responder after a platform rung's
+            # refused answer, and the developer holds keys: their keys are the
+            # tier after the declared ladder.
+            if (
+                next_backend is None
+                and not ladder_stopped_by_veto
+                and pinned_backend_id is None
+                and escalation_count < max_escalations
+                and not _is_customer_byok_route(backend)
+                and is_customer_attributed(resolved_tenant_id)
+            ):
+                next_backend = next_byok_tier_route(
+                    tried_backend_ids=frozenset(excluded_backend_refs)
                 )
 
             if next_backend is None:

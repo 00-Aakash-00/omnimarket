@@ -61,6 +61,7 @@ from pathlib import Path
 
 from omnimarket.inference.local_byok_credential_adapter import (
     registered_local_byok_providers,
+    registered_local_byok_providers_by_registration,
     resolve_local_byok_credential_model,
     resolve_local_byok_credential_models,
     resolve_local_byok_credential_plan,
@@ -402,6 +403,39 @@ def next_registered_byok_route(
     return None
 
 
+def next_byok_tier_route(
+    *,
+    tried_backend_ids: frozenset[str],
+    db_path: Path | None = None,
+) -> ModelResolvedDelegationBackend | None:
+    """The developer's first untried key, as the tier after the ladder (OMN-20607).
+
+    A task class's declared ``tier_order`` names platform tiers only, and a
+    developer's key reaches one of them only by substituting a house rung that
+    is routable unpinned. When the ladder has no usable tier left, their keys
+    answer next, in the order they registered them; every key already tried in
+    this dispatch is skipped, so the walk ends. Never a house key: only a
+    catalogue provider the developer holds a key for is named.
+
+    The route reports the tier a pinned BYOK route reports, because it is the
+    same metered cloud route a pin reaches.
+    """
+    catalogue = set(customer_provider_catalogue())
+    for provider in registered_local_byok_providers_by_registration(db_path=db_path):
+        if provider not in catalogue:
+            continue
+        plan = resolve_local_byok_credential_plan(provider, db_path=db_path)
+        byok = resolve_byok_provider_backend(provider, plan=plan)
+        if byok is None or byok.backend_id in tried_backend_ids:
+            continue
+        route = _registered_byok_route(
+            byok, replaced=None, tier=_BYOK_TIER, db_path=db_path
+        )
+        if route is not None:
+            return route
+    return None
+
+
 #: The ladder tier a pinned BYOK route reports. A customer's provider model is
 #: a metered cloud model, which is what the ``cheap_cloud`` tier prices.
 _BYOK_TIER = "cheap_cloud"
@@ -421,6 +455,7 @@ __all__: list[str] = [
     "ByokKeyNotRegisteredError",
     "ByokPinNotPermittedError",
     "house_provider_slug",
+    "next_byok_tier_route",
     "next_chosen_model_byok_route",
     "next_registered_byok_route",
     "resolve_pinned_byok_route",

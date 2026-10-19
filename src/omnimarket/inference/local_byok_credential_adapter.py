@@ -612,6 +612,38 @@ def registered_local_byok_providers(*, db_path: Path | None = None) -> tuple[str
     return tuple(sorted(str(row["provider"]) for row in rows))
 
 
+#: A minted reference (``mint_local_byok_credential_ref``) as a LIKE pattern.
+_MINTED_REF_LIKE: Final[str] = "cred\\_%"
+
+
+def registered_local_byok_providers_by_registration(
+    *, db_path: Path | None = None
+) -> tuple[str, ...]:
+    """Return every provider with a locally registered credential, oldest first.
+
+    OMN-20607: the order the developer registered their keys in is the order
+    their keys join the escalation ladder after its declared tiers. A key
+    registered again moves to the end, because registering replaces the row.
+    Rows registered in the same second keep their insertion order. Only a
+    minted reference counts: the declared ``llm.<provider>.<field>`` row a key
+    is also stored under carries no provider slug of its own.
+    """
+    resolved_path = db_path if db_path is not None else default_evidence_db_path()
+    if not resolved_path.is_file():
+        return ()
+    conn = _connect(resolved_path)
+    try:
+        rows = conn.execute(
+            f"SELECT provider FROM {LOCAL_CREDENTIAL_TABLE} "
+            "WHERE secret_ref LIKE ? ESCAPE '\\' "
+            "GROUP BY provider ORDER BY MIN(registered_at), MIN(rowid)",
+            (_MINTED_REF_LIKE,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return tuple(str(row["provider"]) for row in rows)
+
+
 class LocalByokCredentialStore:
     """``ProtocolSecretStore`` over the existing local delegation database.
 
@@ -780,6 +812,7 @@ __all__: list[str] = [
     "mint_local_byok_credential_ref",
     "register_local_byok_credential",
     "registered_local_byok_providers",
+    "registered_local_byok_providers_by_registration",
     "resolve_local_byok_credential_model",
     "resolve_local_byok_credential_models",
     "resolve_local_byok_credential_plan",
