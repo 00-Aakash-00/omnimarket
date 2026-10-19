@@ -10,17 +10,26 @@ redaction on the bus). This projection must store each chunk as a row, so the
 chunks reassemble to the package's own sha256 and still hold the boundary's
 ``uuid`` and every replacement record, and the other consumer of the
 content-captured topic must leave a compact record alone.
+
+The package is read from a transcript by node_compact_package_read_effect's
+``compact_items``, the same call the PostCompact capture makes, so these rows
+are checked against what the producer actually publishes.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
 from omnimarket.models.operator_capture import ModelOperatorPromptRecord
+from omnimarket.nodes.node_compact_package_read_effect.handlers.handler_compact_package_read import (
+    compact_items,
+)
 from omnimarket.nodes.node_projection_session_content.handlers.handler_session_content import (
     SessionContentProjectionWriter,
 )
@@ -41,15 +50,24 @@ RAW_SECRET_SHAPED = "ghp_" + "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8"
 
 
 BOUNDARY_UUID = "783e1d6e-1111-2222-3333-444444444444"
+OLDER_BOUNDARY_UUID = "783e1d6e-0000-0000-0000-000000000000"
+EARLIER_UUID = "99990000-1111-0000-0000-000000000000"
 REPLACEMENT_UUIDS = tuple(f"99990000-0000-0000-0000-{n:012d}" for n in range(12))
 
 
-def _compact_text() -> str:
-    """A compaction package as the capture left it, larger than one chunk."""
-    boundary = (
+def _boundary(uuid: str) -> str:
+    return (
         '{"parentUuid": null, "type": "system", "subtype": "compact_boundary", '
-        f'"uuid": "{BOUNDARY_UUID}", "compactMetadata": {{"trigger": "manual"}}}}'
+        f'"uuid": "{uuid}", "compactMetadata": {{"trigger": "manual"}}}}'
     )
+
+
+def _compact_text() -> str:
+    """A compaction package as the capture reads it, larger than one chunk.
+
+    The transcript holds an earlier compaction and a record before the newest
+    boundary; the reader returns the newest boundary and every record after it.
+    """
     records = [
         json.dumps(
             {
@@ -61,7 +79,21 @@ def _compact_text() -> str:
         for n, uuid in enumerate(REPLACEMENT_UUIDS)
     ]
     records.append(json.dumps({"type": "user", "token": RAW_SECRET_SHAPED}))
-    return "\n".join([boundary, *records]) + "\n"
+    earlier = [
+        _boundary(OLDER_BOUNDARY_UUID),
+        json.dumps({"type": "user", "uuid": EARLIER_UUID, "message": "before"}),
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        transcript = Path(tmp) / f"{SESSION}.jsonl"
+        transcript.write_text(
+            "\n".join([*earlier, _boundary(BOUNDARY_UUID), *records]) + "\n",
+            encoding="utf-8",
+        )
+        (item,) = compact_items({"transcript_path": str(transcript)})
+    assert item["content_kind"] == "compact"
+    text = str(item["content"])
+    assert text == "\n".join([_boundary(BOUNDARY_UUID), *records]) + "\n"
+    return text
 
 
 def _chunks(text: str, size: int) -> list[str]:
@@ -146,6 +178,8 @@ def test_a_compaction_larger_than_one_chunk_reassembles_to_the_packages_sha256()
     assert reassembled == text
     assert BOUNDARY_UUID in reassembled
     assert all(uuid in reassembled for uuid in REPLACEMENT_UUIDS)
+    assert OLDER_BOUNDARY_UUID not in reassembled
+    assert EARLIER_UUID not in reassembled
     file_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
     assert hashlib.sha256(reassembled.encode("utf-8")).hexdigest() == file_sha
     assert {r.content_sha256 for r in rows} == {file_sha}
