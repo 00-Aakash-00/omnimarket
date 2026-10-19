@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+---
+name: node_review_uncoded_signature_reducer
+contract_version:
+  major: 1
+  minor: 0
+  patch: 0
+node_type: reducer
+node_version:
+  major: 1
+  minor: 0
+  patch: 0
+description: Family-partitioned recurrence; one candidate per group after three distinct
+  PRs in fourteen days. State and candidate use runtime CAS and the in-row outbox.
+input_model:
+  name: ModelReviewFindingSignature
+  module: omnimarket.models.model_review_finding_signature
+  description: Accepted finding payload.
+output_model:
+  name: ModelReviewCodeCandidateProposed
+  module: omnimarket.models.model_review_finding_signature
+  description: New candidate, or no output below threshold and on replay.
+handler:
+  module: omnimarket.nodes.node_review_uncoded_signature_reducer.handlers.handler_review_uncoded_signature
+  class: HandlerReviewUncodedSignatureReducer
+  input_model: omnimarket.models.model_review_finding_signature.ModelReviewFindingSignature
+handler_routing:
+  routing_strategy: topic_match
+  handlers:
+  - topic: onex.evt.omnimarket.review-finding-signed.v1
+    operation: reduce_review_signature
+    message_category: event
+    event_model:
+      name: ModelReviewFindingSignature
+      module: omnimarket.models.model_review_finding_signature
+    handler:
+      name: HandlerReviewUncodedSignatureReducer
+      module: omnimarket.nodes.node_review_uncoded_signature_reducer.handlers.handler_review_uncoded_signature
+descriptor:
+  node_archetype: reducer
+  purity: pure
+  idempotent: true
+  timeout_ms: 5000
+  runtime_profiles:
+  - effects
+published_events:
+- event_type: ReviewCodeCandidateProposed
+  topic: onex.evt.omnimarket.review-code-candidate-proposed.v1
+event_bus:
+  subscribe_topics:
+  - onex.evt.omnimarket.review-finding-signed.v1
+  publish_topics:
+  - onex.evt.omnimarket.review-code-candidate-proposed.v1
+terminal_event: onex.evt.omnimarket.review-code-candidate-proposed.v1
+dependencies:
+  packages:
+  - omnibase_core>=0.39.0
+  - omnibase_infra>=0.38.75
+  - pyyaml>=6.0.2
+metadata:
+  transport_type: kafka
+  author: OmniNode Team
+  description: Review finding code-candidate lifecycle.
+  tags:
+  - reducer
+  - review
+  - signature
+  related_tickets:
+  - OMN-20910
+recurrence_policy:
+  similarity_threshold: 0.8
+  distinct_prs: 3
+  window_days: 14
+state_io:
+  # Deliver this node's migrations/0001_create_review_uncoded_signature_state.sql
+  # to the bound database through the sanctioned migration runner before feed
+  # activation. The handler never creates a table or falls back to local state.
+  database: ${env.ONEX_REVIEW_SIGNATURE_STATE_DATABASE:omnibase_infra}
+  table: ${env.ONEX_REVIEW_SIGNATURE_STATE_TABLE:review_uncoded_signature_state}
+  key: family
+  codec:
+    module: omnimarket.nodes.node_review_uncoded_signature_reducer.handlers.state_codec
+    name: StateIoCodec
+externally_consumed_topics:
+- onex.evt.omnimarket.review-code-candidate-proposed.v1

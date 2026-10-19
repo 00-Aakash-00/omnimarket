@@ -563,6 +563,8 @@ jobs:
       # OMN-20910: paired with the review-voter-model-from-overlay hook.
       - name: Review voter model comes from the overlay (OMN-20910)
         run: uv run pytest tests/ci/test_hostile_reviewer_voters_overlay_omn20910.py -q -n 0 -p no:randomly --no-cov
+      - name: Uncoded review signature recurrence (OMN-20910)
+        run: uv run --frozen pytest tests/test_golden_chain_review_uncoded_signature.py -q -n 0 -p no:randomly --no-cov
       # OMN-20967: paired with the anthropic-key-prefix-workflows hook.
       - name: No Anthropic key value in a workflow (OMN-20967)
         run: uv run pytest tests/ci/test_anthropic_key_prefix_workflows_omn20967.py -q -n 0

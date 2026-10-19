@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+---
+name: node_review_finding_signature_compute
+contract_version:
+  major: 1
+  minor: 0
+  patch: 0
+node_type: compute
+node_version:
+  major: 1
+  minor: 0
+  patch: 0
+description: Deterministic accepted X finding signatures.
+input_model:
+  name: ModelReviewFindingUncoded
+  module: omnimarket.models.model_review_finding_signature
+  description: Accepted finding payload.
+output_model:
+  name: ModelReviewFindingSignature
+  module: omnimarket.models.model_review_finding_signature
+  description: Signed finding.
+handler:
+  module: omnimarket.nodes.node_review_finding_signature_compute.handlers.handler_review_finding_signature
+  class: HandlerReviewFindingSignatureCompute
+  input_model: omnimarket.models.model_review_finding_signature.ModelReviewFindingUncoded
+handler_routing:
+  routing_strategy: topic_match
+  handlers:
+  - topic: onex.evt.omnimarket.review-finding-uncoded.v1
+    operation: sign_review_finding
+    message_category: event
+    event_model:
+      name: ModelReviewFindingUncoded
+      module: omnimarket.models.model_review_finding_signature
+    handler:
+      name: HandlerReviewFindingSignatureCompute
+      module: omnimarket.nodes.node_review_finding_signature_compute.handlers.handler_review_finding_signature
+descriptor:
+  node_archetype: compute
+  purity: pure
+  idempotent: true
+  timeout_ms: 5000
+  runtime_profiles:
+  - effects
+published_events:
+- event_type: ReviewFindingSignature
+  topic: onex.evt.omnimarket.review-finding-signed.v1
+event_bus:
+  subscribe_topics:
+  - onex.evt.omnimarket.review-finding-uncoded.v1
+  publish_topics:
+  - onex.evt.omnimarket.review-finding-signed.v1
+terminal_event: onex.evt.omnimarket.review-finding-signed.v1
+dependencies:
+  packages:
+  - omnibase_core>=0.39.0
+metadata:
+  transport_type: kafka
+  author: OmniNode Team
+  description: Review finding code-candidate lifecycle.
+  tags:
+  - compute
+  - review
+  - signature
+  related_tickets:
+  - OMN-20910
+externally_produced_topics:
+- topic: onex.evt.omnimarket.review-finding-uncoded.v1
+  producer: Accepted per-voter final review record adapter, X findings only; activation
+    awaits the compact accepted-record producer.

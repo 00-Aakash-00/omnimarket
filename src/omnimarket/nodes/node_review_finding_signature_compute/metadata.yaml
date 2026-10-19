@@ -1,0 +1,27 @@
+name: node_review_finding_signature_compute
+version: 1.0.0
+description: Deterministic accepted X finding signatures.
+omnibase_core_compat: '>=0.39.0,<1.0.0'
+entry_points:
+  onex.nodes:
+    node_review_finding_signature_compute: omnimarket.nodes.node_review_finding_signature_compute
+capabilities:
+  standalone: true
+  full_runtime: true
+  requires_network: false
+  requires_repo: false
+  requires_secrets: false
+  requires_docker: false
+  side_effect_class: none
+dependencies:
+- omnibase_core>=0.39.0
+authors:
+- OmniNode Platform Team
+license: MIT
+tags:
+- compute
+- review
+- signature
+pack: review
+display_name: Review Finding Signature
+node_role: compute

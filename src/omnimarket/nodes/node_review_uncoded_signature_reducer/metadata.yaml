@@ -1,0 +1,30 @@
+name: node_review_uncoded_signature_reducer
+version: 1.0.0
+description: Family-partitioned recurrence; one candidate per group after three distinct
+  PRs in fourteen days. State and candidate use runtime CAS and the in-row outbox.
+omnibase_core_compat: '>=0.39.0,<1.0.0'
+entry_points:
+  onex.nodes:
+    node_review_uncoded_signature_reducer: omnimarket.nodes.node_review_uncoded_signature_reducer
+capabilities:
+  standalone: true
+  full_runtime: true
+  requires_network: false
+  requires_repo: false
+  requires_secrets: false
+  requires_docker: false
+  side_effect_class: none
+dependencies:
+- omnibase_core>=0.39.0
+- omnibase_infra>=0.38.75
+- pyyaml>=6.0.2
+authors:
+- OmniNode Platform Team
+license: MIT
+tags:
+- reducer
+- review
+- signature
+pack: review
+display_name: Uncoded Review Signature Recurrence
+node_role: reducer

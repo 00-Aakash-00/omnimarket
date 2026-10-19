@@ -4,8 +4,8 @@ ticket_id: "OMN-20910"
 title: "Review-voter models are declared in a contract overlay, not repo variables or workflow files"
 summary: "omnimarket's Hostile Reviewer workflow reads every voter from the review voters overlay (since OMN-20923 a private CI overlay fetched at run time from the repository the org variable OMNI_CI_OVERLAY_REPO names, never a file of a shipped repository) through omniintelligence's cli_review --voters-overlay, its retry-budget check and its preflight. The workflow names no voter endpoint, port, model flag or endpoint variable, and a ratchet with a known-bad positive control keeps it that way. The quorum rule and the fail-closed gate are unchanged."
 is_seam_ticket: false
-interface_change: false
-interfaces_touched: []
+interface_change: true
+interfaces_touched: ["events", "topics"]
 requirements:
   - id: "req-workflow-reads-overlay"
     statement: "The hostile-review job resolves its voters only from the review voters overlay, at the preflight, retry-budget and review sites."
@@ -29,6 +29,15 @@ requirements:
     acceptance:
       - id: "AC6"
         statement: "AC6: with KAFKA_BOOTSTRAP_SERVERS unset, a key bound to a host whose row names ledger_bus_lane is published on that lane through the lab-run lane resolver; a broker in the environment keeps the publisher path, and an unopenable lane is refused by name -- falsifier: uv run pytest tests/unit/cli/test_omn20910_register_tenant_key_lane_bus.py -q -p no:randomly --no-cov fails at the merge base"
+  - id: "req-uncoded-signature-lifecycle"
+    statement: "Build the uncoded-signature lifecycle nodes from the accepted review finding feed."
+    acceptance:
+      - id: "AC12"
+        statement: "Pure signature computation lowercases and masks notes, stems sorted content tokens and hashes them with the family."
+      - id: "AC13"
+        statement: "MinHash similarity at least 0.8 groups signatures; three distinct PRs in fourteen days yield one code candidate."
+      - id: "AC14"
+        statement: "Replayed events emit no new candidate, including after persisted state restoration."
 evidence_requirements:
   - kind: "tests"
     description: "The workflow reads the overlay at every roster site."
@@ -102,3 +111,37 @@ dod_evidence:
         check_value: |-
           docker run --rm -v "${PWD}:/workspace:ro" -w /workspace -e PYTHONDONTWRITEBYTECODE=1 -e COMPOSE_PROJECT_NAME=landing-l10892-lab -e UV_PROJECT_ENVIRONMENT=/tmp/register-key-venv -e UV_CACHE_DIR=/tmp/uv-cache ghcr.io/astral-sh/uv@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 uv run --frozen pytest tests/unit/cli/test_omn20910_register_tenant_key_lane_bus.py -q -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/register-key-tests
         cwd: "${OMNI_HOME}/omnimarket"
+
+  - id: "dod-omn20910-uncoded-signature-normalization"
+    description: "Accepted X findings are lowercased, masked and stemmed into family-specific content signatures and MinHash sketches."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run --frozen pytest tests/test_golden_chain_review_uncoded_signature.py -q -n 0 -p no:randomly --no-cov -k 'masking or empty_content or only_typed'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC12"]
+  - id: "dod-omn20910-uncoded-signature-recurrence"
+    description: "Three distinct PRs within fourteen days yield one candidate; two PRs, unrelated families and expired observations do not."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run --frozen pytest tests/test_golden_chain_review_uncoded_signature.py -q -n 0 -p no:randomly --no-cov -k 'three_prs or two_prs or minhash or boundary or late_old or identity or unrelated'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC13"]
+  - id: "dod-omn20910-uncoded-signature-replay"
+    description: "Replay and state restoration retain the proposed marker; the real runtime adapters publish a candidate through the state_io outbox with an in-memory database transport."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run --frozen pytest tests/test_golden_chain_review_uncoded_signature.py -q -n 0 -p no:randomly --no-cov -k 'replayed or proposal_mark or durable_state or lab_bus_chain'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC14"]
+  - id: "dod-omn20910-deploy-signature-container"
+    description: "In a disposable container, import the two nodes and exercise the canonical bus adapters and state_io candidate outbox with an in-memory database transport. No live database is required; the state table migration and accepted-record producer remain activation prerequisites."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: |-
+          docker run --rm -v "${PWD}:/workspace:ro" -w /workspace -e PYTHONDONTWRITEBYTECODE=1 -e UV_PROJECT_ENVIRONMENT=/tmp/review-signature-venv -e UV_CACHE_DIR=/tmp/uv-cache ghcr.io/astral-sh/uv@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 uv run --frozen pytest tests/test_golden_chain_review_uncoded_signature.py -q -n 0 -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/review-signature-tests
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC12", "AC13", "AC14"]

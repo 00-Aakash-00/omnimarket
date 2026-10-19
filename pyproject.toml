@@ -306,6 +306,8 @@ Homepage = "https://github.com/OmniNode-ai/omnimarket"
 Repository = "https://github.com/OmniNode-ai/omnimarket"
 
 [project.entry-points."onex.nodes"]
+node_review_finding_signature_compute = "omnimarket.nodes.node_review_finding_signature_compute"
+node_review_uncoded_signature_reducer = "omnimarket.nodes.node_review_uncoded_signature_reducer"
 node_patch_apply_dispatch_effect = "omnimarket.nodes.node_patch_apply_dispatch_effect"
 node_internal_release_path_guard_compute = "omnimarket.nodes.node_internal_release_path_guard_compute"
 node_work_ledger_bus_mirror = "omnimarket.nodes.node_work_ledger_bus_mirror"
