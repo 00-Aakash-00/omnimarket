@@ -5,7 +5,6 @@ name: node_friction_synthesis_effect
 contract_version: {major: 1, minor: 0, patch: 0}
 node_version: {major: 1, minor: 0, patch: 0}
 node_type: effect
-runtime_profiles: [main]
 description: Count enumerated friction anchors and verify analysis preserves mechanical accounting.
 input_model: omnimarket.nodes.node_friction_synthesis_effect.models.model_friction_synthesis_request.ModelFrictionSynthesisRequest
 handler:

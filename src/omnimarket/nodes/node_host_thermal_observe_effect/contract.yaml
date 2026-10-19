@@ -4,7 +4,6 @@
 name: node_host_thermal_observe_effect
 contract_version: {major: 1, minor: 0, patch: 0}
 node_type: effect
-runtime_profiles: [main]
 node_version: {major: 1, minor: 0, patch: 0}
 
 description: >
