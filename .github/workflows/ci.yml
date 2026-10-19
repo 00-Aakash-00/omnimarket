@@ -288,7 +288,7 @@ jobs:
       actions: read
       contents: read
       pull-requests: read
-    uses: OmniNode-ai/omnibase_core/.github/workflows/full-suite-reuse.yml@7fe6a43725aeacb9aa65235c5541e716bf1c93ad
+    uses: OmniNode-ai/omnibase_core/.github/workflows/full-suite-reuse.yml@624e03f3d7797709879b6c410708be6cc1061261
 
   dev-suite-reuse-verdict:
     name: Dev Push Full Suite Reuse
