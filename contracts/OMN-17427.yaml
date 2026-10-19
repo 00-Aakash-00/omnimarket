@@ -1450,11 +1450,14 @@ dod_evidence:
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_hostile_reviewer_orchestrator/handlers/handler_delegation_review_inference.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert all(name in source for name in ("REVIEW_TASK_TYPE", "backend_id=model_key", "HandlerDelegateSkill")); print("hostile reviewer delegation route deploy probe: PASS")'
   - id: "dod-omn17427-ac72-repo-evidence-retirement"
-    description: "Repository evidence retirement regression: discovery, legacy refusal, binding schema, and current-head readback."
+    description: "Repository evidence retirement regression: discovery, legacy refusal, binding schema, current-head readback, and the source-derived relation inventory."
     source: "manual"
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/test_omn17427_occ_retirement.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/scripts/test_application_relation_inventory.py::test_checked_in_inventory_is_source_derived_and_current -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC74"]
   - id: "dod-omn17427-ac72-repo-evidence-deploy-probe"
