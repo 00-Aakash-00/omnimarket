@@ -29,6 +29,19 @@ requirements:
     acceptance:
       - id: "AC6"
         statement: "AC6: with KAFKA_BOOTSTRAP_SERVERS unset, a key bound to a host whose row names ledger_bus_lane is published on that lane through the lab-run lane resolver; a broker in the environment keeps the publisher path, and an unopenable lane is refused by name -- falsifier: uv run pytest tests/unit/cli/test_omn20910_register_tenant_key_lane_bus.py -q -p no:randomly --no-cov fails at the merge base"
+  - id: "req-measured-roster-budget-compute"
+    statement: "A pure roster compute selects the richest configured candidate within measured cycle cost, spendable allowances and job duration."
+    acceptance:
+      - id: "RB1"
+        statement: "The measured fixture selects R1 under the USD 680 working ceiling and reports every unrounded candidate projection."
+      - id: "RB2"
+        statement: "An empty or insufficient synchronous sample refuses an API persona; replay provenance is reported below 200 live reviews and Batch prices cannot fund inline reviews."
+      - id: "RB3"
+        statement: "Opus is refused until both model routing and per-model admission pricing are available."
+      - id: "RB4"
+        statement: "When R0 exceeds the cycle ceiling or spendable key allowances, no_affordable_roster is returned."
+      - id: "RB5"
+        statement: "Candidates exceeding the 60-minute job budget are refused; the registered contract dispatches a typed decision over its declared bus topics."
 evidence_requirements:
   - kind: "tests"
     description: "The workflow reads the overlay at every roster site."
@@ -102,3 +115,11 @@ dod_evidence:
         check_value: |-
           docker run --rm -v "${PWD}:/workspace:ro" -w /workspace -e PYTHONDONTWRITEBYTECODE=1 -e COMPOSE_PROJECT_NAME=landing-l10892-lab -e UV_PROJECT_ENVIRONMENT=/tmp/register-key-venv -e UV_CACHE_DIR=/tmp/uv-cache ghcr.io/astral-sh/uv@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 uv run --frozen pytest tests/unit/cli/test_omn20910_register_tenant_key_lane_bus.py -q -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/register-key-tests
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20910-measured-roster-budget"
+    description: "Focused cost, sample, routing, floor, time and contract-driven lab-runtime controls for the roster compute."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_golden_chain_review_roster_budget_compute.py -q -n 0 --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["RB1", "RB2", "RB3", "RB4", "RB5"]

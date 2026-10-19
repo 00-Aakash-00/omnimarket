@@ -1513,6 +1513,14 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
+      - id: review-roster-budget
+        name: Review roster measured budget selection (OMN-20910)
+        language: system
+        entry: uv run pytest tests/test_golden_chain_review_roster_budget_compute.py -q -n 0 --no-cov
+        files: ^(src/omnimarket/nodes/node_review_roster_budget_compute/|tests/test_golden_chain_review_roster_budget_compute\.py$|pyproject\.toml$|contracts/OMN-20910\.yaml$|\.github/workflows/ci\.yml$|\.pre-commit-config\.yaml$)
+        pass_filenames: false
+        stages: [pre-commit]
+
       # OMN-20910: a review voter's model is declared only in the contract
       # overlay. Refuses any vars.*MODEL* reference and any model id literal in
       # a reviewer workflow. SYNC with the ci.yml lint step "Review voter model

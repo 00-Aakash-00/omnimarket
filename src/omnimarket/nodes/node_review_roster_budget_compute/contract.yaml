@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+name: node_review_roster_budget_compute
+contract_name: node_review_roster_budget_compute
+node_name: node_review_roster_budget_compute
+lifecycle: experimental
+node_type: COMPUTE_GENERIC
+contract_version: {major: 0, minor: 1, patch: 0}
+node_version: {major: 0, minor: 1, patch: 0}
+description: >
+  Select the richest configured review roster from measured cost samples,
+  projected remaining reviews, cycle spend, remaining key allowances and
+  worst-case job duration. No I/O, clock, model call or overlay mutation.
+input_model:
+  name: ModelReviewRosterBudgetRequest
+  module: omnimarket.nodes.node_review_roster_budget_compute.models.model_review_roster_budget
+  description: Ordered candidates, measured means with provenance, and explicit cycle limits.
+output_model:
+  name: ModelReviewRosterBudgetResult
+  module: omnimarket.nodes.node_review_roster_budget_compute.models.model_review_roster_budget
+  description: Selected roster or no_affordable_roster, and every candidate projection.
+handler:
+  module: omnimarket.nodes.node_review_roster_budget_compute.handlers.handler_review_roster_budget
+  class: HandlerReviewRosterBudget
+  input_model: omnimarket.nodes.node_review_roster_budget_compute.models.model_review_roster_budget.ModelReviewRosterBudgetRequest
+handler_routing:
+  routing_strategy: operation_match
+  default_handler: omnimarket.nodes.node_review_roster_budget_compute.handlers.handler_review_roster_budget:HandlerReviewRosterBudget
+  handlers:
+    - operation: review_roster_decide
+      handler:
+        name: HandlerReviewRosterBudget
+        module: omnimarket.nodes.node_review_roster_budget_compute.handlers.handler_review_roster_budget
+descriptor:
+  node_archetype: compute
+  purity: pure
+  idempotent: true
+  timeout_ms: 2000
+  runtime_profiles: [effects]
+replay:
+  deterministic: true
+runtime_dispatch:
+  command_topic: onex.cmd.omnimarket.review-roster-decide-requested.v1
+  terminal_events:
+    success: onex.evt.omnimarket.review-roster-decided.v1
+event_bus:
+  subscribe_topics:
+    - onex.cmd.omnimarket.review-roster-decide-requested.v1
+  publish_topics:
+    - onex.evt.omnimarket.review-roster-decided.v1
+terminal_event: onex.evt.omnimarket.review-roster-decided.v1
+metadata:
+  description: Pure review roster budget selection.
+  author: OmniNode Team
+  license: MIT
+  tags: [compute, review, budget, pure]
