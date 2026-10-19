@@ -20,7 +20,7 @@ reference gets ONE authenticated minimal chat completion and a typed verdict.
   key sent with the request, the result is scrubbed again as a whole, and a
   provider that quotes a key back is counted in ``key_echoes``. The suppression
   state file holds only backend id, reset instant and quota code, scrubbed,
-  owner-only.
+  owner-only: a field containing a resolved value is written as ``<redacted>``.
 """
 
 from __future__ import annotations
@@ -171,7 +171,6 @@ def _load_state(path: str | None) -> list[ModelProviderRungSuppression]:
 def _save_state(
     path: str, rows: tuple[ModelProviderRungSuppression, ...], secrets: set[str]
 ) -> None:
-    secret_values = sorted(secrets, key=len, reverse=True)
     safe_rows: list[dict[str, str | None]] = []
     for row in rows:
         fields = {
@@ -180,11 +179,10 @@ def _save_state(
             "quota_code": row.quota_code,
         }
         for name, value in fields.items():
-            if isinstance(value, str):
-                for secret in secret_values:
-                    if secret:
-                        value = value.replace(secret, REDACTED)
-                fields[name] = value
+            if isinstance(value, str) and any(
+                secret and secret in value for secret in secrets
+            ):
+                fields[name] = REDACTED
         safe_rows.append(fields)
     with os.fdopen(
         os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600),

@@ -17,13 +17,16 @@ import yaml
 
 from omnimarket.nodes.node_provider_rung_canary_effect.handlers.handler_provider_rung_canary import (
     INVALID_KEY,
+    REDACTED,
     HandlerProviderRungCanary,
+    _save_state,
 )
 from omnimarket.nodes.node_provider_rung_canary_effect.models.model_provider_rung_canary import (
     EnumProviderRungVerdict as V,
 )
 from omnimarket.nodes.node_provider_rung_canary_effect.models.model_provider_rung_canary import (
     ModelProviderRungCanaryRequest,
+    ModelProviderRungSuppression,
 )
 
 _COMMITTED = (
@@ -379,6 +382,27 @@ async def test_state_file_holds_no_key_material_and_is_owner_only(
     assert datetime.fromisoformat(glm["until"]) == datetime(
         2026, 10, 19, 8, 0, tzinfo=UTC
     )
+    assert stat.S_IMODE(os.stat(state).st_mode) == 0o600
+
+
+@pytest.mark.unit
+def test_state_field_holding_a_resolved_value_is_written_redacted(
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "state.json"
+    rows = (
+        ModelProviderRungSuppression(
+            backend_id="cloud-glm", until=NOW, quota_code=f"1310 {SENTINEL}"
+        ),
+        ModelProviderRungSuppression(backend_id="cloud-gemini", until=NOW),
+    )
+    _save_state(str(state), rows, {SENTINEL})
+
+    text = state.read_text(encoding="utf-8")
+    assert SENTINEL not in text
+    by_id = {row["backend_id"]: row for row in json.loads(text)}
+    assert by_id["cloud-glm"]["quota_code"] == REDACTED
+    assert by_id["cloud-gemini"]["quota_code"] is None
     assert stat.S_IMODE(os.stat(state).st_mode) == 0o600
 
 
