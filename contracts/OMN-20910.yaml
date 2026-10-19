@@ -34,6 +34,16 @@ requirements:
     acceptance:
       - id: "AC9"
         statement: "AC9: each fail-closed case has a failed result with no findings, the valid verdict is the positive control, and the v1 reply passes unchanged -- falsifier: env -u PYTHONPATH uv run pytest tests/unit/review/test_compact_strict_parser.py -q -n 0 --no-cov fails at the merge base"
+  - id: "req-container-check-docker-less-writer"
+    statement: "The PR-create and push contract prerequisite accepts a command check whose first token is a declared verifier-host tool (docker) on a writer host with no docker, while the verifier still resolves every first token on its own PATH and prose is refused."
+    acceptance:
+      - id: "AC7"
+        statement: "AC7: with docker unresolvable, no dev contract is refused for 'docker', a bare docker run check passes, prose is refused, and the verifier still refuses docker -- falsifier: uv run pytest tests/ci/test_contract_prerequisite_verifier_host_tools_omn20910.py -q -n 0 -p no:randomly --no-cov fails at the merge base"
+  - id: "req-defect-catalog-node"
+    statement: "node_review_defect_catalog_compute validates the review defect-code catalog, refuses a duplicate or reused code, a family-letter mismatch, an enforced_by entry with no validator version and a section over its token budget, and renders the reviewer's catalog section and allowed-code set for one repository."
+    acceptance:
+      - id: "AC8"
+        statement: "AC8: the packaged catalog resolves within 5,000 rendered tokens and each refusal has a passing positive control -- falsifier: env -u PYTHONPATH uv run pytest tests/unit/nodes/node_review_defect_catalog_compute/test_review_defect_catalog.py -q -n 0 --no-cov fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "The workflow reads the overlay at every roster site."
@@ -99,6 +109,14 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/cli/test_omn20910_register_tenant_key_lane_bus.py -q -p no:randomly --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC6"]
+  - id: "dod-omn20910-ac7-container-check-dockerless"
+    description: "On a writer host with no docker, a container check passes the contract prerequisite and prose does not."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_contract_prerequisite_verifier_host_tools_omn20910.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC7"]
   - id: "dod-omn20910-deploy-register-key-container-smoke"
     description: "Run the checked-out register-tenant-key CLI in a disposable container. With no environment broker, its declared host lane must be opened and receive the credential event; an environment broker and a missing or unopenable lane must retain their expected behavior. The hosted runner needs Docker and the checkout, without access to a lab broker or lane containers."
     source: "manual"
@@ -115,3 +133,11 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/review/test_compact_strict_parser.py -q -n 0 --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC9"]
+  - id: "dod-omn20910-ac8-defect-catalog-node"
+    description: "The defect-code catalog node validates and renders the packaged catalog; every refusal has a positive control."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_review_defect_catalog_compute/test_review_defect_catalog.py -q -n 0 --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC8"]
