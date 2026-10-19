@@ -1523,6 +1523,15 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
+      # OMN-20910: paired with the Review budget admission CI step.
+      - id: review-budget-admission
+        name: Review budget admission (OMN-20910)
+        language: system
+        entry: uv run pytest tests/unit/nodes/node_claude_review_budget_reducer/test_golden_chain_review_budget_admission.py -q -n 0 -p no:randomly --no-cov
+        files: ^(src/omnimarket/(nodes/node_claude_review_budget_|models/claude_review_budget/)|tests/unit/nodes/node_claude_review_budget_|pyproject\.toml$|\.pre-commit-config\.yaml$|\.github/workflows/ci\.yml$)
+        pass_filenames: false
+        stages: [pre-commit]
+
       # OMN-20910: a review voter's model is declared only in the contract
       # overlay. Refuses any vars.*MODEL* reference and any model id literal in
       # a reviewer workflow. SYNC with the ci.yml lint step "Review voter model
