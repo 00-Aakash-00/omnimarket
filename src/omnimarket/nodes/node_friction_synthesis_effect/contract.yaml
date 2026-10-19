@@ -37,6 +37,8 @@ descriptor:
   idempotent: true
   timeout_ms: 300000
   side_effects: [reads source handoffs, writes or verifies merged handoff]
+  runtime_profiles:
+    - effects
 metadata:
   ticket: OMN-17427
   transport_type: event_bus

@@ -29,6 +29,8 @@ descriptor:
   side_effects:
     - appends one JSON line to readings.jsonl in the host's thermal state directory
     - replaces latest.json in that directory
+  runtime_profiles:
+    - effects
 
 event_bus:
   subscribe_topics: [onex.cmd.omnimarket.host-thermal-observe-requested.v1]
