@@ -50,7 +50,7 @@ import queue
 import sys
 import time
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -884,6 +884,9 @@ _observed_child_boot_seconds: float | None = None
 
 type _NamedTestRunner = Callable[[ModelNamedTestRunRequest], ModelNamedTestRunResult]
 type _AnswerJudge = Callable[[ModelAnswerJudgeCall], ModelIndependentJudgeVerdict]
+type _AsyncAnswerJudge = Callable[
+    [ModelAnswerJudgeCall], Awaitable[ModelIndependentJudgeVerdict]
+]
 type _EffectHandler = Callable[
     [ModelLlmDelegationCallRequest], ModelLlmDelegationCallResult
 ]
@@ -3995,23 +3998,33 @@ class LocalDelegationDispatchPort:
         )
         return gate_as_quality_gate_result(gate_result, gate)
 
-    def _answer_judge_for(self, task_type: str) -> _AnswerJudge | None:
+    def _answer_judge_for(self, task_type: str) -> _AsyncAnswerJudge | None:
         """The judge call for ``task_type``: the injected one, else the armed default.
 
         OMN-20910: a class the answer gate contract arms
         (``independent_judge.armed_task_classes``) gets the routing-contract
         judge call when the caller supplied none. The list ships empty, so an
         unarmed class keeps its contract verdict as before.
+
+        The injected sync judge runs in a worker thread; the routing judge is
+        awaited on the running loop.
         """
         if self._answer_judge is not None:
-            return self._answer_judge
+            injected = self._answer_judge
+
+            async def _injected_judge(
+                call: ModelAnswerJudgeCall,
+            ) -> ModelIndependentJudgeVerdict:
+                return await asyncio.to_thread(injected, call)
+
+            return _injected_judge
         if not independent_judge_armed(task_type):
             return None
 
-        def _routing_judge(
+        async def _routing_judge(
             call: ModelAnswerJudgeCall,
         ) -> ModelIndependentJudgeVerdict:
-            return routing_answer_judge(call, task_type=task_type)
+            return await routing_answer_judge(call, task_type=task_type)
 
         return _routing_judge
 
@@ -4022,7 +4035,7 @@ class LocalDelegationDispatchPort:
         source: str,
         answer: str,
         task_type: str,
-        answer_judge: _AnswerJudge | None,
+        answer_judge: _AsyncAnswerJudge | None,
     ) -> ModelIndependentJudgeVerdict | None:
         """Ask the routing contract's judge of another family; ``None`` when none.
 
@@ -4046,7 +4059,7 @@ class LocalDelegationDispatchPort:
             user_prompt=user_prompt,
         )
         try:
-            return await asyncio.to_thread(answer_judge, call)
+            return await answer_judge(call)
         except Exception as exc:  # any judge failure refuses, never accepts
             logger.warning(
                 "LocalDelegationDispatch: independent judge %s failed: %s",

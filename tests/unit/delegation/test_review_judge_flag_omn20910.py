@@ -223,7 +223,7 @@ def test_routing_judge_posts_to_the_selected_backend_and_reads_the_verdict(
         reply="Step 1. fine\nVERDICT: REJECT",
         resolved="nvidia/nemotron-3-super-120b-a12b:free",
     )
-    verdict = judge_port.routing_answer_judge(_call(), task_type="review")
+    verdict = asyncio.run(judge_port.routing_answer_judge(_call(), task_type="review"))
     assert verdict.verdict is EnumIndependentJudgeVerdict.REJECT
     assert verdict.backend_id == "openrouter-nemotron-super"
     assert built[0].backend_id == "openrouter-nemotron-super"
@@ -238,7 +238,7 @@ def test_routing_judge_refuses_a_reviewer_that_is_not_the_selected_model(
     # be recorded as the cross-family judge.
     _install(monkeypatch, reply="VERDICT: ACCEPT", resolved="Qwen3.8-27B")
     with pytest.raises(RuntimeError, match="not the selected judge"):
-        judge_port.routing_answer_judge(_call(), task_type="review")
+        asyncio.run(judge_port.routing_answer_judge(_call(), task_type="review"))
 
 
 # --- the dispatch path -----------------------------------------------------------
