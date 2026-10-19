@@ -118,6 +118,47 @@ def test_dev_waits_for_reuse_and_never_relaxes_light_gate():
     assert code == gate.EXIT_FAILURE, report
 
 
+def _dev_reuse_jobs(coverage_conclusion):
+    jobs = [
+        job for job in _jobs() if not job["name"].startswith(gate.TEST_SPLIT_PREFIX)
+    ]
+    for job in jobs:
+        if job["name"] in gate.QUEUE_HEAVY_GATE_JOBS:
+            job["conclusion"] = "skipped"
+        if job["name"] == "Coverage Sweep Gate":
+            job["conclusion"] = coverage_conclusion
+    return jobs
+
+
+@pytest.mark.parametrize(
+    ("conclusion", "expected"),
+    [
+        ("skipped", gate.EXIT_SUCCESS),
+        ("success", gate.EXIT_FAILURE),
+        ("neutral", gate.EXIT_FAILURE),
+        ("failure", gate.EXIT_FAILURE),
+    ],
+)
+def test_dev_reuse_admits_only_a_skipped_heavy_gate(conclusion, expected):
+    # The tree pass stands in for a heavy gate that did not run on the dev push;
+    # a heavy gate that ran there is outside the reuse contract and stays strict.
+    code, report = gate.evaluate(
+        _dev_reuse_jobs(conclusion), event="push", ref_name="dev"
+    )
+    assert code == expected, report
+    if expected == gate.EXIT_SUCCESS:
+        assert "dev tree-reuse tier ACTIVE" in report, report
+
+
+@pytest.mark.parametrize("ref_name", ["main", "hotfix/x", None])
+def test_reuse_verdict_relaxes_nothing_off_dev(ref_name):
+    code, report = gate.evaluate(
+        _dev_reuse_jobs("skipped"), event="push", ref_name=ref_name
+    )
+    assert code == gate.EXIT_FAILURE, report
+    assert "dev tree-reuse tier ACTIVE" not in report, report
+
+
 def test_cli_passes_queue_event_to_admission(tmp_path):
     jobs = _jobs()
     next(job for job in jobs if job["name"] == "Detect Changes")["conclusion"] = (

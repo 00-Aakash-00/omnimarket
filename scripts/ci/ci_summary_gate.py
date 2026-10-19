@@ -1125,8 +1125,15 @@ def evaluate(
         if docs_only
         else frozenset()
     )
-    if dev_reuse:
-        relaxed |= frozenset(QUEUE_HEAVY_GATE_JOBS) & frozenset(strict_gates)
+    # A verified tree pass admits only the heavy tier NOT running on this dev
+    # push: each strict heavy gate it relaxes must have concluded `skipped`.
+    # Any other conclusion (success, failure, cancelled, neutral) means the gate
+    # ran here, outside the reuse contract, and keeps the strict verdict.
+    reuse_skips = (
+        frozenset(QUEUE_HEAVY_GATE_JOBS) & frozenset(strict_gates)
+        if dev_reuse
+        else frozenset()
+    )
     # The tier can skip before the marker finishes on another runner. Only
     # postpone a skipped tier gate while that marker is visibly in flight;
     # failures and terminal/absent markers retain the strict verdict.
@@ -1162,7 +1169,9 @@ def evaluate(
             and g not in provisional_names
             and g not in pending_docs_only_skips
             and (
-                st.conclusion not in GOOD_CONCLUSIONS
+                st.conclusion != "skipped"
+                if g in reuse_skips
+                else st.conclusion not in GOOD_CONCLUSIONS
                 if g in relaxed
                 else st.conclusion != "success"
             )
@@ -1250,6 +1259,7 @@ def evaluate(
             matrix_state,
             docs_only=docs_only,
             relaxed=relaxed,
+            reuse_skips=reuse_skips,
             sweep_running=sweep_running,
             provisional_own_cancellations=provisional_own_cancellations,
         )
@@ -1280,6 +1290,7 @@ def _report(
     *,
     docs_only: bool = False,
     relaxed: frozenset[str] = frozenset(),
+    reuse_skips: frozenset[str] = frozenset(),
     sweep_running: list[str] | None = None,
     provisional_own_cancellations: list[str] | None = None,
 ) -> str:
@@ -1303,10 +1314,21 @@ def _report(
             "  docs-only skip tier ACTIVE (success|skipped accepted for): "
             + ", ".join(sorted(relaxed))
         )
+    if reuse_skips:
+        lines.append(
+            "  dev tree-reuse tier ACTIVE (only skipped accepted for): "
+            + ", ".join(sorted(reuse_skips))
+        )
     lines.append("  strict gates (must be completed + success):")
     for g in strict_gates:
         st = latest.get(g)
-        marker = "  [docs-only tier]" if g in relaxed else ""
+        marker = (
+            "  [dev tree-reuse tier]"
+            if g in reuse_skips
+            else "  [docs-only tier]"
+            if g in relaxed
+            else ""
+        )
         lines.append(
             f"    - {g}: <absent>{marker}"
             if st is None
