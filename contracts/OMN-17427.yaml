@@ -444,6 +444,11 @@ requirements:
     acceptance:
       - id: "AC81"
         statement: "AC81: a check-run whose run id comes only from check_suite.workflow_run.id or check_suite.workflow_run_id is exempt when that run's event is a known non-pull-request event and swept otherwise, and an empty, invalid-JSON or non-list workflow-runs file still sweeps an unregistered red to a failing main() verdict -- falsifier: the focused check-suite provenance and unreadable-index tests fail against the dev gate"
+  - id: "req-repo-contracts-bind-pytest-evidence"
+    statement: "Every repo contract on dev binds each acceptance criterion to uv run pytest evidence that names an existing repo test file, so the repo-wide contract binding test is green at the dev head."
+    acceptance:
+      - id: "AC82"
+        statement: "AC82: contracts/OMN-21143.yaml binds DoD1 to DoD4 with test_passes checks in the uv run pytest form, and the repo-wide binding test passes -- falsifier: uv run pytest tests/ci/test_repo_evidence_caller_workflow.py -q -k test_every_repo_contract_binds_every_criterion fails at the merge base, where OMN-21143.yaml uses uv run --frozen pytest"
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -1652,3 +1657,18 @@ dod_evidence:
           print("external sweep provenance deploy probe: PASS")
           PY
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac81-contracts-bind-pytest"
+    description: "The repo-wide contract binding test passes with OMN-21143.yaml rewritten to the uv run pytest form; at the merge base it fails on the four OMN-21143 items."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_repo_evidence_caller_workflow.py -q -k test_every_repo_contract_binds_every_criterion"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC82"]
+  - id: "dod-omn17427-ac81-contracts-bind-probe"
+    description: "Deploy probe. GitHub serves contracts/OMN-21143.yaml at the checked-out HEAD with all four binds_ac checks in the uv run pytest form. The probe fails at the merge base, whose checks use uv run --frozen pytest, and needs only GitHub access on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/contracts/OMN-21143.yaml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys,yaml; c=yaml.safe_load(sys.stdin.read()); v=[k["check_value"] for d in c["dod_evidence"] if "binds_ac" in d for k in d["checks"]]; assert len(v)==4 and all(x.startswith("uv run pytest ") for x in v), v'
