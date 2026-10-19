@@ -1084,6 +1084,11 @@ omnimarket = "omnimarket.nodes"
 # 4c36425ce840 and installs that commit, so the install is content-addressed;
 # drop this override once a registry release after 0.38.75 carries both.
 omnibase-infra = { git = "https://github.com/OmniNode-ai/omnibase_infra.git", tag = "dev-20261018092007-4c36425ce840" }
+# OMN-17427: omnibase-core reads its dev merge tag, not a release (RULINGs
+# 2026-10-16T07:34:18Z and 2026-10-16T09:35:49Z). This tag is omnibase_core#2058,
+# which carries contracts/internal_sibling_pins.yaml, the one dev merge tag rule
+# scripts/check_dep_provenance.py imports, and descends from c330f5a7d597 (OMN-19972).
+omnibase-core = { git = "https://github.com/OmniNode-ai/omnibase_core.git", tag = "dev-20261019120449-513343d69319" }
 # OMN-13878: omnibase-core and omnibase-compat now resolve from PyPI (removed
 # their git-source overrides). The version-range overrides below already target
 # the released artifacts: core>=0.46.7,<0.47.0 and

@@ -17,7 +17,13 @@ Forbidden first-party deps (both hyphen and underscore spellings):
     omnibase-core   omnibase-spi   omnibase-compat
 
 A ``[tool.uv.sources]`` entry for any of the above with a ``git`` / ``rev`` /
-``branch`` / ``tag`` key is a forbidden override and fails the gate.
+``branch`` / ``tag`` key is a forbidden override and fails the gate, with one
+exception (OMN-17427): an internal sibling pinned by ``tag`` to its dev merge
+tag, the form RULINGs 2026-10-16T07:34:18Z and 2026-10-16T09:35:49Z make the
+default. That rule is not restated here. It is omnibase_core's internal sibling
+pin check (``contracts/internal_sibling_pins.yaml``, omnibase_core#2058), imported
+and asked whether it has a finding for the source; no finding means a dev merge
+tag of the sibling's own repository. It needs no suppression comment.
 
 ``onex-change-control`` is deliberately NOT checked — it follows an
 immutable-main pin release model (different from the three PyPI-released deps),
@@ -46,6 +52,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -126,6 +133,56 @@ def _line_for_package(block: str, pkg: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Dev merge tag pins (OMN-17427): omnibase_core's rule, imported
+# ---------------------------------------------------------------------------
+
+_SIBLING_PIN_RULE_MISSING = (
+    "the dev merge tag rule is omnibase_core's internal sibling pin check "
+    "(omnibase_core#2058), which the installed omnibase_core does not carry; "
+    "pin omnibase-core at dev-20261019120449-513343d69319 or later and run "
+    "this gate with `uv run --frozen`"
+)
+
+
+def _dev_merge_tag_pins(text: str) -> set[str]:
+    """Checked packages whose source the internal sibling pin check accepts.
+
+    Imported lazily: a pyproject with no git source of a checked package never
+    needs the rule, so the gate stays usable without the project venv.
+    """
+    try:
+        tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return set()
+    from omnibase_core.handlers.handler_internal_sibling_pins import (
+        HandlerInternalSiblingPins,
+        normalize_name,
+    )
+    from omnibase_core.handlers.handler_internal_sibling_pins_cli import load_contract
+    from omnibase_core.models.nodes.no_utcnow_check.model_source_file import (
+        ModelSourceFile,
+    )
+    from omnibase_core.models.version_drift.model_internal_sibling_pins_input import (
+        ModelInternalSiblingPinsInput,
+    )
+
+    contract = load_contract()
+    report = HandlerInternalSiblingPins().handle(
+        ModelInternalSiblingPinsInput(
+            files=(ModelSourceFile(path="pyproject.toml", source=text),),
+            contract=contract,
+        )
+    )
+    refused = {finding.location for finding in report.findings}
+    siblings = {normalize_name(s.distribution) for s in contract.siblings}
+    return {
+        pkg
+        for pkg in siblings & _FORBIDDEN_PACKAGES
+        if f"pyproject.toml:tool.uv.sources.{pkg}" not in refused
+    }
+
+
+# ---------------------------------------------------------------------------
 # Core check
 # ---------------------------------------------------------------------------
 
@@ -144,6 +201,7 @@ def find_violations(text: str) -> list[str]:
 
     entries = _parse_uv_source_entries(block)
     violations: list[str] = []
+    dev_tag_pins: set[str] | None = None
 
     for pkg, attrs in entries.items():
         if pkg not in _FORBIDDEN_PACKAGES:
@@ -152,6 +210,16 @@ def find_violations(text: str) -> list[str]:
         if not git_keys:
             # A non-git source (unusual, but not a provenance violation).
             continue
+        if set(git_keys) == {"git", "tag"}:
+            if dev_tag_pins is None:
+                try:
+                    dev_tag_pins = _dev_merge_tag_pins(text)
+                except ImportError:
+                    violations.append(f"{pkg}: {_SIBLING_PIN_RULE_MISSING}")
+                    dev_tag_pins = set()
+                    continue
+            if pkg in dev_tag_pins:
+                continue
 
         raw_line = _line_for_package(block, pkg)
         if raw_line is not None:
@@ -206,11 +274,13 @@ def main(argv: list[str] | None = None) -> int:
         for msg in violations:
             print(f"  - {msg}", file=sys.stderr)
         print(
-            "\nomnibase-core / omnibase-spi / omnibase-compat are PyPI-published "
-            "first-party deps and must NOT be pinned to git commits/branches/tags "
-            "on dev/main. Resolve them from PyPI (release the dep first if the "
-            "needed version is unpublished). If a temporary override is genuinely "
-            "unavoidable, annotate the exact line with "
+            "\nomnibase-core / omnibase-spi / omnibase-compat are first-party deps "
+            "and must NOT be pinned to a git commit, a branch, a release tag or a "
+            "fork on dev/main. Resolve them from PyPI, or pin an internal sibling "
+            "to its dev merge tag: { git = "
+            '"https://github.com/OmniNode-ai/<repo>.git", tag = '
+            '"dev-<UTC YYYYMMDDHHMMSS>-<sha12>" } (OMN-17427). If another '
+            "override is genuinely unavoidable, annotate the exact line with "
             "'# raw-override-ok: <ticket>' (non-empty token).",
             file=sys.stderr,
         )

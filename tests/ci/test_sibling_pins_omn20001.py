@@ -327,7 +327,9 @@ def test_every_infra_checkout_resolves_a_new_lock_release(
             wf,
             job,
             (version, f"v{version}"),
-            (_lock_version("omnibase-core"), f"v{_lock_version('omnibase-core')}"),
+            # OMN-17427: core keeps whatever the lock pins, a release or a dev
+            # merge tag; only the infra entry is rewritten here.
+            _lock_pin("omnibase-core"),
         ), (wf, job)
 
 

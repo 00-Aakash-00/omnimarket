@@ -80,4 +80,6 @@ jobs:
           fi
 
           echo "pyproject.toml modified in this PR — verifying dependency provenance."
-          python3 scripts/check_dep_provenance.py --pyproject pyproject.toml
+          # OMN-17427: the dev merge tag rule is imported from the locked
+          # omnibase_core, so the gate runs in the project environment.
+          uv run --frozen python scripts/check_dep_provenance.py --pyproject pyproject.toml
