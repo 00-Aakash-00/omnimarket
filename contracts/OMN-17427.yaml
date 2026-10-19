@@ -545,6 +545,15 @@ requirements:
     acceptance:
       - id: "AC103"
         statement: "AC103: config/test_file_durations.json records every collected non-kafka test file that dev 9978f18ad left unrecorded, and test_committed_record_names_nearly_every_test_file passes -- falsifier: the test fails at 9978f18ad with 161 of 3189 files (5.0%) unrecorded"
+  - id: "req-ingress-contract-io-terminal"
+    statement: "An ingress contract I/O failure returns a correlated failure before any provider call, and both runtime dispatch ports can consume it on its declared canonical topic."
+    acceptance:
+      - id: "AC104"
+        statement: "AC104: an unreadable task-class contract returns a single unscored canonical failed terminal with zero model attempts and a FAILED workflow; a replay emits no routing intent."
+      - id: "AC105"
+        statement: "AC105: both deployed-runtime and Market dispatch ports consume the real handler's pre-dispatch failure on the producer's contract topic; the optional V1 subscription rejects routed, malformed and uncorrelated terminals."
+      - id: "AC106"
+        statement: "AC106: an isolated Linux process with genuinely exhausted file descriptors can still construct the ingress failure terminal."
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -2123,3 +2132,73 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/test_ci_shard_plan_omn19684.py -q -n 0 -p no:randomly --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC103"]
+  - id: "dod-omn17427-ingress-contract-io"
+    description: "The contract I/O failure closes its own workflow before inference, preserves tenant identity and is replay safe. The base raises OSError on these cases."
+    source: "manual"
+    binds_ac: ["AC104"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_contract_read_failure_terminal_omn17427.py -q -n 0 --no-cov -p no:randomly -k 'not real_descriptor' --refuse-skips"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-pre-dispatch-terminal-consumed"
+    description: "The handler and both dispatch ports exchange a real canonical failure over an in-memory bus using the producer's declared topic. Routed, malformed and other-correlation V1 messages cannot win the optional subscription."
+    source: "manual"
+    binds_ac: ["AC105"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_delegate_skill_orchestrator/test_pre_dispatch_failure_terminal_omn17427.py -q -n 0 --no-cov -p no:randomly --refuse-skips"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-real-emfile-terminal"
+    description: "A child lowers only its own descriptor limit, exhausts it with real opens, and returns the canonical zero-attempt terminal. The parent process and services are unchanged."
+    source: "manual"
+    binds_ac: ["AC106"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_contract_read_failure_terminal_omn17427.py::test_real_descriptor_exhaustion_still_constructs_failure_terminal -q -n 0 --no-cov -p no:randomly --refuse-skips"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ingress-terminal-deploy-probe"
+    description: "Deploy check: on the hosted Linux runner, execute the real handler, both real dispatch ports and their declared topics on an in-memory bus, plus genuine descriptor exhaustion in a child. It fails at the base; it needs only this checkout and locked dependencies. This is a packaged runtime-path probe, not a live deployment attestation."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/unit/delegation/test_contract_read_failure_terminal_omn17427.py tests/unit/nodes/node_delegate_skill_orchestrator/test_pre_dispatch_failure_terminal_omn17427.py -q -n 0 --no-cov -p no:randomly --refuse-skips"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: dod-omn17427-original-criterion-1
+    description: Original ticket criterion; not verified or completed by this text-timeout
+      experiment. No completion proof is claimed.
+    source: linear
+    linear_dod_text: Plan committed at the path above.
+    status: pending
+    checks: []
+  - id: dod-omn17427-original-criterion-2
+    description: Original ticket criterion; not verified or completed by this text-timeout
+      experiment. No completion proof is claimed.
+    source: linear
+    linear_dod_text: Nightly automation armed and confirmed firing (first report on
+      disk).
+    status: pending
+    checks: []
+  - id: dod-omn17427-original-criterion-3
+    description: Original ticket criterion; not verified or completed by this text-timeout
+      experiment. No completion proof is claimed.
+    source: linear
+    linear_dod_text: Pass 0 report exists, bounded to 48h, every row carrying a probe.
+    status: pending
+    checks: []
+  - id: dod-omn17427-original-criterion-4
+    description: Original ticket criterion; not verified or completed by this text-timeout
+      experiment. No completion proof is claimed.
+    source: linear
+    linear_dod_text: Ledger claim + terminal rows present for pass 0, appended through
+      the mutex.
+    status: pending
+    checks: []
+  - id: dod-omn17427-original-criterion-5
+    description: Original ticket criterion; not verified or completed by this text-timeout
+      experiment. No completion proof is claimed.
+    source: linear
+    linear_dod_text: 'After one week: the graduation review recorded on this ticket
+      — falsified-claim rate, defect tickets filed vs. accepted, whether any pass produced
+      zero rows (a silent-failure signal).'
+    status: pending
+    checks: []
