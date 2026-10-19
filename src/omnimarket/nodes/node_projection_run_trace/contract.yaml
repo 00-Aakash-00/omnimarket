@@ -47,8 +47,8 @@ dod_evidence:
     description: "The served rows for one run are in step order and hold no other tenant's step"
   - test: tests/test_omn19987_run_trace.py::test_runtime_dispatch_resolves_only_the_writer
     description: "Runtime routing dispatches only the effect writer"
-  - test: tests/test_omn19987_run_trace.py::test_the_writer_declares_in_process_dispatch
-    description: "The shared runtime dispatches the writer in-process"
+  - test: tests/test_omn19987_run_trace.py::test_the_writer_runs_standalone_not_in_process
+    description: "The writer runs standalone under its own runtime profile, not in-process"
   - test: tests/test_omn19987_run_trace.py::test_the_postgres_migration_declares_the_table_and_its_key
     description: "Migration owns the table, its composite key and its cursor"
 db_io:
