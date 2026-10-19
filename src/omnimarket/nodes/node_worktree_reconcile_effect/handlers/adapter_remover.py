@@ -13,6 +13,17 @@ from omnimarket.events.worktree_reconcile import ModelWorktreeFacts
 from omnimarket.nodes.node_worktree_reconcile_effect.handlers.adapter_commands import (
     git,
 )
+from omnimarket.nodes.node_worktree_reconcile_effect.protocols import (
+    WorktreeRemoveFailedError,
+)
+
+
+class WorktreePartiallyRemovedError(WorktreeRemoveFailedError):
+    label = "partially_removed"
+
+
+class WorktreeRemoveRefusedError(WorktreeRemoveFailedError):
+    label = "remove_refused"
 
 
 class GitWorktreeRemover:
@@ -30,7 +41,31 @@ class GitWorktreeRemover:
             common = git(
                 str(path), "rev-parse", "--path-format=absolute", "--git-common-dir"
             ).stdout.strip()
-            git(common, "worktree", "remove", str(path))
+            admin = Path(
+                git(str(path), "rev-parse", "--absolute-git-dir").stdout.strip()
+            )
+            # Without --force git deletes the admin dir and then walks the tree
+            # past every failed unlink, so a failure can leave a half-deleted tree.
+            proc = git(common, "worktree", "remove", str(path), ok=tuple(range(256)))
+            if proc.returncode != 0:
+                lines = proc.stderr.splitlines()
+                git_line = next(
+                    (line for line in lines if "failed to delete" in line),
+                    next(
+                        (
+                            line
+                            for line in lines
+                            if line.startswith(("error:", "fatal:"))
+                        ),
+                        "",
+                    ),
+                )
+                error_type = (
+                    WorktreePartiallyRemovedError
+                    if path.exists() and not admin.exists()
+                    else WorktreeRemoveRefusedError
+                )
+                raise error_type(exit_code=proc.returncode, git_line=git_line)
             ticket = path.parent
             if (
                 ticket != root

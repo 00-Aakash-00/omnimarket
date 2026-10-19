@@ -369,6 +369,16 @@ class GitWorktreeFactsProbe:
                 or not path.resolve().is_relative_to(root.resolve())
             ):
                 raise ValueError("unsafe_path")
+            if kind == Kind.LINKED_WORKTREE:
+                pointer = (path / ".git").read_text(encoding="utf-8").strip()
+                if pointer.startswith("gitdir: "):
+                    admin = (path / pointer[8:]).resolve()
+                    if not admin.exists():
+                        return facts.model_copy(
+                            update={
+                                "probe_errors": (*facts.probe_errors, "half_removed")
+                            }
+                        )
             names: list[str] = []
             size = 0
             newest = 0.0

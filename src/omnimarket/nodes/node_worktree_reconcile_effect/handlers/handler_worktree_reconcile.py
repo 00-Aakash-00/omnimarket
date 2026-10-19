@@ -28,6 +28,7 @@ from omnimarket.nodes.node_worktree_reconcile_effect.protocols import (
     ProtocolWorktreeFactsProbe,
     ProtocolWorktreePinner,
     ProtocolWorktreeRemover,
+    WorktreeRemoveFailedError,
 )
 from omnimarket.worktree_reconcile.rules import (
     apply_model_verdicts,
@@ -236,7 +237,11 @@ class HandlerWorktreeReconcile:
                                 )
                 except Exception as exc:
                     outcome = "failed"
-                    error = type(exc).__name__
+                    error = (
+                        str(exc)
+                        if isinstance(exc, WorktreeRemoveFailedError)
+                        else type(exc).__name__
+                    )
         return ModelWorktreeReconcileDecidedEvent(
             correlation_id=command.correlation_id,
             host=command.host,

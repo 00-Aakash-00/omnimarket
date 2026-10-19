@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: MIT
 """Injected boundaries; no handler constructs its own collaborators."""
 
+import re
 from datetime import datetime
-from typing import Protocol
+from typing import ClassVar, Protocol
 
 from pydantic import BaseModel
 
@@ -12,6 +13,20 @@ from omnimarket.events.worktree_reconcile import (
     ModelWorktreeFacts,
     ModelWorktreeReconcileCommand,
 )
+
+_URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s'\"<>]+")
+
+
+class WorktreeRemoveFailedError(RuntimeError):
+    """A non-zero git worktree remove, carrying git's own error line."""
+
+    label: ClassVar[str] = "remove_failed"
+
+    def __init__(self, *, exit_code: int, git_line: str) -> None:
+        self.exit_code = exit_code
+        # stderr may carry credential-bearing URLs.
+        self.git_line = _URL.sub("<url>", git_line)
+        super().__init__(f"{self.label} (exit {exit_code}): {self.git_line}")
 
 
 class ProtocolWorktreeFactsProbe(Protocol):

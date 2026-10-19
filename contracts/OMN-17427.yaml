@@ -528,7 +528,22 @@ requirements:
         statement: "AC99: register-tenant-key anthropic preserves the discovered model and expiry through its catalog event when no plan is named."
       - id: "AC100"
         statement: "AC100: api_native can still be named explicitly, automatic Anthropic plan detection makes no provider request, and GLM detection still refuses a Coding Plan-only key."
+  - id: "req-reconcile-partial-removal"
+    statement: |-
+      The worktree-reconcile effect node, an omnimarket caller of git worktree remove without --force, reports a half-deleted worktree as partially_removed with git's own error line, finds half-deleted trees during discovery, and keeps the HEAD oid on the failed attempt.
+    acceptance:
+      - id: "AC101"
+        statement: "AC101: a non-zero git worktree remove that leaves the path with its admin directory gone raises WorktreePartiallyRemovedError and the decided event's error reads partially_removed; a refused removal reads remove_refused -- falsifier: uv run pytest tests/test_worktree_reconcile_partial_removal.py -q -p no:randomly --no-cov -k 'real_partial_removal or refused_worktree or deletable_worktree' fails at the merge base"
+      - id: "AC102"
+        statement: "AC102: the failure carries git's failed to delete line (else its first error or fatal line) and the exit code, with any URL redacted -- falsifier: uv run pytest tests/test_worktree_reconcile_partial_removal.py -q -p no:randomly --no-cov -k 'stderr_selection or handler_records_failed_attempt' fails at the merge base"
+      - id: "AC103"
+        statement: "AC103: discovery marks a linked worktree whose .git pointer names a missing admin directory with the half_removed probe error and runs no git probe in it, and a clean worktree carries no such error -- falsifier: uv run pytest tests/test_worktree_reconcile_partial_removal.py -q -p no:randomly --no-cov -k discovery_reports_half_removed fails at the merge base"
+      - id: "AC104"
+        statement: "AC104: the decided event of a failed removal carries the tree's path and HEAD oid -- falsifier: uv run pytest tests/test_worktree_reconcile_partial_removal.py -q -p no:randomly --no-cov -k handler_records_failed_attempt fails at the merge base"
 evidence_requirements:
+  - kind: "tests"
+    description: "AC101-AC104: real-git fixtures drive a partial, a refused and a clean removal, the handler's failure row and the half-removed discovery scan."
+    command: "uv run pytest tests/test_worktree_reconcile_partial_removal.py -q -p no:randomly --no-cov"
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
     command: "uv run pytest tests/test_market_node_runtime_dogfood.py::test_market_node_runtime_dogfood_inventory_classifies_all_entry_points -q"
@@ -2043,4 +2058,43 @@ dod_evidence:
     checks:
       - check_type: "command"
         check_value: "uv run pytest tests/unit/cli/test_omn20990_models_add_anthropic.py tests/unit/cli/test_omn17099_register_tenant_key.py -q -n 0 --no-cov --refuse-skips"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac101-reconcile-partial-removal"
+    description: "A chmod 500 subdirectory leaves a partial removal reported as partially_removed; refused and deletable controls do not."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_worktree_reconcile_partial_removal.py -q -p no:randomly --no-cov -k 'real_partial_removal or refused_worktree or deletable_worktree'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC101"]
+  - id: "dod-omn17427-ac102-reconcile-git-line"
+    description: "The failure quotes git's own line and exit code with URLs redacted."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_worktree_reconcile_partial_removal.py -q -p no:randomly --no-cov -k 'stderr_selection or handler_records_failed_attempt'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC102"]
+  - id: "dod-omn17427-ac103-reconcile-half-removed-scan"
+    description: "Discovery marks a planted half-removed tree and not a clean one."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_worktree_reconcile_partial_removal.py -q -p no:randomly --no-cov -k 'discovery_reports_half_removed'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC103"]
+  - id: "dod-omn17427-ac104-reconcile-head-oid"
+    description: "The failed attempt's decided event carries the path and HEAD oid."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_worktree_reconcile_partial_removal.py -q -p no:randomly --no-cov -k 'handler_records_failed_attempt'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC104"]
+  - id: "dod-omn17427-reconcile-partial-removal-deploy-probe"
+    description: "Deploy probe. Drive the packaged worktree-reconcile remover and discovery against temporary git repositories. The hosted runner needs the locked dependencies, git and this checkout, with no service or credential. This checks the node code path, not a running application deployment."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/test_worktree_reconcile_partial_removal.py -q -p no:randomly --no-cov --refuse-skips -k 'not real_partial_removal'"
         cwd: "${OMNI_HOME}/omnimarket"
