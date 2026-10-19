@@ -6,7 +6,6 @@ Routes fix actions:
   receipt_failure                -> repository-evidence failure, delegate to pr_polish
   conflict                       -> ``gh pr update-branch``, then pr_polish if still failing
   changes_requested              -> review-comment fix via pr_polish
-  coderabbit                     -> CodeRabbit thread auto-reply via dispatch_coderabbit_reply
   deploy_gate_contract_not_found -> refusal for a retired companion command
   receipt_evidence_source_autobind -> refusal for a retired companion command
 
@@ -118,10 +117,6 @@ class ProtocolAgentDispatchAdapter(Protocol):
         """Dispatch an agent to address review comments. Returns action string."""
         ...
 
-    async def dispatch_coderabbit_reply(self, repo: str, pr_number: int) -> str:
-        """Dispatch auto-reply for open CodeRabbit threads. Returns action string."""
-        ...
-
 
 @runtime_checkable
 class ProtocolOccContractAdapter(Protocol):
@@ -157,7 +152,7 @@ class ProtocolDelegationFixAdapter(Protocol):
     ``delegation_eligibility.is_delegation_eligible`` has approved the PR.
     Implementations own worktree resolution, the actual fix (deterministic
     tool or LLM delegation), local gates/verify, commit-with-trailer, and
-    re-entry into the existing pr_polish push/coderabbit-triage/auto-merge-arm
+    re-entry into the existing pr_polish push/auto-merge-arm
     flow. Must raise on any gate/verify failure — the caller records a
     two-strike and NEVER treats a raised exception as a push.
     """
@@ -248,9 +243,6 @@ class _NoopAgentDispatchAdapter:
         self, repo: str, pr_number: int, ticket_id: str | None
     ) -> str:
         return f"[noop] would dispatch review-fix agent on {repo}#{pr_number}"
-
-    async def dispatch_coderabbit_reply(self, repo: str, pr_number: int) -> str:
-        return f"[noop] would dispatch coderabbit-reply agent on {repo}#{pr_number}"
 
 
 class _NoopOccContractAdapter:
@@ -716,10 +708,6 @@ class HandlerPrLifecycleFix:
 
         if reason == EnumPrBlockReason.CONFLICT:
             return await self._github.resolve_conflicts(repo, pr), _NOT_DELEGATED
-
-        if reason == EnumPrBlockReason.CODERABBIT:
-            action = await self._agent.dispatch_coderabbit_reply(repo, pr)
-            return action, _NOT_DELEGATED
 
         if reason in (
             EnumPrBlockReason.DEPLOY_GATE_CONTRACT_NOT_FOUND,
