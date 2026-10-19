@@ -29,6 +29,15 @@ requirements:
     acceptance:
       - id: "AC6"
         statement: "AC6: with KAFKA_BOOTSTRAP_SERVERS unset, a key bound to a host whose row names ledger_bus_lane is published on that lane through the lab-run lane resolver; a broker in the environment keeps the publisher path, and an unopenable lane is refused by name -- falsifier: uv run pytest tests/unit/cli/test_omn20910_register_tenant_key_lane_bus.py -q -p no:randomly --no-cov fails at the merge base"
+  - id: "req-review-budget-admission"
+    statement: "Plan ticket 6: durable atomic reservations govern synchronous and Batch calls with per-key and aggregate limits, block-wise pricing and a server-resolved persona tier."
+    acceptance:
+      - id: "BUDGET-1"
+        statement: "Concurrent calls against a balance for one admit exactly one; outstanding Batch reservations reduce synchronous allowance; aggregate exhaustion refuses a key that still has allowance."
+      - id: "BUDGET-2"
+        statement: "Price each cache block at its TTL's cold-write maximum, include tool schema and output, and distinguish per-model and Batch prices."
+      - id: "BUDGET-3"
+        statement: "Persist reservation transitions before reply; retain uncertain charges after dispatch; settle measured usage and reconcile confirmed provider balances idempotently."
 evidence_requirements:
   - kind: "tests"
     description: "The workflow reads the overlay at every roster site."
@@ -102,3 +111,19 @@ dod_evidence:
         check_value: |-
           docker run --rm -v "${PWD}:/workspace:ro" -w /workspace -e PYTHONDONTWRITEBYTECODE=1 -e COMPOSE_PROJECT_NAME=landing-l10892-lab -e UV_PROJECT_ENVIRONMENT=/tmp/register-key-venv -e UV_CACHE_DIR=/tmp/uv-cache ghcr.io/astral-sh/uv@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 uv run --frozen pytest tests/unit/cli/test_omn20910_register_tenant_key_lane_bus.py -q -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/register-key-tests
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20910-budget-limits"
+    description: "Admission races, Batch liability, aggregate limits and server-resolved tiers at the durable handler boundary."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_claude_review_budget_reducer/test_golden_chain_review_budget_admission.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["BUDGET-1", "BUDGET-2", "BUDGET-3"]
+  - id: "dod-omn20910-deploy-review-budget-authority"
+    description: "Resolve the installed admission handler and input model from its runtime contract, load its server-owned policy and persistent database, admit and dispatch once, then refuse further spend after reconstructing the handler. Uses temporary storage and no provider call."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/unit/nodes/node_claude_review_budget_reducer/test_golden_chain_review_budget_admission.py -q -n 0 -p no:randomly --no-cov -k contract_dispatch"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["BUDGET-3"]
