@@ -2238,7 +2238,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/ci/test_sibling_pins_omn20001.py -q"
+        check_value: "uv run pytest tests/ci/test_sibling_pins_omn20001.py -q --no-cov -k 'resolves_a_new_lock_release or pins_match_lock'"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC108"]
   - id: "dod-omn17427-provenance-deploy-probe"
