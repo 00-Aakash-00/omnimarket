@@ -341,6 +341,11 @@ requirements:
         statement: "AC70: node_review_finding_veto_effect drops a blocking finding whose title claims a Python, YAML or JSON file is invalid when ast.parse, yaml.safe_load_all or json.loads accepts that file at the head, turns a verdict that rested only on such findings into passed, and logs the reason -- falsifier: uv run pytest tests/unit/nodes/node_review_finding_veto_effect/test_review_finding_veto.py -q -k 'pr4063 or yaml_and_json' fails at the merge base"
       - id: "AC71"
         statement: "AC71: a syntax claim stays blocking when the file does not parse or cannot be read at the head, names another file or language, or is about text parsed at run time, and findings of other classes and warnings are never examined; the hostile-reviewer workflow runs the veto from the base commit before it reads the verdict -- falsifier: uv run pytest tests/unit/nodes/node_review_finding_veto_effect/test_review_finding_veto.py tests/ci/test_hostile_reviewer_parse_veto_omn17427.py -q fails at the merge base"
+  - id: "req-remove-coderabbit"
+    statement: "CodeRabbit is removed from the review-gate code: the coderabbit-triage node, skills and registrations are gone, and no arm gate, merge-state, fix-routing, comment-resolution or inventory path counts, waits on or parses CodeRabbit threads."
+    acceptance:
+      - id: "AC81"
+        statement: "AC81: node_coderabbit_triage and its skills are deleted, ModelArmCandidate and the lifecycle inventory carry no coderabbit_unresolved, EnumPrBlockReason has no CODERABBIT and the fix handler no dispatch_coderabbit_reply, and the arm gate withholds on six criteria -- falsifier: uv run pytest tests/unit/nodes/node_pr_arm_gate_compute/test_handler_arm_gate.py tests/unit/nodes/node_pr_arm_gate_compute/test_arm_gate_head_check_verdict_composition.py tests/test_golden_chain_pr_lifecycle_fix_effect.py tests/test_omn_13987_pr_lifecycle_arm_activation.py -q fails at the merge base"
   - id: "req-core-pin-compatibility"
     statement: "The omnibase-core dependency and override floors must fit the newest recorded omnibase_infra pin, and the recorded incompatible incident pair must be refused."
     acceptance:
@@ -1590,6 +1595,21 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/configs/task_class_contracts.v1.yaml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert "lab_first_policy:" in source; assert "lab_rubric:" in source; print("lab-first routing deploy probe: PASS")'
+  - id: "dod-omn17427-ac61-remove-coderabbit"
+    description: "The arm gate, fix-routing, auto-merge and golden-chain tests pass with every CodeRabbit path removed."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_pr_arm_gate_compute/test_handler_arm_gate.py tests/unit/nodes/node_pr_arm_gate_compute/test_arm_gate_head_check_verdict_composition.py tests/test_golden_chain_pr_lifecycle_fix_effect.py tests/test_omn_13987_pr_lifecycle_arm_activation.py tests/nodes/node_auto_merge_effect/test_handler_auto_merge_effect.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC81"]
+  - id: "dod-omn17427-remove-coderabbit-deploy-probe"
+    description: "Deploy probe. GitHub serves the arm-gate event model at the checked-out HEAD without the CodeRabbit thread count. It fails at the merge base, which carries the field, and needs only GitHub access and Python on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/events/pr_arm_gate.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert "coderabbit" not in source.lower() and "ModelArmCandidate" in source; print("remove-coderabbit deploy probe: PASS")'
   - id: "dod-omn17427-ac80-reviewer-eval"
     description: "The reviewer eval scores the recorded set and refuses every kind of drop."
     source: "manual"
