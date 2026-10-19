@@ -557,6 +557,13 @@ requirements:
     acceptance:
       - id: "AC104"
         statement: "AC104: OccCompanionEmitter._clone_and_branch retries a clone that raised TimeoutExpired once after removing the partial clone directory, raises the final TimeoutExpired after 2 attempts, raises a CalledProcessError after 1 attempt, and 2 attempts at the per-op git timeout stay under the node's contract descriptor timeout_ms -- falsifier: uv run pytest tests/unit/nodes/node_pr_lifecycle_fix_effect/test_occ_clone_timeout_retry_omn_15447.py -q fails at the merge base"
+  - id: "req-sibling-dev-tag-provenance"
+    statement: "A registered internal sibling can use its own dev merge tag without a suppression, and foreign sources, branches, raw revisions and malformed tags do not qualify."
+    acceptance:
+      - id: "AC107"
+        statement: "AC107: the dependency provenance tests accept canonical sibling dev tags without annotations and refuse foreign git sources, branches, bare revisions, malformed tags and conflicting selectors."
+      - id: "AC108"
+        statement: "AC108: the sibling-pin workflow tests derive core_ref from the fixture lock for both registry releases and dev merge tags while checking each pins step's exact output."
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -2174,4 +2181,27 @@ dod_evidence:
     checks:
       - check_type: "command"
         check_value: "uv run pytest tests/unit/nodes/node_pr_lifecycle_fix_effect/test_occ_clone_timeout_retry_omn_15447.py -q --no-cov -k test_clone_attempts_fit_contract_timeout"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-sibling-dev-tag-provenance"
+    description: "The local provenance gate accepts the sanctioned dev-tag shape and retains negative controls."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/scripts/test_check_dep_provenance.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC107"]
+  - id: "dod-omn17427-core-ref-lock-fixtures"
+    description: "The workflow pin outputs agree with release and dev-tag fixture locks."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_sibling_pins_omn20001.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC108"]
+  - id: "dod-omn17427-provenance-deploy-probe"
+    description: "Deploy probe: exercise the shipped offline provenance entrypoint and its positive and negative source fixtures; no service deployment or credentials are required."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/scripts/test_check_dep_provenance.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
