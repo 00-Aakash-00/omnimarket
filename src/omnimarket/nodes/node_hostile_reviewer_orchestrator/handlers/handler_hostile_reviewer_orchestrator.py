@@ -57,7 +57,9 @@ from omnimarket.nodes.node_hostile_reviewer_orchestrator.handlers.handler_delega
     HandlerDelegationReviewInference,
 )
 from omnimarket.nodes.node_hostile_reviewer_orchestrator.model_config_loader import (
+    ModelFallbackRoute,
     build_model_configs,
+    load_fallback_route,
 )
 from omnimarket.nodes.node_hostile_reviewer_orchestrator.models.model_hostile_reviewer_completed_event import (
     ModelHostileReviewerCompletedEvent,
@@ -83,6 +85,7 @@ from omnimarket.review.node_io import (
     ModelReviewPromptBuilderRequest,
     ModelReviewResponseParserRequest,
 )
+from omnimarket.review.response_parser import EnumParseStatus
 
 _log = logging.getLogger(__name__)
 
@@ -105,6 +108,9 @@ class _FanOutResult:
     models_failed: list[str]
     route_errors: dict[str, str]
     route_provenance: dict[str, ModelInferenceProvenance]
+    fallback_engine: str | None = None
+    fallback_for: tuple[str, ...] = ()
+    fallback_error: str | None = None
 
 
 def _finding_to_aggregator_dict(finding: ModelReviewFinding) -> dict[str, object]:
@@ -143,6 +149,7 @@ async def _infer_served(
     model_key: str,
     system_prompt: str,
     user_prompt: str,
+    timeout_seconds: float,
 ) -> ModelServedInferenceResult:
     """Call the adapter for text plus provenance.
 
@@ -155,14 +162,14 @@ async def _infer_served(
             model_key=model_key,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+            timeout_seconds=timeout_seconds,
         )
         return served
     text = await adapter.infer(
         model_key=model_key,
         system_prompt=system_prompt,
         user_prompt=user_prompt,
-        timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+        timeout_seconds=timeout_seconds,
     )
     return ModelServedInferenceResult(text=text)
 
@@ -186,6 +193,7 @@ class HandlerHostileReviewerOrchestrator:
     ) -> None:
         self._inference_adapter = inference_adapter
         self._github_diff_effect = github_diff_effect or HandlerGithubDiffEffect()
+        self._fallback_route: ModelFallbackRoute | None = load_fallback_route()
         self._prompt_builder = HandlerPromptBuilderCompute()
         self._response_parser = HandlerResponseParserCompute()
         self._aggregator = FindingAggregatorGateway()
@@ -234,6 +242,13 @@ class HandlerHostileReviewerOrchestrator:
             diff_content=diff_content,
             adapter=adapter,
         )
+        if not fan_out.models_succeeded:
+            fan_out = await self._fall_back_to_codex(
+                command=command,
+                diff_content=diff_content,
+                adapter=adapter,
+                failed=fan_out,
+            )
         per_model_findings = fan_out.per_model_findings
 
         if not fan_out.models_succeeded:
@@ -250,6 +265,8 @@ class HandlerHostileReviewerOrchestrator:
                 f"all {len(command.models)} reviewer route(s) failed, no "
                 f"review output produced: {diagnostics}"
             )
+            if fan_out.fallback_error is not None:
+                error_message += f"; {fan_out.fallback_error}"
             _log.error(
                 "hostile reviewer fail-closed (correlation_id=%s): %s",
                 command.correlation_id,
@@ -287,6 +304,58 @@ class HandlerHostileReviewerOrchestrator:
             models_failed=fan_out.models_failed,
             target_snapshot=target_snapshot,
             route_provenance=fan_out.route_provenance,
+            fallback_engine=fan_out.fallback_engine,
+            fallback_for=list(fan_out.fallback_for),
+        )
+
+    async def _fall_back_to_codex(
+        self,
+        command: ModelHostileReviewerStartCommand,
+        diff_content: str,
+        adapter: ModelInferenceAdapter,
+        failed: _FanOutResult,
+    ) -> _FanOutResult:
+        """Review on the contract-declared fallback engine (OMN-17427).
+
+        Called only when no requested route produced review output. The
+        fallback engine is recorded on the result; if it produces nothing too,
+        the original failure is returned with the fallback's diagnostic so the
+        caller still fails closed.
+        """
+        route = self._fallback_route
+        if route is None or route.key in command.models:
+            return failed
+        _log.warning(
+            "hostile reviewer routes %s produced no review output "
+            "(correlation_id=%s); falling back to %s",
+            failed.models_failed,
+            command.correlation_id,
+            route.key,
+        )
+        _, findings, error_diagnostic, provenance = await self._review_one_model(
+            command=command,
+            model_key=route.key,
+            diff_content=diff_content,
+            adapter=adapter,
+            timeout_seconds=route.timeout_seconds,
+        )
+        if error_diagnostic is not None:
+            return _FanOutResult(
+                per_model_findings=failed.per_model_findings,
+                models_succeeded=[],
+                models_failed=failed.models_failed,
+                route_errors=failed.route_errors,
+                route_provenance={**failed.route_provenance, route.key: provenance},
+                fallback_error=f"fallback {route.key}: {error_diagnostic}",
+            )
+        return _FanOutResult(
+            per_model_findings={route.key: findings} if findings else {},
+            models_succeeded=[route.key],
+            models_failed=failed.models_failed,
+            route_errors=failed.route_errors,
+            route_provenance={**failed.route_provenance, route.key: provenance},
+            fallback_engine=route.key,
+            fallback_for=tuple(failed.models_failed),
         )
 
     async def _resolve_diff(
@@ -337,6 +406,8 @@ class HandlerHostileReviewerOrchestrator:
         if factory is not None:
             return factory()
         configs = build_model_configs(requested_keys=command.models)
+        if self._fallback_route is not None:
+            configs.setdefault(self._fallback_route.key, self._fallback_route.config)
         return AdapterInferenceBridge(ModelInferenceBridgeConfig(model_configs=configs))
 
     async def _fan_out_reviews(
@@ -384,6 +455,7 @@ class HandlerHostileReviewerOrchestrator:
         model_key: str,
         diff_content: str,
         adapter: ModelInferenceAdapter,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> tuple[str, list[ModelReviewFinding], str | None, ModelInferenceProvenance]:
         """Return ``(model_key, findings, error_diagnostic, provenance)``.
 
@@ -403,15 +475,29 @@ class HandlerHostileReviewerOrchestrator:
                 model_key=model_key,
                 system_prompt=prompt.system_prompt,
                 user_prompt=prompt.user_prompt,
+                timeout_seconds=timeout_seconds,
             )
         except Exception as exc:  # boundary-ok: per-model degradation, not fatal
             error_diagnostic = repr(exc)
             _log.warning("review model %s failed: %s", model_key, error_diagnostic)
             return model_key, [], error_diagnostic, ModelInferenceProvenance()
 
+        if not served.text.strip():
+            # An engine that returned nothing did not review: the parser reads
+            # empty text as a clean zero-finding SUCCESS, which would pass a
+            # review no engine ran.
+            return model_key, [], "route returned no review output", served.provenance
         parsed = await self._parse_response(
             command.correlation_id, model_key, served.text
         )
+        if parsed.status != EnumParseStatus.SUCCESS:
+            return (
+                model_key,
+                [],
+                f"unparseable review output ({parsed.status.value}): "
+                f"{parsed.error_message}",
+                served.provenance,
+            )
         return model_key, list(parsed.findings), None, served.provenance
 
     async def _build_prompt(

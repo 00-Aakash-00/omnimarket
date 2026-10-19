@@ -34,6 +34,9 @@ from omnimarket.nodes.node_github_diff_effect.handlers.handler_github_diff impor
 from omnimarket.nodes.node_hostile_reviewer_orchestrator.handlers.handler_hostile_reviewer_orchestrator import (
     HandlerHostileReviewerOrchestrator,
 )
+from omnimarket.nodes.node_hostile_reviewer_orchestrator.model_config_loader import (
+    load_fallback_route,
+)
 from omnimarket.nodes.node_hostile_reviewer_orchestrator.models.model_hostile_reviewer_start_command import (
     ModelHostileReviewerStartCommand,
 )
@@ -75,7 +78,10 @@ class _SnapshotDiffEffect(HandlerGithubDiffEffect):
 
 
 class _ServedAdapter(ModelInferenceAdapter):
-    """Reports provenance for ``served`` routes, raises for ``broken``."""
+    """Reports provenance for ``served`` routes, raises for the ``broken`` keys."""
+
+    def __init__(self, broken: frozenset[str] = frozenset({"broken"})) -> None:
+        self._broken = broken
 
     async def infer(
         self,
@@ -103,7 +109,7 @@ class _ServedAdapter(ModelInferenceAdapter):
         response_format: ModelInferenceJsonObjectResponseFormat | None = None,
         protocol_selection: ModelInferenceProtocolSelection | None = None,
     ) -> ModelServedInferenceResult:
-        if model_key == "broken":
+        if model_key in self._broken:
             raise RuntimeError("connection refused")
         if model_key == "silent":
             return ModelServedInferenceResult(text="[]")
@@ -125,9 +131,10 @@ def _command(
 
 def _orchestrator(
     snapshot: ModelReviewTargetSnapshot | None,
+    adapter: ModelInferenceAdapter | None = None,
 ) -> HandlerHostileReviewerOrchestrator:
     return HandlerHostileReviewerOrchestrator(
-        inference_adapter=_ServedAdapter(),
+        inference_adapter=adapter or _ServedAdapter(),
         github_diff_effect=_SnapshotDiffEffect(snapshot),
     )
 
@@ -185,8 +192,31 @@ async def test_inline_diff_has_no_head_so_snapshot_is_unavailable() -> None:
 
 @pytest.mark.asyncio
 async def test_all_routes_failed_still_records_snapshot_and_routes() -> None:
-    event = await _orchestrator(_SNAPSHOT).handle(_command(["broken"]))
+    fallback = load_fallback_route()
+    assert fallback is not None
+    adapter = _ServedAdapter(broken=frozenset({"broken", fallback.key}))
+
+    event = await _orchestrator(_SNAPSHOT, adapter).handle(_command(["broken"]))
 
     assert event.error_message is not None
     assert event.target_snapshot == _SNAPSHOT
-    assert event.route_provenance == {"broken": ModelInferenceProvenance()}
+    assert event.route_provenance == {
+        "broken": ModelInferenceProvenance(),
+        fallback.key: ModelInferenceProvenance(),
+    }
+
+
+@pytest.mark.asyncio
+async def test_fallback_engine_records_its_served_provenance() -> None:
+    fallback = load_fallback_route()
+    assert fallback is not None
+
+    event = await _orchestrator(_SNAPSHOT).handle(_command(["broken"]))
+
+    assert event.error_message is None
+    assert event.fallback_engine == fallback.key
+    assert event.target_snapshot == _SNAPSHOT
+    assert event.route_provenance == {
+        "broken": ModelInferenceProvenance(),
+        fallback.key: _SERVED,
+    }
