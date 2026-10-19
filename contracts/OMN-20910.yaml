@@ -34,6 +34,11 @@ requirements:
     acceptance:
       - id: "AC9"
         statement: "AC9: each fail-closed case has a failed result with no findings, the valid verdict is the positive control, and the v1 reply passes unchanged -- falsifier: env -u PYTHONPATH uv run pytest tests/unit/review/test_compact_strict_parser.py -q -n 0 --no-cov fails at the merge base"
+  - id: "req-review-independent-judge-flag"
+    statement: "The answer gate applies an independent cross-family judge to the review class only when the answer gate contract arms it; the flag ships empty, a judge that is not the selected model is refused, and a pin-only judge backend is used only when no ordinary backend qualifies."
+    acceptance:
+      - id: "AC10"
+        statement: "AC10: with the flag empty a review answer makes no judge call and keeps its contract verdict; with review armed a judge reject refuses it, an accept passes it, and a reviewer other than the selected judge is refused -- falsifier: env -u PYTHONPATH uv run pytest tests/unit/delegation/test_review_judge_flag_omn20910.py -q -n 0 --no-cov fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "The workflow reads the overlay at every roster site."
@@ -115,3 +120,11 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/review/test_compact_strict_parser.py -q -n 0 --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC9"]
+  - id: "dod-omn20910-ac10-review-judge-flag"
+    description: "The review judge flag ships off, the armed path refuses a judge reject and a reviewer that is not the selected judge, and the unarmed path makes no judge call."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_review_judge_flag_omn20910.py -q -n 0 --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC10"]
