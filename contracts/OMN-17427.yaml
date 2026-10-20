@@ -650,6 +650,11 @@ requirements:
       - id: "AC152"
         statement: |-
           AC152: both delegation writers retain the canonical saving's counterfactual after runtime shutdown, preserve an existing pinned baseline, and invent none for a failed or zero-token terminal -- falsifier: uv run pytest tests/unit/nodes/node_projection_delegation/test_canonical_savings_counterfactual_omn20303.py -q -n 0 --no-cov
+  - id: "req-declared-label-set-undeclared-backend"
+    statement: "A declared label set on a backend that does not declare json_schema support sends no provider directive, still refuses an out-of-vocabulary label and records the refusal in attempts, and a payload that omits the new wire fields is read as undeclared."
+    acceptance:
+      - id: "AC153"
+        statement: "AC153: on an undeclared backend the delegate-skill run sends no response_format, fails the garbled label with SCHEMA_VIOLATION naming it, and counts each refused attempt; a backend or call-request payload without the new fields reads as undeclared -- falsifier: uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q fails when an omitted supports_response_format_json_schema defaults to True"
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -854,6 +859,9 @@ evidence_requirements:
   - kind: "tests"
     description: "AC150: the context-pack orchestrator binds its tier sources from the contract's context_tier_sources block."
     command: "uv run pytest tests/nodes/node_context_pack_orchestrator/test_tier_source_binding.py -q"
+  - kind: "tests"
+    description: "AC153: the declared label set tests pass on a declaring and an undeclared backend, and an omitted wire field reads as undeclared."
+    command: "uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -2646,4 +2654,19 @@ dod_evidence:
     checks:
       - check_type: "command"
         check_value: "uv run pytest tests/unit/nodes/node_event_emit_effect/test_kafka_publish_session.py -q -n 0 -p no:randomly --no-cov -k handle"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac105-undeclared-label-set"
+    description: "AC153. The delegate-skill run on an undeclared backend sends no response_format and refuses the garbled label with each refusal counted in attempts; payloads that omit the new fields read as undeclared. Flipping the omitted-field default to True fails the three undeclared cases."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q -p no:cacheprovider -k 'undeclared or omit_the_new_wire_fields'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC153"]
+  - id: "dod-omn17427-undeclared-label-set-deploy"
+    description: "Deploy probe. The undeclared-backend cases and the omitted-wire-field test pass on the checked-out source. They need uv and this checkout on the hosted runner, with no provider or credentials; the cases do not exist at the merge base."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q --no-cov -p no:cacheprovider -k 'undeclared or omit_the_new_wire_fields'"
         cwd: "${OMNI_HOME}/omnimarket"
