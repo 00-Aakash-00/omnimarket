@@ -29,10 +29,10 @@ handler_routing:
   handlers:
     - operation: detect_access_mode
       handler:
-        name: HandlerAccessModeDetect
-        module: omnimarket.nodes.node_operator_access_mode_effect.handlers.handler_access_mode_detect
-      input_model: omnimarket.nodes.node_operator_access_mode_effect.models.model_access_mode_request.ModelAccessModeRequest
-      output_model: omnimarket.nodes.node_operator_access_mode_effect.models.model_access_mode_result.ModelAccessModeResult
+        name: HandlerLocalAccessMode
+        module: omnimarket.handlers
+      input_model: omnimarket.models.model_local_access_mode_request.ModelLocalAccessModeRequest
+      output_model: omnimarket.models.model_local_access_mode_result.ModelLocalAccessModeResult
     - operation: check_foreground_bash
       handler:
         name: HandlerForegroundBashGuard

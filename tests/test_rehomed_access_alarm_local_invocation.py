@@ -25,6 +25,17 @@ def _binding(node: str) -> tuple[type, type, type]:
     assert contract["event_bus"] == {"subscribe_topics": [], "publish_topics": []}
     assert contract["runtime_dispatch"]["external_trigger"].strip()
     binding = contract["handler"]
+    routes = contract["handler_routing"]["handlers"]
+    canonical_routes = [
+        route
+        for route in routes
+        if route["handler"]["module"] == binding["module"]
+        and route["handler"]["name"] == binding["class"]
+    ]
+    assert len(canonical_routes) == 1
+    route = canonical_routes[0]
+    assert route["input_model"] == binding["input_model"]
+    assert route["output_model"] == binding["output_model"]
 
     def model(ref: str) -> type:
         module, _, name = ref.rpartition(".")
