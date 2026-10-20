@@ -161,8 +161,9 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "command"
+        # python3.12-bookworm (not -slim): uv needs git for the omnibase-infra git source in pyproject.toml.
         check_value: |-
-          env docker run --rm -v "${PWD}:/workspace:ro" -w /workspace -e PYTHONDONTWRITEBYTECODE=1 -e COMPOSE_PROJECT_NAME=landing-l10892-lab -e UV_PROJECT_ENVIRONMENT=/tmp/register-key-venv -e UV_CACHE_DIR=/tmp/uv-cache ghcr.io/astral-sh/uv@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 uv run --frozen pytest tests/unit/cli/test_omn20910_register_tenant_key_lane_bus.py -q -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/register-key-tests
+          env docker run --rm -v "${PWD}:/workspace:ro" -w /workspace -e PYTHONDONTWRITEBYTECODE=1 -e COMPOSE_PROJECT_NAME=landing-l10892-lab -e UV_PROJECT_ENVIRONMENT=/tmp/register-key-venv -e UV_CACHE_DIR=/tmp/uv-cache ghcr.io/astral-sh/uv@sha256:85d4cb1afa769a7338e095b927bee941cf5ec92266c7424b3f6c0f2748567248 uv run --frozen pytest tests/unit/cli/test_omn20910_register_tenant_key_lane_bus.py -q -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/register-key-tests
         cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn20910-ac9-compact-strict-parser"
     description: "compact_strict fails closed on every listed case; a mandatory R finding is critical; v1 replies pass unchanged."
@@ -250,8 +251,9 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "command"
+        # python3.12-bookworm (not -slim): uv needs git for the omnibase-infra git source in pyproject.toml.
         check_value: |-
-          env docker run --rm -v "${PWD}:/workspace:ro" -w /workspace -e PYTHONDONTWRITEBYTECODE=1 -e UV_PROJECT_ENVIRONMENT=/tmp/native-messages-venv -e UV_CACHE_DIR=/tmp/uv-cache ghcr.io/astral-sh/uv@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 uv run --frozen pytest tests/test_omn20910_native_messages_protocol.py -q -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/native-messages-tests
+          env docker run --rm -v "${PWD}:/workspace:ro" -w /workspace -e PYTHONDONTWRITEBYTECODE=1 -e UV_PROJECT_ENVIRONMENT=/tmp/native-messages-venv -e UV_CACHE_DIR=/tmp/uv-cache ghcr.io/astral-sh/uv@sha256:85d4cb1afa769a7338e095b927bee941cf5ec92266c7424b3f6c0f2748567248 uv run --frozen pytest tests/test_omn20910_native_messages_protocol.py -q -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/native-messages-tests
         cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn20910-ac8-defect-catalog-node"
     description: "The defect-code catalog node validates and renders the packaged catalog; every refusal has a positive control."
