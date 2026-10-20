@@ -2018,12 +2018,12 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC80"]
   - id: "dod-omn17427-hr-overflow-pin-probe"
-    description: "Deploy probe. GitHub serves the hostile-reviewer workflow at the checked-out HEAD cloning omniintelligence at the overflow-deadline revision. The probe fails at the merge base, which pins aeba95945f22, and needs only GitHub access on the hosted runner."
+    description: "Deploy probe. GitHub serves the hostile-reviewer workflow at the checked-out HEAD cloning omniintelligence at its newest dev tag (OMN-20910), and every dev tag since the overflow-deadline revision 921b322b8e43 carries the fix. The probe fails on a workflow that clones a sha literal, such as aeba95945f22, and needs only GitHub access on the hosted runner."
     source: "manual"
     checks:
       - check_type: "command"
         check_value: >-
-          gh api "repos/OmniNode-ai/omnimarket/contents/.github/workflows/hostile-reviewer.yml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -F -- "OMNIINTELLIGENCE_SHA 921b322b8e43f695961a06a04759dc88bb3e88ff"
+          gh api "repos/OmniNode-ai/omnimarket/contents/.github/workflows/hostile-reviewer.yml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -F -- 'OMNIINTELLIGENCE_SHA "refs/tags/'
   - id: "dod-omn17427-ac91-liveness-overlay-check"
     description: "The overlay completeness check node and its console script pass the focused suite."
     source: "manual"
