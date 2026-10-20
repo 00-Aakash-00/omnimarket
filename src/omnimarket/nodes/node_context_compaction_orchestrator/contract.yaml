@@ -14,7 +14,7 @@ description: >
   fallback with the failure class and the command's invocation_id; no partial
   package is replied. Until the context-pack orchestrator is wired the default
   port reports pack_builder_unavailable, so every invocation falls back to
-  native compaction. Receipt events carry ids, hashes and failure classes only;
+  native compaction. Receipt events carry ids, hashes, failure classes and build timings only;
   the package reply carries content and travels on the restricted command family.
 
 handler_routing:
