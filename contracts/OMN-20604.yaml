@@ -1,11 +1,11 @@
 ---
 schema_version: "1.0.0"
 ticket_id: "OMN-20604"
-title: "Lab job reducer decides every job transition as a pure function"
-summary: "node_lab_job_reducer is a pure handle(input) -> output with no clock and no I/O. AC1 to AC3 are bound to the reducer's tests. The lab readback is recorded in the pull request body and is not bound."
+title: "Delegation effect consumes lab jobs through target adapters"
+summary: "Extends the existing delegation call effect with model-call and coding-session adapters, a lab-job submission consumer, durable ownership and a reducer-transition outbox. Existing reducer and projection bindings are retained. New bindings cover focused unit and runtime-dispatch tests; live database, coding-agent and provider compatibility checks remain separate required evidence."
 is_seam_ticket: false
-interface_change: false
-interfaces_touched: []
+interface_change: true
+interfaces_touched: ["public_api"]
 requirements:
   - id: "req-lab-job-reducer-transitions"
     statement: "The reducer applies each event to a job row and returns the next row and its intents. The criteria below are the ones the reducer's tests cover; each id is the label the binding item claims through binds_ac."
@@ -35,6 +35,15 @@ requirements:
         statement: "AC10: the lab job projection writer refuses an older seq, an equal seq and a redelivered transition, so a replay writes nothing -- falsifier: uv run pytest tests/test_lab_job_projection.py -k 'older_transition or redelivered or equal_seq' -q in omnimarket fails at the merge base, where the node does not exist"
       - id: "AC11"
         statement: "AC11: only the writer is routed and it declares in-process dispatch, while the pure fold writes no rows -- falsifier: uv run pytest tests/test_golden_chain_projection_lab_job.py -k 'trap or routes_only_the_writer' -q in omnimarket fails at the merge base, where the node does not exist"
+  - id: "req-delegation-target-adapters"
+    statement: "The existing delegation call effect owns target adapters and consumes canonical lab job submissions through runtime routing."
+    acceptance:
+      - id: "AC12"
+        statement: "AC12: the runtime discovers the existing effect's lab-job handler and dispatches the submit node's ModelEventEnvelope to it; the handler retains the original brief, records reducer transitions, and refuses a second launch for a taken job -- falsifier: uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'runtime_discovers or launches_once or wire_models' -q"
+      - id: "AC13"
+        statement: "AC13: coding-session adapters launch a brief on stdin in a worktree at the requested full commit and retain a typed receipt; a replay returns that receipt, and a reused identity with different instructions is refused -- falsifier: uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'session_adapter or agent_adapters or exact_commit' -q"
+      - id: "AC14"
+        statement: "AC14: the model adapter uses the model router's complete endpoint and the generic inference handler's wire shape; contract generation parameters survive overrides and unmeasured, ignored or rejected parameters are refused before inference -- falsifier: uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'model_adapter or parameters or generation_overrides' -q"
 evidence_requirements:
   - kind: "tests"
     description: "AC1 to AC3 hosted probe. The reducer tests pass at the head and fail at the merge base, where the reducer does not exist."
@@ -44,6 +53,37 @@ emergency_bypass:
   justification: ""
   follow_up_ticket_id: ""
 dod_evidence:
+  - id: "dod-omn20604-ac12-runtime-lab-submission"
+    description: "Runtime dispatcher and submit-envelope seam, with a shared store test double; live lab ownership and process proof remain separate."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'runtime_discovers or launches_once or wire_models' -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC12"]
+  - id: "dod-omn20604-ac13-session-adapters"
+    description: "Exact-commit git worktree and subprocess boundary with a deterministic CLI fixture; this is not a real coding-agent session."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'session_adapter or agent_adapters or exact_commit' -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC13"]
+  - id: "dod-omn20604-ac14-generation-routing"
+    description: "Generic inference payload and logical routing; this is not a live per-provider compatibility matrix."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'model_adapter or parameters or generation_overrides' -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC14"]
+  - id: "dod-omn20604-delegation-deploy-probe"
+    description: "Hosted falsifier for the deployment artifact's subscription and dispatch wiring; live dev-slot execution is a separate required lab observation."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k runtime_discovers -q"
+        cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn20604-ac1-transitions"
     description: "AC1 hosted probe. The transition table and the exit for every non-terminal state hold."
     source: "manual"
