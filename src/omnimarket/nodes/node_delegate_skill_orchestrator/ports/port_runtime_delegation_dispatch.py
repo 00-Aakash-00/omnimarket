@@ -338,28 +338,41 @@ class RuntimeDelegationDispatchPort:
                 correlation_id,
                 exc_info=True,
             )
-        for step in buffer.pending:
-            try:
-                envelope = ModelEventEnvelope[dict[str, object]](
-                    payload=step.payload,
-                    correlation_id=correlation_id,
-                    envelope_timestamp=datetime.now(UTC),
-                    event_type=step.event_type,
-                    source_tool=self._config.source_tool,
-                )
-                await self._event_bus.publish(
-                    step.topic,
-                    step.partition_key.encode("utf-8") if step.partition_key else None,
-                    envelope.model_dump_json(exclude_none=True).encode("utf-8"),
-                    None,
-                )
-            except Exception:
-                logger.warning(
-                    "run step %s of correlation_id=%s was not published",
-                    step.event_id,
-                    correlation_id,
-                    exc_info=True,
-                )
+        # One deadline covers the batch, rather than growing with its size.
+        # Cancellation from the caller still propagates; only this scope's
+        # deadline is best-effort. The already observed terminal remains valid.
+        try:
+            async with asyncio.timeout(self._config.run_step_publish_timeout_seconds):
+                for step in buffer.pending:
+                    try:
+                        envelope = ModelEventEnvelope[dict[str, object]](
+                            payload=step.payload,
+                            correlation_id=correlation_id,
+                            envelope_timestamp=datetime.now(UTC),
+                            event_type=step.event_type,
+                            source_tool=self._config.source_tool,
+                        )
+                        await self._event_bus.publish(
+                            step.topic,
+                            step.partition_key.encode("utf-8")
+                            if step.partition_key
+                            else None,
+                            envelope.model_dump_json(exclude_none=True).encode("utf-8"),
+                            None,
+                        )
+                    except Exception:
+                        logger.warning(
+                            "run step %s of correlation_id=%s was not published",
+                            step.event_id,
+                            correlation_id,
+                            exc_info=True,
+                        )
+        except TimeoutError:
+            logger.warning(
+                "run-step delivery budget exhausted for correlation_id=%s; "
+                "remaining trace steps were not published",
+                correlation_id,
+            )
 
     async def _publish_request(self, request: ModelDelegationRequest) -> None:
         envelope = ModelEventEnvelope[ModelDelegationRequest](

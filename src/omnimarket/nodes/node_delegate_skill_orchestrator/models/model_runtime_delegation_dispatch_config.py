@@ -39,6 +39,9 @@ class ModelRuntimeDelegationDispatchConfig(BaseModel):
     source_tool: str = Field(min_length=1)
     consumer_group_prefix: str = Field(min_length=1)
     wait_timeout_seconds: int = Field(ge=1, le=3600)
+    run_step_publish_timeout_seconds: float = Field(
+        default=1.0, gt=0, le=60, allow_inf_nan=False
+    )
 
     @field_validator(
         "request_message_type",

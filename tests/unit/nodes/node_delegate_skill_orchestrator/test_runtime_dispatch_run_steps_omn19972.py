@@ -14,7 +14,7 @@ each message the way the writer does.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -121,10 +121,17 @@ async def _run(
     terminal: Callable[[UUID], BaseModel] | None,
     *,
     tenant_id: str | None = "tenant-from-request",
+    trace_handler: Callable[[], Awaitable[None]] | None = None,
+    trace_budget_seconds: float = 1.0,
+    prompt: str = "p",
+    task_type: str = "document",
 ) -> tuple[UUID, dict[str, object], list[ModelDelegationRunStep]]:
     correlation_id = uuid4()
     config = load_runtime_delegation_dispatch_config().model_copy(
-        update={"wait_timeout_seconds": 1}
+        update={
+            "wait_timeout_seconds": 1,
+            "run_step_publish_timeout_seconds": trace_budget_seconds,
+        }
     )
     topic = run_step_topic()
     assert topic == "onex.evt.omnimarket.delegation-run-step.v1"
@@ -133,6 +140,8 @@ async def _run(
     await bus.start()
 
     async def on_step(message: ModelEventMessage) -> None:
+        if trace_handler is not None:
+            await trace_handler()
         raw_steps.append(message.value)
 
     async def on_command(message: ModelEventMessage) -> None:
@@ -163,8 +172,8 @@ async def _run(
         )
         port = RuntimeDelegationDispatchPort(event_bus=bus, config=config)
         result = await port.dispatch(
-            prompt="p",
-            task_type="document",
+            prompt=prompt,
+            task_type=task_type,
             correlation_id=correlation_id,
             max_tokens=None,
             source_file_path=None,
@@ -188,6 +197,126 @@ async def _run(
             ModelDelegationRunStep.model_validate(strip_runner_injected_keys(data))
         )
     return correlation_id, result, steps
+
+
+def _completed(cid: UUID) -> ModelDelegationTerminalCompletedV2:
+    return ModelDelegationTerminalCompletedV2(
+        **_common(cid, outcome="completed"), **_routed(), quality_passed=True
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("terminal_kind", ["completed", "failed", "timeout"])
+async def test_stalled_trace_sink_preserves_observed_terminal(
+    terminal_kind: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An observed terminal survives a stalled optional telemetry sink."""
+    cancelled = asyncio.Event()
+
+    async def stalled() -> None:
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    def failed(cid: UUID) -> ModelDelegationTerminalFailedUnroutedV2:
+        common = _common(cid, outcome="failed")
+        common["escalation_history"] = ()
+        common["escalation_count"] = 0
+        return ModelDelegationTerminalFailedUnroutedV2(
+            **common,
+            routing_disposition="unrouted",
+            unrouted_reason="no_eligible_backend",
+            terminal_failure_reason="no eligible backend",
+        )
+
+    build = {"completed": _completed, "failed": failed, "timeout": None}[terminal_kind]
+    cid, result, steps = await asyncio.wait_for(
+        _run(build, trace_handler=stalled, trace_budget_seconds=0.02), timeout=3
+    )
+    assert result["status"] == terminal_kind
+    if terminal_kind == "completed":
+        assert result["correlation_id"] == str(cid)
+        assert result["content"] == "answer"
+        assert result["quality_passed"] is True
+    if terminal_kind == "failed":
+        assert "no eligible backend" in result["error_message"]
+    assert cancelled.is_set()
+    assert steps == []
+    assert "run-step delivery budget exhausted" in caplog.text
+
+
+@pytest.mark.unit
+async def test_trace_budget_covers_entire_batch() -> None:
+    """Slow individually finite sends cannot multiply the configured budget."""
+    sends = 0
+    cancelled = 0
+
+    async def slow() -> None:
+        nonlocal sends, cancelled
+        sends += 1
+        try:
+            await asyncio.sleep(0.03)
+        except asyncio.CancelledError:
+            cancelled += 1
+            raise
+
+    _, result, steps = await asyncio.wait_for(
+        _run(_completed, trace_handler=slow, trace_budget_seconds=0.08), timeout=2
+    )
+    assert result["status"] == "completed"
+    assert len(steps) < 7
+    assert cancelled == 1
+    assert sends == len(steps) + 1
+    assert [step.step_sequence for step in steps] == list(range(1, len(steps) + 1))
+
+
+@pytest.mark.unit
+async def test_external_cancellation_is_not_a_trace_timeout() -> None:
+    entered = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def stalled() -> None:
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    task = asyncio.create_task(_run(_completed, trace_handler=stalled))
+    await asyncio.wait_for(entered.wait(), timeout=2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert cancelled.is_set()
+
+
+@pytest.mark.unit
+async def test_trace_publication_error_keeps_terminal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def refused() -> None:
+        raise OSError("trace sink unavailable")
+
+    _, result, steps = await _run(_completed, trace_handler=refused)
+    assert result["status"] == "completed"
+    assert steps == []
+    assert "trace sink unavailable" in caplog.text
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("budget", [0, -1, float("nan"), float("inf"), 61])
+def test_trace_delivery_budget_must_be_finite_and_bounded(budget: float) -> None:
+    from pydantic import ValidationError
+
+    from omnimarket.nodes.node_delegate_skill_orchestrator.models import (
+        ModelRuntimeDelegationDispatchConfig,
+    )
+
+    raw = load_runtime_delegation_dispatch_config().model_dump()
+    raw["run_step_publish_timeout_seconds"] = budget
+    with pytest.raises(ValidationError):
+        ModelRuntimeDelegationDispatchConfig.model_validate(raw)
 
 
 @pytest.mark.unit

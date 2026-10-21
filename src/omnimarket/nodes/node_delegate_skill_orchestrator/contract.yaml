@@ -353,6 +353,9 @@ delegation_runtime_dispatch:
   source_tool: delegate-skill-runtime-port
   consumer_group_prefix: delegate-skill-runtime-port
   wait_timeout_seconds: 300
+  # Trace delivery is best-effort: one budget for the whole batch, so a stalled
+  # trace sink cannot spend the handler's remaining budget after an answer.
+  run_step_publish_timeout_seconds: 1.0
 
 # The handler waits execution_timeout + delivery margin; a further 60 seconds
 # gives its own timeout terminal first chance to hold the command's slot.

@@ -711,6 +711,11 @@ requirements:
       statement: 'AC159: both deployed-runtime and Market dispatch ports consume the real handler''s pre-dispatch failure on the producer''s contract topic; the optional V1 subscription rejects routed, malformed and uncorrelated terminals.'
     - id: AC160
       statement: 'AC160: an isolated Linux process with genuinely exhausted file descriptors can still construct the ingress failure terminal.'
+  - id: req-bounded-delegation-trace-delivery
+    statement: Optional run-step delivery cannot indefinitely hold an observed delegation terminal.
+    acceptance:
+    - id: AC161
+      statement: 'AC161: a stalled trace sink preserves completed, failed and timeout results within one finite contract-declared batch budget; external cancellation still propagates and healthy traces retain their ordering.'
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -935,6 +940,21 @@ emergency_bypass:
   justification: ""
   follow_up_ticket_id: ""
 dod_evidence:
+  - id: dod-omn17427-bounded-trace-delivery
+    description: A real in-memory bus stalls the trace subscriber after returning a canonical terminal. The base waits indefinitely; the candidate retains the observed outcome, bounds the whole batch, and propagates external cancellation.
+    source: manual
+    binds_ac: [AC161]
+    checks:
+      - check_type: test_passes
+        check_value: uv run pytest tests/unit/nodes/node_delegate_skill_orchestrator/test_runtime_dispatch_run_steps_omn19972.py -q -n 0 --no-cov -p no:randomly --refuse-skips
+        cwd: ${OMNI_HOME}/omnimarket
+  - id: dod-omn17427-bounded-trace-deploy-probe
+    description: 'Deploy probe: the checked-out runtime dispatch port exchanges a real canonical completion with an in-memory bus whose trace subscriber never finishes. The observed answer must return within the configured batch budget. Fails on the base port; requires no broker, database, credential or deployed service. This checks packaged behavior, not live deployment.'
+    source: manual
+    checks:
+      - check_type: command
+        check_value: uv run pytest tests/unit/nodes/node_delegate_skill_orchestrator/test_runtime_dispatch_run_steps_omn19972.py -q -n 0 --no-cov -p no:randomly --refuse-skips -k 'stalled_trace_sink or trace_budget_covers_entire_batch'
+        cwd: ${OMNI_HOME}/omnimarket
   - id: "dod-omn17427-ac141-canonical-baseline"
     description: "OMN-20303 AC3 failed its live readback: a runtime_shutdown terminal followed by a canonical completion produced a saving but no stored counterfactual. The regression covers both write paths, terminal orders, an originally pinned baseline, and failed/zero-token controls. It fails at the merge base; post-deploy AC3 readback remains required."
     source: "manual"
