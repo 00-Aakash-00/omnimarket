@@ -206,7 +206,7 @@ def test_refusal_row_reply_local_paths_names_its_own_reason(scratch: Scratch) ->
         "stop",
         {
             "hook_event_name": "Stop",
-            "last_assistant_message": "The report is at /home/me/report.md.",
+            "last_assistant_message": "The report is at ~/report.md.",
         },
     )
     assert result.returncode == 0, result.stderr
