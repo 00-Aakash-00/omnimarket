@@ -141,9 +141,9 @@ async def _seed(conn: asyncpg.Connection) -> None:
         INSERT INTO savings_estimates (
             event_timestamp, session_id, model_local, model_cloud_baseline,
             local_cost_usd, cloud_cost_usd, savings_usd, tenant_id,
-            task_type, prompt_tokens, completion_tokens, usage_source
+            task_type, prompt_tokens, completion_tokens, usage_source, created_at
         ) VALUES ($1, $2, 'qwen2.5-coder', 'claude-opus-4.1',
-                  $3, $4, $5, $6, 'code_review', 100, 200, 'measured')
+                  $3, $4, $5, $6, 'code_review', 100, 200, 'measured', $7)
         """,
         _WHEN,
         RUN_A,
@@ -151,6 +151,7 @@ async def _seed(conn: asyncpg.Connection) -> None:
         Decimal("0.780000"),
         Decimal("0.770000"),
         str(TENANT_A),
+        _WHEN,
     )
 
 
@@ -470,3 +471,91 @@ async def test_the_house_tenant_is_one_group_not_two(
     assert runs[0]["cost_savings_usd"] == pytest.approx(0.12)
     # The control: the same reconciliation on the sibling view.
     assert await _row(views, SAVINGS, HOUSE_UUID) is not None
+
+
+@pytest.mark.integration
+async def test_savings_series_keeps_same_day_totals_separate_by_tenant(
+    views: asyncpg.Connection,
+) -> None:
+    """Real-Postgres control for OMN-17882's tenant-and-day series grain.
+
+    Failure modes: the old day-only grouping blends two tenants; tenant_id is
+    inserted or reordered instead of appended; CREATE OR REPLACE drops the
+    existing dashboard SELECT grant; or an empty tenant receives a confident
+    zero row. The existing migration-chain fixture supplies tenant A's row; a
+    deliberately different savings row for tenant B makes blending observable.
+    This test runs only in hosted CI, never against a shared lab database.
+    """
+    await views.execute("SET TIME ZONE 'UTC'")
+    await views.execute(
+        """
+        INSERT INTO savings_estimates (
+            event_timestamp, session_id, model_local, model_cloud_baseline,
+            local_cost_usd, cloud_cost_usd, savings_usd, tenant_id,
+            task_type, prompt_tokens, completion_tokens, usage_source, created_at
+        ) VALUES ($1, $2, 'served-model', 'served-baseline',
+                  $3, $4, $5, $6, 'code_review', 50, 70, 'measured', $7)
+        """,
+        _WHEN,
+        RUN_B,
+        Decimal("0.020000"),
+        Decimal("0.350000"),
+        Decimal("0.330000"),
+        str(TENANT_B),
+        _WHEN,
+    )
+
+    columns = [
+        row["column_name"]
+        for row in await views.fetch(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = $1 AND table_schema = current_schema() "
+            "ORDER BY ordinal_position",
+            "projection_delegation_savings_series",
+        )
+    ]
+    assert columns == [
+        "bucket",
+        "actual_cost_usd",
+        "baseline_cost_usd",
+        "savings_usd",
+        "task_count",
+        "local_pct",
+        "cheap_pct",
+        "prem_pct",
+        "tenant_id",
+    ], columns
+    assert (
+        await views.fetchval(
+            "SELECT has_table_privilege('app_dashboard', "
+            "current_schema() || '.' || $1, 'SELECT')",
+            "projection_delegation_savings_series",
+        )
+        is True
+    )
+
+    rows = await views.fetch(
+        "SELECT tenant_id, bucket, actual_cost_usd, baseline_cost_usd, "
+        "savings_usd, task_count "
+        "FROM projection_delegation_savings_series ORDER BY tenant_id"
+    )
+    assert len(rows) == 2, "positive control: both tenants have same-day rows"
+    assert [row["tenant_id"] for row in rows] == [str(TENANT_A), str(TENANT_B)]
+    tenant_a, tenant_b = rows
+    assert tenant_a["bucket"] == tenant_b["bucket"] == datetime(2026, 9, 12, tzinfo=UTC)
+    assert tenant_a["actual_cost_usd"] == pytest.approx(0.01)
+    assert tenant_a["baseline_cost_usd"] == pytest.approx(0.78)
+    assert tenant_a["savings_usd"] == pytest.approx(0.77)
+    assert tenant_a["task_count"] == 1
+    assert tenant_b["actual_cost_usd"] == pytest.approx(0.02)
+    assert tenant_b["baseline_cost_usd"] == pytest.approx(0.35)
+    assert tenant_b["savings_usd"] == pytest.approx(0.33)
+    assert tenant_b["task_count"] == 1
+    assert (
+        await views.fetchrow(
+            "SELECT tenant_id FROM projection_delegation_savings_series "
+            "WHERE tenant_id = $1",
+            str(TENANT_EMPTY),
+        )
+        is None
+    )

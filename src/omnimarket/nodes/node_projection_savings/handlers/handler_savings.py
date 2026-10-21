@@ -155,12 +155,9 @@ class SavingsProjectionRunner(BaseProjectionRunner):
         #     ``bus_backed: false`` -- see that exposure's own contract block;
         #     the binding below is what makes the flag, not this code.
         #   * SINGLETON AGGREGATE: delegation.savings.v1 and
-        #     cost.savings-overview.v1, limit-1 SQL views with no upserted row
-        #     to publish. Republished whole by ``_publish_aggregate_snapshots``.
-        #
-        # delegation.savings-series.v1 is neither: it is a 365-row series that
-        # stays SQL-served, and the aggregate resolver below refuses it by
-        # construction if its flag is ever flipped without a publish site.
+        #     cost.savings-overview.v1, limit-1 SQL views republished whole.
+        #   * DAILY SERIES: delegation.savings-series.v1, read under the event
+        #     tenant and published once per day row with (tenant_id, bucket).
         node_name = str(self._contract.get("name", "projection_savings"))
         exposures = load_projection_exposures_from_contract(
             self._contract, node_name, _path
@@ -175,6 +172,9 @@ class SavingsProjectionRunner(BaseProjectionRunner):
         )
         self._aggregate_exposures: tuple[ProjectionTableConfig, ...] = (
             self._resolve_aggregate_exposures(exposures)
+        )
+        self._series_exposure: ProjectionTableConfig | None = (
+            self._resolve_series_exposure(exposures)
         )
         _topics: list[str] = self._contract.get("event_bus", {}).get(
             "subscribe_topics", []
@@ -232,12 +232,10 @@ class SavingsProjectionRunner(BaseProjectionRunner):
         ``not_yet_bus_backed`` refusal into a confident empty page, which is
         the failure OMN-15864 exists to prevent.
 
-        This runner has exactly two publish shapes: the per-row upsert on
-        ``savings_estimates``, and re-reading a limit-1 view and republishing
-        it keyed on :data:`SNAPSHOT_GRAIN_COLUMN` plus
-        :data:`SNAPSHOT_TENANT_COLUMN`. A bus_backed exposure that is neither
-        has no publish site here, so construction fails rather than deploying a
-        writer that silently serves nothing.
+        This resolver handles singleton views keyed on
+        :data:`SNAPSHOT_GRAIN_COLUMN` plus :data:`SNAPSHOT_TENANT_COLUMN`.
+        The per-row upsert and multi-row daily series have separate publish
+        sites and are resolved independently.
         """
         aggregates: list[ProjectionTableConfig] = []
         for exposure in exposures:
@@ -246,6 +244,9 @@ class SavingsProjectionRunner(BaseProjectionRunner):
             if exposure.table == self._table_estimates:
                 # The per-row exposure; published from the upsert's RETURNING
                 # row, not re-read.
+                continue
+            if exposure.table == "projection_delegation_savings_series":
+                # The daily series has its own multi-row publish loop and key.
                 continue
             if exposure.key_columns != (
                 SNAPSHOT_GRAIN_COLUMN,
@@ -284,10 +285,58 @@ class SavingsProjectionRunner(BaseProjectionRunner):
             aggregates.append(exposure)
         return tuple(aggregates)
 
+    @staticmethod
+    def _resolve_series_exposure(
+        exposures: tuple[ProjectionTableConfig, ...] | list[ProjectionTableConfig],
+    ) -> ProjectionTableConfig | None:
+        """Validate the daily-series publish site before enabling its flag."""
+        topic = "onex.snapshot.projection.delegation.savings-series.v1"
+        table = "projection_delegation_savings_series"
+        matches = [
+            exposure
+            for exposure in exposures
+            if exposure.topic == topic or exposure.table == table
+        ]
+        if len(matches) > 1:
+            raise ValueError(
+                "projection_delegation_savings_series must be declared once"
+            )
+        if not matches or not matches[0].bus_backed:
+            return None
+
+        exposure = matches[0]
+        if exposure.topic != topic or exposure.table != table:
+            raise ValueError(
+                "the savings-series publish site requires the declared series "
+                f"topic and table, got {exposure.topic!r} / {exposure.table!r}"
+            )
+        if exposure.key_columns != (SNAPSHOT_TENANT_COLUMN, "bucket"):
+            raise ValueError(
+                "the savings-series publish site requires key_columns "
+                f"[{SNAPSHOT_TENANT_COLUMN!r}, 'bucket'], got "
+                f"{list(exposure.key_columns)!r}"
+            )
+        if exposure.tenant_column != SNAPSHOT_TENANT_COLUMN:
+            raise ValueError(
+                "the savings-series publish site requires tenant_column "
+                f"{SNAPSHOT_TENANT_COLUMN!r}, got {exposure.tenant_column!r}"
+            )
+        if exposure.limit != 365:
+            raise ValueError(
+                f"the savings-series publish site requires limit 365, got "
+                f"{exposure.limit}"
+            )
+        if not _IDENTIFIER_RE.match(exposure.table):
+            raise ValueError(
+                f"projection_api exposure {topic!r} names invalid SQL identifier "
+                f"{exposure.table!r}"
+            )
+        return exposure
+
     async def _publish_aggregate_snapshots(
         self, meta: MessageMeta, *, tenant: str
     ) -> None:
-        """Republish every singleton aggregate after a successful apply.
+        """Republish the event tenant's aggregate and daily-series snapshots.
 
         OMN-17426. These exposures are SQL views over ``savings_estimates`` and
         ``delegation_events``, so there is no upserted row to hand
@@ -366,6 +415,31 @@ class SavingsProjectionRunner(BaseProjectionRunner):
                 # ``"omninode"`` default -- the house SLUG -- while the row it
                 # describes belongs to ``tenant``. Two attributions for one
                 # record is the shape this family of tickets keeps closing.
+                tenant_id=tenant,
+            )
+
+    async def _publish_series_snapshot(self, meta: MessageMeta, *, tenant: str) -> None:
+        """Republish every daily-series row for the applied event's tenant."""
+        exposure = self._series_exposure
+        if exposure is None:
+            return
+        if tenant == HOUSE_TENANT_SLUG:
+            tenant = str(HOUSE_TENANT_UUID)
+        rows = await self.db.execute(
+            f"SELECT * FROM {exposure.table} "
+            f"WHERE {SNAPSHOT_TENANT_COLUMN} = $1 ORDER BY bucket",
+            tenant,
+            tenant=tenant,
+        )
+        for row in rows:
+            await self.publish_snapshot_delta(
+                exposure,
+                op="upsert",
+                row=row,
+                source_event_id=meta.fallback_id,
+                source_topic=meta.topic,
+                source_partition=meta.partition,
+                source_offset=meta.offset,
                 tenant_id=tenant,
             )
 
@@ -450,7 +524,8 @@ class SavingsProjectionRunner(BaseProjectionRunner):
         arrival page while onex-api happily returned them.
 
         So the trigger is "a source event was applied", and the cost is one
-        extra re-read per aggregate per applied event. A quarantined event is
+        extra re-read per aggregate plus the tenant's daily-series rows per
+        applied event. A quarantined event is
         excluded: ``_route_malformed_to_dlq`` returns True so the offset
         commits, and republishing an unchanged aggregate for each of those
         would mint a record per malformed message on a compacted topic.
@@ -469,6 +544,7 @@ class SavingsProjectionRunner(BaseProjectionRunner):
         ok = await self._apply_event(topic, data, meta, write_tenant=write_tenant)
         if ok and not self._dlq_routed:
             await self._publish_aggregate_snapshots(meta, tenant=write_tenant)
+            await self._publish_series_snapshot(meta, tenant=write_tenant)
         return ok
 
     async def _apply_event(
@@ -731,6 +807,7 @@ class SavingsProjectionRunner(BaseProjectionRunner):
             result.row["savings_usd"],
         )
         await self._publish_aggregate_snapshots(meta, tenant=write_tenant)
+        await self._publish_series_snapshot(meta, tenant=write_tenant)
         return True
 
     async def _project_delegate_skill_savings(

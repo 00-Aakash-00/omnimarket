@@ -406,6 +406,7 @@ _SERIES_COLUMNS = [
     "local_pct",
     "cheap_pct",
     "prem_pct",
+    "tenant_id",
 ]
 
 
@@ -466,6 +467,9 @@ class TestDelegationSavingsSeriesProjection:
         assert list(exposure["columns"]) == _SERIES_COLUMNS
         assert exposure["order_by"] == "bucket ASC"
         assert exposure["freshness_column"] == "bucket"
+        assert exposure["bus_backed"] is True
+        assert exposure["key_columns"] == ["tenant_id", "bucket"]
+        assert exposure["tenant_column"] == "tenant_id"
         # A year of daily buckets is the sensible upper bound for the series.
         assert exposure["limit"] == 365
 

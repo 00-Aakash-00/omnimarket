@@ -112,6 +112,8 @@ event_bus:
     # land together (OMN-15864) -- a bus_backed exposure whose topic no node
     # declares it publishes serves a confident empty page.
     - onex.snapshot.projection.delegation.savings.v1  # onex-topic-allow: projection snapshot topic
+    # OMN-17882: the tenant/day series is published after each successful apply.
+    - onex.snapshot.projection.delegation.savings-series.v1  # onex-topic-allow: projection snapshot topic
   # OMN-13548 (D-03): malformed inbound events (ValidationError / failed
   # required-field check) are routed here as a DURABLE failure signal carrying the
   # offending envelope + correlation_id, instead of being logged + dropped silently.
@@ -281,9 +283,15 @@ projection_api:
         - local_pct
         - cheap_pct
         - prem_pct
+        - tenant_id
       order_by: bucket ASC
       freshness_column: bucket
       limit: 365
+      bus_backed: true
+      key_columns:
+        - tenant_id
+        - bucket
+      tenant_column: tenant_id
     - topic: onex.snapshot.projection.cost.savings-overview.v1 # onex-topic-allow: projection snapshot topics use onex.snapshot.* prefix by convention
       key_grain: "mutable"
       table: projection_cost_savings_overview

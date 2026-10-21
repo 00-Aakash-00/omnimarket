@@ -1,10 +1,11 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""OMN-20007: the daily savings series is served from metering-summary.v1.
+"""OMN-20007: local daily savings is served from metering-summary.v1.
 
-Under the 2026-10-04 ruling the pages read the daily series from the ``day``
-rows of ``node_projection_metering_summary``, and savings-series.v1 stays in
-the catalogue as not served. These tests fold recorded runs for two tenants,
+Under the 2026-10-04 ruling the local page reads daily savings from the ``day``
+rows of ``node_projection_metering_summary``. OMN-17882 serves savings-series.v1
+from the bus on PostgreSQL, but the local SQLite store has no series view, so
+its declared source remains unavailable there. These tests fold recorded runs for two tenants,
 store the rows in a local SQLite store the way the local writers do, and read
 them back through the projection read node exactly as ``onex dashboard`` does,
 with the exposures taken from the node contracts themselves (no hand-built
@@ -17,7 +18,8 @@ Failure modes each test is written against:
 * the contract names a column the table lacks (503
   ``projection_column_missing``), or leaves a column out of the served row;
 * the served day rows do not add up to the served all row;
-* savings-series.v1 is wrongly flipped to ok, or starts answering 200;
+* savings-series.v1 is claimed served from the local store even though its
+  projection view is absent;
 * the key grain is wrong, so a consumer keying on it collapses rows: the
   declared key must be the store's own unique key;
 * the cursor cannot walk the rows, so a paged read skips or repeats one
@@ -158,11 +160,15 @@ def _topics() -> dict[str, ProjectionTableConfig]:
 
 def _client(db_path: Path, tenant: str = TENANT) -> TestClient:
     topics = _topics()
-    handler = HandlerProjectionRead(
-        topic_map=topics, row_source=SqliteTableRowSource(db_path)
-    )
+    row_source = SqliteTableRowSource(db_path)
+    handler = HandlerProjectionRead(topic_map=topics, row_source=row_source)
     return TestClient(
-        create_dashboard_app(handler=handler, topic_map=topics, tenant=tenant)
+        create_dashboard_app(
+            handler=handler,
+            topic_map=topics,
+            tenant=tenant,
+            row_source=row_source,
+        )
     )
 
 
@@ -363,10 +369,23 @@ def test_the_declared_key_is_the_stores_unique_key(tmp_path: Path) -> None:
 # -- the catalogue ------------------------------------------------------------------
 
 
-def test_the_catalogue_lists_metering_ok_and_savings_series_not_served(
+def test_the_catalogue_lists_metering_ok_and_series_missing_from_local_store(
     tmp_path: Path,
 ) -> None:
-    client = _client(_store(tmp_path))
+    db_path = _store(tmp_path)
+    with sqlite3.connect(db_path) as conn:
+        relations = {
+            str(row[0])
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type IN ('table', 'view')"
+            )
+        }
+    assert "metering_summary" in relations, (
+        "positive control: local day rows are stored"
+    )
+    assert "projection_delegation_savings_series" not in relations
+
+    client = _client(db_path)
     catalogue = {
         row["topic"]: row for row in client.get("/projections").json()["topics"]
     }
@@ -381,8 +400,9 @@ def test_the_catalogue_lists_metering_ok_and_savings_series_not_served(
 
     savings = catalogue[SAVINGS_SERIES]
     assert savings["status"] == "degraded"
-    assert savings["bus_backed"] is False
-    assert savings["degraded_reason"] == "not_yet_bus_backed"
+    assert savings["bus_backed"] is True
+    assert savings["backing"] == "not_in_local_store"
+    assert savings["degraded_reason"] == "projection_table_missing"
     response = client.get(f"/projection/{SAVINGS_SERIES}")
     assert response.status_code == 503
-    assert response.json()["error"] == "not_yet_bus_backed"
+    assert response.json()["error"] == "projection_table_missing"

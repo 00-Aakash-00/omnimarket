@@ -33,9 +33,13 @@ saving -- permanently invisible on the page while onex-api returned them.
 
 from __future__ import annotations
 
+import json
+import re
+import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import yaml
@@ -47,6 +51,7 @@ from omnimarket.nodes.node_projection_savings.handlers.handler_savings import (
 )
 from omnimarket.projection.discovery import load_projection_exposures_from_contract
 from omnimarket.projection.runner import MessageMeta
+from omnimarket.projection.snapshot_cache import SnapshotCache
 from omnimarket.projection.snapshot_publisher import encode_snapshot_delta
 
 pytestmark = pytest.mark.unit
@@ -64,6 +69,7 @@ SAVINGS_TOPIC = "onex.snapshot.projection.delegation.savings.v1"
 OVERVIEW_TOPIC = "onex.snapshot.projection.cost.savings-overview.v1"
 SERIES_TOPIC = "onex.snapshot.projection.delegation.savings-series.v1"
 ESTIMATES_TOPIC = "onex.snapshot.projection.savings.v1"
+SERIES_TABLE = "projection_delegation_savings_series"
 
 #: The two exposures this ticket converts, and the view each is served from.
 CONVERTED = {
@@ -73,6 +79,7 @@ CONVERTED = {
 
 TENANT = "52cd15be-b7c8-4beb-93f3-d267e5d2c875"
 OTHER_TENANT = "11111111-1111-4111-8111-111111111111"
+EMPTY_TENANT = "33333333-3333-4333-8333-333333333333"
 
 
 def _exposures() -> dict[str, Any]:
@@ -123,19 +130,28 @@ def test_the_arrival_page_exposures_are_bus_backed_and_tenant_scoped(
 def test_the_unconverted_exposures_stay_refused() -> None:
     """The positive control: conversion is per-exposure, not a blanket flip."""
     exposures = _exposures()
-    # A 365-row series and a 500-row per-row table are neither singleton
-    # aggregates nor this runner's upsert target for the aggregate path; both
-    # keep answering not_yet_bus_backed until they get their own publish site.
-    assert exposures[SERIES_TOPIC].bus_backed is False
+    # OMN-17882 TI-AC1 converts the tenant/day series with its publish site;
+    # the unrelated per-row exposure remains refused without its own writer.
     assert exposures[ESTIMATES_TOPIC].bus_backed is False
 
 
-def test_both_snapshot_topics_are_declared_as_published() -> None:
+def test_the_daily_series_is_backed_by_tenant_and_bucket() -> None:
+    """OMN-17882: flip the series only with its row-level bus key and reader scope."""
+    exposure = _exposures()[SERIES_TOPIC]
+    assert exposure.bus_backed is True
+    assert exposure.key_columns == (SNAPSHOT_TENANT_COLUMN, "bucket")
+    assert exposure.tenant_column == SNAPSHOT_TENANT_COLUMN
+    assert exposure.tenant_scoped is True
+    assert exposure.limit == 365
+    assert exposure.columns[-1] == SNAPSHOT_TENANT_COLUMN
+
+
+def test_every_converted_snapshot_topic_is_declared_as_published() -> None:
     """A bus_backed exposure whose topic no node claims to publish is a page
     that refuses forever while reporting itself as backed."""
     contract = yaml.safe_load(_CONTRACT_PATH.read_text(encoding="utf-8"))
     published = set(contract["event_bus"]["publish_topics"])
-    assert CONVERTED.keys() <= published
+    assert (CONVERTED.keys() | {SERIES_TOPIC}) <= published
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +162,8 @@ def test_both_snapshot_topics_are_declared_as_published() -> None:
 def test_the_runner_binds_both_aggregates_and_not_the_per_row_exposure() -> None:
     runner = SavingsProjectionRunner()
     assert {e.topic for e in runner._aggregate_exposures} == set(CONVERTED)
+    assert runner._series_exposure.topic == SERIES_TOPIC
+    assert runner._series_exposure.key_columns == (SNAPSHOT_TENANT_COLUMN, "bucket")
     # savings.v1 is bus_backed: false today, so there is no per-row binding.
     # The binding is by TABLE, not by "the first bus_backed exposure": that
     # earlier single-binding would now resolve to an aggregate and publish a
@@ -295,7 +313,9 @@ async def test_a_delegation_terminal_that_banks_no_saving_still_republishes(
 
     assert ok is True
     assert wrote == [], "positive control: the apply banked no savings row"
-    assert {call["exposure"].topic for call in published.calls} == set(CONVERTED)
+    assert {call["exposure"].topic for call in published.calls} == (
+        set(CONVERTED) | {SERIES_TOPIC}
+    )
 
 
 @pytest.mark.asyncio
@@ -370,3 +390,203 @@ def test_the_compacted_key_is_the_grain_and_the_tenant(topic: str) -> None:
     )
     assert other is not None
     assert other.key != message.key
+
+
+@pytest.mark.asyncio
+async def test_terminal_apply_publishes_and_serves_only_its_tenant_series_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Golden chain for the series publish site and tenant-scoped cache read.
+
+    Failure modes: the bus flag gets ahead of a publish site; a view read omits
+    its explicit tenant predicate and publishes another tenant's rows; the
+    snapshot key omits tenant or bucket so rows collide; the cached rows cannot
+    be read back by their tenant; or the cache answers an unseeded tenant.
+    The two distinct source rows are the positive control for the unscoped-query
+    mutation: removing the SQL predicate makes each apply attempt to publish
+    both tenants and breaks the exact per-apply assertion below.
+    """
+    first_day = datetime(2026, 1, 1, tzinfo=UTC)
+    source_rows = [
+        {
+            "bucket": (first_day + timedelta(days=day)).isoformat(),
+            "actual_cost_usd": 0.01,
+            "baseline_cost_usd": 0.78,
+            "savings_usd": 0.77,
+            "task_count": 1,
+            SNAPSHOT_TENANT_COLUMN: TENANT,
+        }
+        for day in range(365)
+    ] + [
+        {
+            "bucket": first_day.isoformat(),
+            "actual_cost_usd": 0.02,
+            "baseline_cost_usd": 0.35,
+            "savings_usd": 0.33,
+            "task_count": 1,
+            SNAPSHOT_TENANT_COLUMN: OTHER_TENANT,
+        }
+    ]
+    assert len(source_rows) == 366
+    assert source_rows[0]["savings_usd"] != source_rows[-1]["savings_usd"]
+
+    messages: list[dict[str, Any]] = []
+    series_queries: list[str] = []
+
+    async def _apply_for_tenant(tenant: str, offset: int) -> None:
+        runner = SavingsProjectionRunner()
+
+        async def _execute(
+            query: str, *params: Any, **kwargs: Any
+        ) -> list[dict[str, Any]]:
+            if SERIES_TABLE not in query:
+                return []
+            series_queries.append(query)
+            match = re.search(
+                r"\bWHERE\b.*?\btenant_id\s*=\s*\$(\d+)",
+                query,
+                re.IGNORECASE | re.DOTALL,
+            )
+            if match is None:
+                # Deliberately model the unsafe query: without the explicit
+                # predicate a bypass-RLS reader sees both tenant rows.
+                return list(source_rows)
+            requested = kwargs.get("tenant")
+            if requested is None:
+                parameter_index = int(match.group(1)) - 1
+                requested = params[parameter_index]
+            return [
+                row
+                for row in source_rows
+                if row[SNAPSHOT_TENANT_COLUMN] == str(requested)
+            ]
+
+        db = AsyncMock()
+        db.execute = AsyncMock(side_effect=_execute)
+        runner._db = db
+        monkeypatch.setattr(
+            runner, "_resolve_row_tenant", AsyncMock(return_value=tenant)
+        )
+        # The terminal projection still runs through project_event and its
+        # canonical event path; this write seam is held inert because the test
+        # is about the independently read series view.
+        monkeypatch.setattr(
+            runner, "_upsert_savings_estimate", AsyncMock(return_value=None)
+        )
+
+        producer = MagicMock()
+
+        async def _send_and_wait(
+            topic: str,
+            value: bytes | None = None,
+            key: bytes | None = None,
+            headers: list[tuple[str, bytes]] | None = None,
+        ) -> None:
+            messages.append(
+                {"topic": topic, "value": value, "key": key, "headers": headers}
+            )
+
+        producer.send_and_wait = AsyncMock(side_effect=_send_and_wait)
+        runner._producer = producer
+        topic = runner._topic_delegation_completed
+        assert topic, "positive control: the contract declares the terminal topic"
+        payload = {
+            "correlation_id": f"d418ec56-d595-466a-a83b-{offset:012d}",
+            "tenant_id": tenant,
+            "task_type": "code_review",
+            "model_used": "qwen2.5-coder",
+            "success": True,
+            "cumulative_input_tokens": 100,
+            "cumulative_output_tokens": 100,
+            "cumulative_attempt_cost": 0.01,
+        }
+        meta = MessageMeta(
+            fallback_id=f"evt-series-{offset}",
+            topic=topic,
+            partition=0,
+            offset=offset,
+        )
+        assert await runner.project_event(topic, payload, meta) is True
+
+    started = time.perf_counter()
+    await _apply_for_tenant(TENANT, 41)
+    tenant_a_elapsed = time.perf_counter() - started
+    first_series_messages = [m for m in messages if m["topic"] == SERIES_TOPIC]
+    assert len(first_series_messages) == 365, (
+        "one apply must publish every one of this tenant's 365 day rows; an absent "
+        "publish site or an unscoped query is a failure"
+    )
+    assert {
+        json.loads(message["value"])["row"][SNAPSHOT_TENANT_COLUMN]
+        for message in first_series_messages
+    } == {TENANT}
+    print(
+        "OMN-17882 series publish measurement: "
+        f"tenant={TENANT} publish_count={len(first_series_messages)} "
+        f"elapsed_seconds={tenant_a_elapsed:.6f}"
+    )
+
+    await _apply_for_tenant(OTHER_TENANT, 42)
+    series_messages = [m for m in messages if m["topic"] == SERIES_TOPIC]
+    assert len(series_messages) == 366, "365 rows for A and one row for B"
+    rows_by_message_tenant = [
+        json.loads(message["value"])["row"][SNAPSHOT_TENANT_COLUMN]
+        for message in series_messages
+    ]
+    assert rows_by_message_tenant.count(TENANT) == 365
+    assert rows_by_message_tenant.count(OTHER_TENANT) == 1
+    assert all(
+        re.search(
+            r"\bWHERE\b.*?\btenant_id\s*=\s*\$\d+",
+            query,
+            re.IGNORECASE | re.DOTALL,
+        )
+        for query in series_queries
+    ), "each series read must carry the explicit tenant predicate"
+
+    await _apply_for_tenant(EMPTY_TENANT, 43)
+    series_messages = [m for m in messages if m["topic"] == SERIES_TOPIC]
+    assert len(series_messages) == 366, "an empty tenant produces no snapshot delta"
+
+    exposure = _exposures()[SERIES_TOPIC]
+    assert exposure.key_columns == (SNAPSHOT_TENANT_COLUMN, "bucket")
+    cache = SnapshotCache(
+        {SERIES_TOPIC: exposure},
+        bootstrap_servers="unused:9092",
+        group_id="test-omn17882-series",
+    )
+    for message in series_messages:
+        assert message["key"] is not None
+        assert message["headers"] is not None
+        cache.apply_message(
+            message["topic"],
+            message["key"],
+            message["value"],
+            message["headers"],
+        )
+    cache._state[SERIES_TOPIC].bootstrap_complete = True
+
+    tenant_a_rows = cache.get_rows(
+        SERIES_TOPIC,
+        tenant_column=SNAPSHOT_TENANT_COLUMN,
+        tenant_id=TENANT,
+        unbounded=True,
+    )
+    tenant_b_rows = cache.get_rows(
+        SERIES_TOPIC,
+        tenant_column=SNAPSHOT_TENANT_COLUMN,
+        tenant_id=OTHER_TENANT,
+        unbounded=True,
+    )
+    assert len(tenant_a_rows) == 365
+    assert {row["savings_usd"] for row in tenant_a_rows} == {0.77}
+    assert [row["savings_usd"] for row in tenant_b_rows] == [0.33]
+    assert (
+        cache.get_rows(
+            SERIES_TOPIC,
+            tenant_column=SNAPSHOT_TENANT_COLUMN,
+            tenant_id=EMPTY_TENANT,
+            unbounded=True,
+        )
+        == []
+    )

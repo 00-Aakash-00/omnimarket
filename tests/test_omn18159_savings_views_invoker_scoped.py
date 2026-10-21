@@ -37,14 +37,12 @@ exposure that is not ``bus_backed``, so when this module landed neither savings
 exposure could carry one, and this file asserted their absence rather than
 describing it.
 
-OMN-17426 converted ``projection_delegation_savings``: it is bus-backed,
-grouped on ``tenant_id`` by migration 089, and declares the ``tenant_column``
-088's header said would land "when the exposures convert". So the assertion
-below now reads the landed state for that view and the still-absent state for
-``projection_delegation_savings_series``, which has no publish site and stays
-SQL-served. The constructed-model control is unchanged: it is about the
-validator, not about either contract, and it is what keeps the refusal this
-module was written around a passing test rather than a claim in a comment.
+OMN-17426 converted ``projection_delegation_savings``. OMN-17882 converts
+``projection_delegation_savings_series`` with its tenant/day publish site and
+migration 099, so both views now carry ``tenant_column``. The constructed-model
+control is unchanged: it is about the validator, not about either contract, and
+it keeps the refusal this module was written around a passing test rather than
+a claim in a comment.
 """
 
 from __future__ import annotations
@@ -61,7 +59,7 @@ SAVINGS_VIEWS = (
 
 @pytest.mark.unit
 def test_a_tenant_column_lands_exactly_when_its_exposure_converts() -> None:
-    """The rule this module was written around, now observed in both states.
+    """The rule this module was written around, now observed after both flips.
 
     A ``tenant_column`` on an exposure that is not ``bus_backed`` hard-fails
     contract load, so both halves land together or neither does. As of
@@ -91,10 +89,11 @@ def test_a_tenant_column_lands_exactly_when_its_exposure_converts() -> None:
     converted = exposures["projection_delegation_savings"]
     assert converted.get("bus_backed") is True
     assert converted.get("tenant_column") == "tenant_id"
-    # Unconverted: no publish site, so no flag, so no tenant_column either.
+    # Converted by OMN-17882: its own tenant/day publish site makes the
+    # tenant-scoped contract declaration valid.
     series = exposures["projection_delegation_savings_series"]
-    assert not series.get("bus_backed", False)
-    assert series.get("tenant_column") is None
+    assert series.get("bus_backed") is True
+    assert series.get("tenant_column") == "tenant_id"
 
     with pytest.raises(ValidationError, match="is not bus_backed"):
         ProjectionTableConfig(
