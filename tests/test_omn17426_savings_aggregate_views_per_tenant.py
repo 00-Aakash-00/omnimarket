@@ -50,9 +50,15 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import asyncpg
 import pytest
+
+from omnimarket.nodes.node_projection_savings.handlers.handler_savings import (
+    SavingsProjectionRunner,
+)
+from omnimarket.projection.runner import MessageMeta
 
 _NODES = Path(__file__).resolve().parents[1] / "src" / "omnimarket" / "nodes"
 _MIGRATION_NODES = ("node_projection_delegation", "node_projection_savings")
@@ -559,3 +565,135 @@ async def test_savings_series_keeps_same_day_totals_separate_by_tenant(
         )
         is None
     )
+
+
+class _PostgresConnectionAdapter:
+    """Use a real asyncpg connection behind the runner's database seam."""
+
+    def __init__(self, connection: asyncpg.Connection) -> None:
+        self._connection = connection
+
+    async def execute(
+        self,
+        query: str,
+        *params: Any,
+        tenant: str | None = None,
+        **_kwargs: Any,
+    ) -> list[dict[str, Any]]:
+        async with self._connection.transaction():
+            if tenant is not None:
+                await self._connection.execute(
+                    "SELECT set_config('app.tenant_id', $1, true)", tenant
+                )
+            return [dict(row) for row in await self._connection.fetch(query, *params)]
+
+
+@pytest.mark.integration
+async def test_runner_apply_publishes_only_its_tenant_series_buckets(
+    views: asyncpg.Connection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A real runner apply reads the migrated Postgres view and publishes its rows.
+
+    The fixture's existing seed gives tenant A and B distinct same-day rows.
+    Applying one delegate-skill terminal adds another A bucket. The database,
+    runner's event path, SQL view and snapshot encoder are real; only the
+    transport and connection-pool wrapper are replaced so the test can inspect
+    the exact emitted deltas without Kafka or a second database.
+    """
+
+    published: list[dict[str, Any]] = []
+
+    # Positive control: the other tenant has a savings row on the same day as
+    # tenant A's existing row. A query without the runner's tenant predicate
+    # would publish this record under A's event header.
+    await views.execute(
+        """
+        INSERT INTO savings_estimates (
+            event_timestamp, session_id, model_local, model_cloud_baseline,
+            local_cost_usd, cloud_cost_usd, savings_usd, tenant_id,
+            task_type, prompt_tokens, completion_tokens, usage_source, created_at
+        ) VALUES ($1, $2, 'served-model', 'served-baseline',
+                  $3, $4, $5, $6, 'code_review', 50, 70, 'measured', $7)
+        """,
+        _WHEN,
+        RUN_B,
+        Decimal("0.020000"),
+        Decimal("0.350000"),
+        Decimal("0.330000"),
+        str(TENANT_B),
+        _WHEN,
+    )
+
+    class _RecordingProducer:
+        async def send_and_wait(
+            self,
+            topic: str,
+            *,
+            value: bytes | None,
+            key: bytes | None,
+            headers: list[tuple[str, bytes]],
+        ) -> None:
+            published.append(
+                {"topic": topic, "value": value, "key": key, "headers": headers}
+            )
+
+    runner = SavingsProjectionRunner()
+    producer = _RecordingProducer()
+
+    async def resolve_row_tenant(_data: dict[str, Any]) -> str:
+        return str(TENANT_A)
+
+    monkeypatch.setattr(runner, "_resolve_row_tenant", resolve_row_tenant)
+
+    with (
+        patch.object(runner, "_db", _PostgresConnectionAdapter(views)),
+        patch.object(runner, "_producer", producer),
+    ):
+        event_time = datetime(2026, 5, 20, 17, 5, tzinfo=UTC)
+        event = {
+            "status": "completed",
+            "correlation_id": "f9243395-5cb6-4036-8ffb-39dd25547413",
+            "task_type": "document",
+            "provider": "local-qwen",
+            "model_name": "test-model-local",
+            "model_cloud_baseline": "claude-opus-4-6",
+            "quality_gate_passed": True,
+            "metrics": {
+                "input_tokens": 81,
+                "output_tokens": 384,
+                "total_tokens": 465,
+                "cost_usd": 0.0,
+                "cost_savings_usd": 0.006003,
+                "latency_ms": 900,
+            },
+            "_envelope": {"envelope_timestamp": event_time.isoformat()},
+        }
+        ok = await runner.project_event(
+            "onex.evt.omnimarket.delegate-skill-completed.v1",
+            event,
+            MessageMeta(
+                fallback_id="evt-omn17882-real-pg",
+                topic="onex.evt.omnimarket.delegate-skill-completed.v1",
+                partition=3,
+                offset=41,
+            ),
+        )
+
+        assert ok is True
+        series_messages = [
+            message
+            for message in published
+            if message["topic"]
+            == "onex.snapshot.projection.delegation.savings-series.v1"
+        ]
+        assert len(series_messages) == 2, (
+            "positive control: tenant A has its seeded September row and the newly "
+            "applied May event row; tenant B's same-day row must not be published"
+        )
+        rows = [json.loads(message["value"])["row"] for message in series_messages]
+        assert {row["tenant_id"] for row in rows} == {str(TENANT_A)}
+        assert {datetime.fromisoformat(row["bucket"]) for row in rows} == {
+            datetime(2026, 5, 20, tzinfo=UTC),
+            datetime(2026, 9, 12, tzinfo=UTC),
+        }
+        assert len({message["key"] for message in series_messages}) == 2
