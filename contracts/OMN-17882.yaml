@@ -118,3 +118,9 @@ dod_evidence:
         check_value: "uv run pytest tests/test_omn17426_savings_aggregate_views_per_tenant.py::test_savings_series_keeps_same_day_totals_separate_by_tenant -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC6"]
+  - id: "dod-omn17882-series-publish-deploy-probe"
+    description: "Deploy probe. The savings runner GitHub serves at the checked-out commit republishes the tenant's daily series after each applied event; the probe reads handler_savings.py from GitHub at that commit and exits nonzero on a tree without the publish site, so it fails at the merge base."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_projection_savings/handlers/handler_savings.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -q 'async def _publish_series_snapshot'"
