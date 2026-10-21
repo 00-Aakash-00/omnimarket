@@ -290,13 +290,9 @@ class SavingsProjectionRunner(BaseProjectionRunner):
         exposures: tuple[ProjectionTableConfig, ...] | list[ProjectionTableConfig],
     ) -> ProjectionTableConfig | None:
         """Validate the daily-series publish site before enabling its flag."""
-        topic = "onex.snapshot.projection.delegation.savings-series.v1"
+        # The exposure is found by its table; its topic is the contract's own.
         table = "projection_delegation_savings_series"
-        matches = [
-            exposure
-            for exposure in exposures
-            if exposure.topic == topic or exposure.table == table
-        ]
+        matches = [exposure for exposure in exposures if exposure.table == table]
         if len(matches) > 1:
             raise ValueError(
                 "projection_delegation_savings_series must be declared once"
@@ -305,11 +301,6 @@ class SavingsProjectionRunner(BaseProjectionRunner):
             return None
 
         exposure = matches[0]
-        if exposure.topic != topic or exposure.table != table:
-            raise ValueError(
-                "the savings-series publish site requires the declared series "
-                f"topic and table, got {exposure.topic!r} / {exposure.table!r}"
-            )
         if exposure.key_columns != (SNAPSHOT_TENANT_COLUMN, "bucket"):
             raise ValueError(
                 "the savings-series publish site requires key_columns "
@@ -328,7 +319,7 @@ class SavingsProjectionRunner(BaseProjectionRunner):
             )
         if not _IDENTIFIER_RE.match(exposure.table):
             raise ValueError(
-                f"projection_api exposure {topic!r} names invalid SQL identifier "
+                f"projection_api exposure {exposure.topic!r} names invalid SQL identifier "
                 f"{exposure.table!r}"
             )
         return exposure

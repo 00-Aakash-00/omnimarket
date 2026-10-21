@@ -54,6 +54,7 @@ from unittest.mock import patch
 
 import asyncpg
 import pytest
+import yaml
 
 from omnimarket.nodes.node_projection_savings.handlers.handler_savings import (
     SavingsProjectionRunner,
@@ -639,6 +640,17 @@ async def test_runner_apply_publishes_only_its_tenant_series_buckets(
 
     runner = SavingsProjectionRunner()
     producer = _RecordingProducer()
+    # The runner finds the series exposure by its table; the topic it publishes
+    # on is the one the contract declares for that table, never a literal.
+    declared_series_topics = [
+        exposure["topic"]
+        for exposure in yaml.safe_load(
+            (_NODES / "node_projection_savings" / "contract.yaml").read_text("utf-8")
+        )["projection_api"]["exposures"]
+        if exposure.get("table") == "projection_delegation_savings_series"
+    ]
+    assert runner._series_exposure is not None
+    assert [runner._series_exposure.topic] == declared_series_topics
 
     async def resolve_row_tenant(_data: dict[str, Any]) -> str:
         return str(TENANT_A)
