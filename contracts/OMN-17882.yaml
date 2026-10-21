@@ -123,4 +123,4 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "command"
-        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_projection_savings/handlers/handler_savings.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -q 'async def _publish_series_snapshot'"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_projection_savings/handlers/handler_savings.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c 'async def _publish_series_snapshot' | grep -qv '^0$'"
