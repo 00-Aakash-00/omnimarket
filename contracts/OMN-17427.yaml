@@ -716,6 +716,11 @@ requirements:
     acceptance:
       - id: "AC159"
         statement: "AC159: LocalHostReader.read returns one lane-guard:<sha256> tool per installed lane_guard_host.py whose sha256 equals its directory name, sorted among the other tools, and none for an empty home, an altered copy or a directory that is not a sha256 -- falsifier: uv run pytest tests/unit/lab_work/test_lab_work_host_bus.py -q -n 0 -k lane_guard fails at the merge base, where LocalHostReader takes no home and advertises no lane-guard entry"
+  - id: "req-evidence-wait-per-verifier-run"
+    statement: "Every Repo Evidence Dependency poller gives each repo-evidence / dod-verify run its own wait window, so an edited event that restarts the pull_request_target verifier late in the wait no longer times the poller out while the new run is still verifying, and one stuck run still fails closed at its deadline."
+    acceptance:
+      - id: "AC161"
+        statement: "AC161: each of the six Repo Evidence Dependency pollers restarts its 2580 second window when a new repo-evidence / dod-verify run id appears and still times out a single run that never concludes -- falsifier: uv run pytest tests/ci/test_repo_evidence_prerequisite_workflow.py -q -n 0 --no-cov -k 'restarted_verifier or stuck_verifier' fails at the merge base, where the window is counted from the poller's own start"
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -938,6 +943,9 @@ evidence_requirements:
   - kind: "tests"
     description: "AC159: a pool host advertises one lane-guard:<sha256> tool per installed lane guard whose bytes hash to its directory name, and none otherwise."
     command: "uv run pytest tests/unit/lab_work/test_lab_work_host_bus.py -q -n 0 -k lane_guard"
+  - kind: "tests"
+    description: "AC161: a Repo Evidence Dependency poller gives a restarted verifier run its own window and still times out one stuck run."
+    command: "uv run pytest tests/ci/test_repo_evidence_prerequisite_workflow.py -q -n 0 --no-cov -k 'restarted_verifier or stuck_verifier'"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -3014,3 +3022,11 @@ dod_evidence:
           print("lane guard advertisement deploy probe: PASS")
           PY
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac161-evidence-wait-per-run"
+    description: "Each Repo Evidence Dependency poller restarts its wait window for a new repo-evidence / dod-verify run id and still fails closed on one run that never concludes. The six restarted-verifier tests fail at the merge base, where the window runs from the poller's own start and a verifier restarted by an edited event times it out."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_repo_evidence_prerequisite_workflow.py -q -n 0 -p no:randomly --no-cov -k 'restarted_verifier or stuck_verifier'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC161"]
