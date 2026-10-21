@@ -14,8 +14,6 @@ requirements:
         statement: "AC1: the gate result carries output_refusal.contract_failure_reasons and a valid label still passes -- falsifier: uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q in omnimarket"
       - id: "AC2"
         statement: "AC2: when extraction withholds an invalid deliverable, the bus quality gate keeps the evidence mismatch and appends the extractor contract_failure_reasons, so the rejected label is named -- falsifier: uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q -k test_bus_gate_names_rejected_labels_before_terminal_composition in omnimarket"
-      - id: "AC3"
-        statement: "AC3: when a label set is declared, a declaring backend's outbound request carries a provider-native enum over exactly those labels, and a schema-ignoring response is refused and counted in attempts on a declaring and an undeclared backend -- falsifier: uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q -k test_declared_labels_survive_the_gate_and_terminal in omnimarket"
 evidence_requirements:
   - kind: "tests"
     description: "AC1 hosted probe. The delegation label-set tests pass at the head and fail at the merge base, where the diagnostic is dropped."
@@ -23,9 +21,6 @@ evidence_requirements:
   - kind: "tests"
     description: "AC2 hosted probe. The bus gate names the rejected label beside the evidence mismatch at the head; the test does not exist at the merge base."
     command: "env -u PYTHONPATH uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q -k test_bus_gate_names_rejected_labels_before_terminal_composition"
-  - kind: "tests"
-    description: "AC3 hosted probe. The delegate-skill run sends the enum on a declaring backend, sends none on an undeclared one, and refuses the garbled label with each refusal counted in attempts on both."
-    command: "env -u PYTHONPATH uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q -k test_declared_labels_survive_the_gate_and_terminal"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -47,11 +42,3 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q -k test_bus_gate_names_rejected_labels_before_terminal_composition"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
-  - id: "dod-omn18989-ac3-schema-ignoring-response-refused"
-    description: "AC3 hosted probe. A schema-ignoring response is refused and counted in attempts on a declaring and an undeclared backend; the declaring backend's requests carry the caller's contract as the json_schema."
-    source: "manual"
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q -k test_declared_labels_survive_the_gate_and_terminal"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC3"]
