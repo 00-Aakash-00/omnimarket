@@ -733,6 +733,11 @@ requirements:
         statement: "AC180: the latency runner carries input_messages_hash, newest_turn, barrier_id and compact_model from the recorded input; its payload validates as ModelContextCompactionRequested on cold, warm-up and warm trips, and a missing recorded input hash is refused before any publish -- falsifier: the focused command-boundary tests fail on the base, which drops those fields and publishes an invalid command."
       - id: "AC181"
         statement: "AC181: a native adapter verdict with an otherwise valid prepared timing receipt is a refusal with absent phase timings, never an input to latency qualification -- falsifier: the native-with-prepared regression fails on the base, which records a successful measurement."
+  - id: "req-install-canary-provisioned-python"
+    statement: "Both install-canary jobs keep the Python that setup-uv provisioned when they cross the clean-home boundary, so uv resolves the selected interpreter instead of a system or downloaded one."
+    acceptance:
+      - id: "AC182"
+        statement: "AC182: the canary and planted-bad-pin self-test jobs pass UV_PYTHON and UV_PYTHON_INSTALL_DIR into their isolated install environment, and the real uv finds the selected Python offline from that environment -- falsifier: the workflow interpreter selection cases fail on the base with KeyError UV_PYTHON."
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -3109,6 +3114,7 @@ dod_evidence:
   - id: "dod-omn17427-canary-provisioned-python"
     description: "Dispatch cause omnimarket:canary (macos-latest). Both install-canary jobs carry setup-uv's explicit Python selection and managed installation directory across the clean-home boundary, and uv discovers that interpreter. These two cases fail at the merge base with KeyError UV_PYTHON. This is focused fix-forward evidence; it does not attest the umbrella ticket's nightly integration-pass reports or graduation review."
     source: "manual"
+    binds_ac: ["AC182"]
     checks:
       - check_type: "test_passes"
         check_value: "uv run --frozen pytest tests/test_omn19454_install_canary.py -q -n 0 -p no:randomly --no-cov"
