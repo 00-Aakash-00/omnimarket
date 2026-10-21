@@ -122,8 +122,11 @@ from omnimarket.routing.byok_model_discovery import (
 from omnimarket.routing.byok_provider_backends import (
     BYOK_MODEL_UNRESOLVED,
     ModelByokProviderBackend,
+    byok_backend_provider,
     byok_declared_price_per_1m,
+    byok_model_price_per_1m,
     resolve_byok_backend_by_endpoint,
+    token_limit_field_for_endpoint,
 )
 from omnimarket.tenant_credential_ref import is_tenant_credential_ref
 
@@ -326,10 +329,17 @@ def _compute_cost(
     tokens_out: int,
     model_tier: str = "unknown",
     endpoint_url: str | None = None,
+    provider: str | None = None,
 ) -> tuple[Decimal, Decimal, Decimal, EnumCostBasis]:
     """Return (actual_cost, opus_equivalent_cost, savings, cost_basis).
 
-    Pricing is resolved in priority order:
+    A call on a customer's own key (``provider`` is a BYOK backend id) is priced
+    by its model only: the catalogue's declared price, else the model
+    registry's price (OMN-21260). A model with neither is unpriced: zero cost,
+    zero savings and cost basis UNKNOWN, never the tier's rate, which once
+    booked a paid OpenRouter model at cheap_frontier's 0.0.
+
+    A house call's pricing is resolved in priority order:
       0. a price the BYOK catalogue declares for this endpoint and model (OMN-20154:
          a free model inside a metered tier is booked at its own zero, never at
          the tier's rate)
@@ -340,7 +350,13 @@ def _compute_cost(
     The registry path gracefully degrades to fallback when the YAML file is
     missing or the tier is not declared.
     """
-    declared_price = byok_declared_price_per_1m(endpoint_url, model_id)
+    if byok_backend_provider(provider) is not None:
+        model_price = byok_model_price_per_1m(provider, endpoint_url, model_id)
+        if model_price is None:
+            return Decimal("0"), Decimal("0"), Decimal("0"), EnumCostBasis.UNKNOWN
+        declared_price: tuple[Decimal, Decimal] | None = model_price
+    else:
+        declared_price = byok_declared_price_per_1m(endpoint_url, model_id)
     registry_price = (
         declared_price
         if declared_price is not None
@@ -374,6 +390,17 @@ def _compute_cost(
         cost_basis = EnumCostBasis.UNKNOWN
 
     return actual, opus_equiv, savings, cost_basis
+
+
+def _cost_usage_source(cost_basis: EnumCostBasis) -> EnumUsageSource:
+    """MEASURED when the call was priced, UNKNOWN when it was not (OMN-21260).
+
+    The tokens are always the provider's own counts; this says whether the cost
+    is, so an unpriced call's zero reads as unknown rather than free.
+    """
+    if cost_basis is EnumCostBasis.UNKNOWN:
+        return EnumUsageSource.UNKNOWN
+    return EnumUsageSource.MEASURED
 
 
 def _uuid_or_none(value: str | None) -> UUID | None:
@@ -600,6 +627,9 @@ class HandlerLlmDelegationCall:
         OMN-21078: where the customer chooses the model, these re-aims require
         a credential that records a catalogue pick. A customer's chosen model,
         including a ``:free`` one, or one with no chooser record gets one call.
+        OMN-21059: every catalogue row now has the customer choose, and a
+        credential that records a catalogue pick is refused with
+        BYOK_MODEL_NOT_CHOSEN before any call.
 
         This is not a transport retry and it never changes backend: it is the
         same customer route asking its own provider which model it offers. A
@@ -621,11 +651,18 @@ class HandlerLlmDelegationCall:
             # OMN-21078: a chosen :free model matches a preference pattern;
             # the pattern is not evidence of who chose it. No record means
             # customer choice, including hosted refs and older local rows.
+            # OMN-21059: a model the catalogue picked is not one the customer
+            # chose, so that credential is refused like one with no model.
             if (
                 resolve_local_byok_model_chooser(request.secret_ref)
-                != MODEL_CHOSEN_BY_CATALOGUE
+                == MODEL_CHOSEN_BY_CATALOGUE
             ):
-                return self._execute_call_once(request, endpoint_url, event_publisher)
+                return self._failure_result(
+                    request,
+                    EnumDelegationFailureClass.PROVIDER_MODEL_NOT_FOUND,
+                    model_not_chosen_message(byok.provider),
+                )
+            return self._execute_call_once(request, endpoint_url, event_publisher)
         configured = request.model_id
         if request.model_id == BYOK_MODEL_UNRESOLVED:
             resolved = self._resolve_byok_model(request, byok, exclude=())
@@ -873,10 +910,11 @@ class HandlerLlmDelegationCall:
             if request.system_prompt:
                 messages.append({"role": "system", "content": request.system_prompt})
             messages.append({"role": "user", "content": request.prompt})
+            # OMN-21257: the endpoint's catalogue row names the token-limit field.
             payload = {
                 "model": request.model_id,
                 "messages": messages,
-                "max_tokens": request.max_tokens,
+                token_limit_field_for_endpoint(endpoint_url): request.max_tokens,
                 "temperature": request.temperature,
             }
             if request.provider_request_options:
@@ -1250,6 +1288,7 @@ class HandlerLlmDelegationCall:
             tokens_out,
             model_tier=request.model_tier,
             endpoint_url=endpoint_url,
+            provider=request.provider,
         )
 
         result = ModelLlmDelegationCallResult(
@@ -1274,7 +1313,7 @@ class HandlerLlmDelegationCall:
             actual_cost_usd=actual_cost,
             opus_equivalent_cost_usd=opus_cost,
             savings_usd=savings,
-            usage_source=EnumUsageSource.MEASURED,
+            usage_source=_cost_usage_source(cost_basis),
             cost_basis=cost_basis,
             quality_gate_passed=True,
             endpoint_healthy=True,
@@ -1334,6 +1373,7 @@ class HandlerLlmDelegationCall:
             reading.output_tokens,
             model_tier=request.model_tier,
             endpoint_url=endpoint_url,
+            provider=request.provider,
         )
         cache_read, cache_write_5m, cache_write_1h = cache_usage_figures(
             response_json.get("usage") or {}
@@ -1356,7 +1396,7 @@ class HandlerLlmDelegationCall:
             actual_cost_usd=actual_cost,
             opus_equivalent_cost_usd=opus_cost,
             savings_usd=savings,
-            usage_source=EnumUsageSource.MEASURED,
+            usage_source=_cost_usage_source(cost_basis),
             cost_basis=cost_basis,
             quality_gate_passed=True,
             endpoint_healthy=True,
@@ -1414,7 +1454,7 @@ class HandlerLlmDelegationCall:
             actual_cost_usd=result.actual_cost_usd,
             opus_equivalent_cost_usd=result.opus_equivalent_cost_usd,
             savings_usd=result.savings_usd,
-            usage_source=EnumUsageSource.MEASURED,
+            usage_source=result.usage_source,
             cost_basis=result.cost_basis,
             pricing_manifest_version=request.pricing_manifest_version,
             pricing_manifest_hash=request.pricing_manifest_hash,
