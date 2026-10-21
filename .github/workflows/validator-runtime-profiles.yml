@@ -94,13 +94,7 @@ jobs:
             # the command substitution as the condition of this `if` is the
             # errexit-safe form -- bash does not trigger -e for a command that is
             # part of an if/while/until condition, regardless of ambient -e state.
-            response=""
-            status=0
-            if response="$(
-              gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs?filter=latest&check_name=repo-evidence%20%2F%20dod-verify&per_page=100" \
-                --jq '[.check_runs[] | select(.app.id == 15368)] | sort_by(.id) | last | "\(.id // "") \(.conclusion // "")"' \
-                2>&1
-            )"; then
+            if response="$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs?filter=latest&check_name=repo-evidence%20%2F%20dod-verify&per_page=100" --jq '[.check_runs[] | select(.app.id == 15368)] | sort_by(.id) | last | "\(.id // "") \(.conclusion // "")"' 2>&1)"; then
               status=0
             else
               status=$?
@@ -119,15 +113,10 @@ jobs:
             fi
             backoff=5
 
-            run_id=""
-            conclusion=""
             read -r run_id conclusion <<< "$response" || true
             if [ -n "$run_id" ] && [ "$run_id" != "$seen_run" ]; then
-              if [ -n "$seen_run" ]; then
-                echo "Repo evidence restarted as run ${run_id}; its window starts now."
-              fi
-              seen_run="$run_id"
-              elapsed=0
+              [ -z "$seen_run" ] || echo "Repo evidence restarted as run ${run_id}; its window starts now."
+              seen_run="$run_id" elapsed=0
             fi
 
             case "$conclusion" in
