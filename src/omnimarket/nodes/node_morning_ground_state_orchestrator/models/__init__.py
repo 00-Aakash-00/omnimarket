@@ -12,7 +12,11 @@ from .model_morning_ground_state import (
     ModelMorningWatcherRecord,
     ModelMorningWatcherSnapshot,
 )
-from .model_morning_overlay import ModelMorningOverlay, ModelMorningRequestDefaults
+from .model_morning_overlay import (
+    ModelMorningOverlay,
+    ModelMorningPhaseHost,
+    ModelMorningRequestDefaults,
+)
 from .model_phase_results import ModelDroppedWorkResultSectionsItem
 
 __all__ = [
@@ -23,6 +27,7 @@ __all__ = [
     "ModelMorningGroundStateResult",
     "ModelMorningLabWorkTarget",
     "ModelMorningOverlay",
+    "ModelMorningPhaseHost",
     "ModelMorningPhaseRequest",
     "ModelMorningRequestDefaults",
     "ModelMorningWatcherRecord",

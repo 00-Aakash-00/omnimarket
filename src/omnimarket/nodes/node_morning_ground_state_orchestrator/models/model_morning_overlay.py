@@ -10,8 +10,9 @@ repositories, report locations, tickets or tooling arrives in this overlay.
 from __future__ import annotations
 
 import re
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 REQUIRED_TEMPLATES = (
     "KB_ROOT",
@@ -70,6 +71,20 @@ class ModelMorningRequestDefaults(BaseModel):
     closure_probe_ticket: str
 
 
+class ModelMorningPhaseHost(BaseModel):
+    """Where a deployment's phase agents run.
+
+    ``pool`` places each phase on a pool host by capacity. ``run_host`` serves
+    the phases on the host the run itself runs on, through a lab work host the
+    gateway wires on the run's own bus: the phase agents then read that host's
+    workspace, credentials and environment, and no capacity placement applies.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    placement: Literal["pool", "run_host"] = "pool"
+    max_units: int = Field(default=2, ge=1, le=4)
+
+
 class ModelMorningOverlay(BaseModel):
     """Validated deployment overlay; built by the loader, never by the node."""
 
@@ -79,6 +94,7 @@ class ModelMorningOverlay(BaseModel):
     request_defaults: ModelMorningRequestDefaults
     values: dict[str, str]
     texts: dict[str, str]
+    phase_host: ModelMorningPhaseHost = ModelMorningPhaseHost()
 
     @classmethod
     def from_documents(
@@ -93,6 +109,7 @@ class ModelMorningOverlay(BaseModel):
             "request_defaults",
             "values",
             "texts",
+            "phase_host",
         }
         if unknown:
             raise ValueError(
@@ -120,12 +137,19 @@ class ModelMorningOverlay(BaseModel):
             raise ValueError(
                 f"request_defaults invalid ({type(exc).__name__})"
             ) from None
+        try:
+            phase_host = ModelMorningPhaseHost.model_validate(
+                overlay.get("phase_host") or {}
+            )
+        except ValueError as exc:
+            raise ValueError(f"phase_host invalid ({type(exc).__name__})") from None
         return cls(
             templates=templates,
             phase_specs=phase_specs,
             request_defaults=defaults,
             values=values,
             texts=texts,
+            phase_host=phase_host,
         )
 
 

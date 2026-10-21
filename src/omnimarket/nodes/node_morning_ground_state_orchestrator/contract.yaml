@@ -11,7 +11,9 @@ description: >
   unconditional dropped-work measurement and session goal. Each phase runs as
   a lab work unit (node_lab_work_unit_effect, its topics read from that
   contract): a headless agent session on a pool host placed by capacity, at the
-  repository and pushed commit the run names. The delegation request-response
+  repository and pushed commit the run names. A deployment whose overlay names
+  phase_host.placement run_host serves those units on the run's own host through
+  a lab work host wired on the run's bus, with no capacity placement. The delegation request-response
   instance below is kept for when agent_delegation becomes routable; while the
   task-class contract declares it pending a capability, that path refuses up
   front with a typed error. The deployment's briefs, report locations and
