@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "omnimarket"
-version = "0.4.318"
+version = "0.4.319"
 description = "OmniMarket - Portable ONEX workflow package registry"
 authors = [
     {name = "OmniNode.ai", email = "contact@omninode.ai"}
@@ -147,7 +147,9 @@ dependencies = [
     # OMN-17427: floor raised 0.47.46 -> 0.47.47, the first release whose
     # delegation wire request admits the brief_drafting task class (core#2029).
     # Raised in BOTH places.
-    "omnibase-core>=0.47.47,<0.48.0",
+    # OMN-17427: core 0.47.48 admits extraction_proposer, tail_summary and context_selection
+    # on the wire Literal; omnibase_infra d20586c7d pins 0.47.48 (INFRA_CORE_PINS).
+    "omnibase-core>=0.47.48,<0.48.0",
     # OMN-14189 imports the shared OCC PR stamp renderer/parser + models from
     # omnibase-compat 0.5.6 (relocated core->compat under OMN-14223 so the gate
     # and this emitter share one zero-dep vocabulary): the single seam
@@ -433,6 +435,8 @@ node_delegation_answer_gate_compute = "omnimarket.nodes.node_delegation_answer_g
 node_lab_first_routing_check_compute = "omnimarket.nodes.node_lab_first_routing_check_compute"
 node_glm_allowance_compute = "omnimarket.nodes.node_glm_allowance_compute"
 node_claude_review_budget_compute = "omnimarket.nodes.node_claude_review_budget_compute"
+node_claude_review_budget_reducer = "omnimarket.nodes.node_claude_review_budget_reducer"
+node_claude_review_budget_admission_effect = "omnimarket.nodes.node_claude_review_budget_admission_effect"
 node_review_defect_catalog_compute = "omnimarket.nodes.node_review_defect_catalog_compute"
 node_review_quota_reducer = "omnimarket.nodes.node_review_quota_reducer"
 node_glm_usage_record_compute = "omnimarket.nodes.node_glm_usage_record_compute"
@@ -536,6 +540,7 @@ node_automation_liveness_deadman_effect = "omnimarket.nodes.node_automation_live
 node_automation_liveness_watchdog_compute = "omnimarket.nodes.node_automation_liveness_watchdog_compute"
 node_automation_liveness_watchdog_effect = "omnimarket.nodes.node_automation_liveness_watchdog_effect"
 node_automation_liveness_overlay_check_compute = "omnimarket.nodes.node_automation_liveness_overlay_check_compute"
+node_landing_stall_expectation_compute = "omnimarket.nodes.node_landing_stall_expectation_compute"
 node_lab_job_check_schedule_compute = "omnimarket.nodes.node_lab_job_check_schedule_compute"
 node_lab_sli_alert_effect = "omnimarket.nodes.node_lab_sli_alert_effect"
 node_lab_sli_board_compute = "omnimarket.nodes.node_lab_sli_board_compute"
@@ -981,6 +986,7 @@ node_architecture_discovery_orchestrator = "omnimarket.nodes.node_architecture_d
 node_dev_tag_pin_mover_compute = "omnimarket.nodes.node_dev_tag_pin_mover_compute"
 node_operator_access_mode_effect = "omnimarket.nodes.node_operator_access_mode_effect"
 node_silent_failure_alarm_compute = "omnimarket.nodes.node_silent_failure_alarm_compute"
+node_runtime_deploy_effect = "omnimarket.nodes.node_runtime_deploy_effect"
 
 [project.scripts]
 onex-hourly-tick = "omnimarket.nodes.node_hourly_tick_effect.handlers.handler_hourly_tick_cli:main"
@@ -989,6 +995,7 @@ onex-automation-liveness-check = "omnimarket.handlers.handler_automation_livenes
 onex-patch-apply-dispatch = "omnimarket.nodes.node_patch_apply_dispatch_effect.handlers.handler_patch_apply_dispatch_cli:main"
 onex-integration-test-runner = "omnimarket.nodes.node_integration_test_runner.cli:main"
 onex-access-mode = "omnimarket.nodes.node_operator_access_mode_effect.handlers.handler_operator_hook_cli:mode_main"
+onex-runtime-deploy = "omnimarket.nodes.node_runtime_deploy_effect.handlers.handler_runtime_deploy_cli:main"
 onex-architecture-discovery = "omnimarket.nodes.node_architecture_discovery_orchestrator.handlers.handler_architecture_discovery_cli:main"
 ab-compare = "omnimarket.cli.cli_ab_compare:main"
 ab-compare-suite = "omnimarket.cli.cli_ab_compare_suite:main"
@@ -999,6 +1006,8 @@ market-skills-demo = "omnimarket.cli.cli_market_skills_demo:main"
 omnimarket-validate-config = "omnimarket.cli.validate_config:main"
 omnimarket-projection-api = "omnimarket.projection.api_server:main"
 onex-ledger-reconcile = "omnimarket.nodes.node_ledger_reconcile_orchestrator.__main__:main"
+onex-secret-store-override = "omnimarket.nodes.node_lab_secret_store_override_effect.handlers.handler_lab_secret_store_override_cli:main"
+onex-legacy-worktree-audit = "omnimarket.nodes.node_legacy_worktree_audit_effect.handlers.handler_legacy_worktree_audit:main"
 
 [project.entry-points."onex.cli"]
 market = "omnimarket.cli.market:market"
@@ -1100,7 +1109,7 @@ omnimarket = "omnimarket.nodes"
 # tag, which descends from #5036. uv.lock resolves the tag to commit
 # 4c36425ce840 and installs that commit, so the install is content-addressed;
 # drop this override once a registry release after 0.38.75 carries both.
-omnibase-infra = { git = "https://github.com/OmniNode-ai/omnibase_infra.git", tag = "dev-20261018092007-4c36425ce840" }
+omnibase-infra = { git = "https://github.com/OmniNode-ai/omnibase_infra.git", tag = "dev-20261020015357-49d28fc6208a" }
 # OMN-13878: omnibase-core and omnibase-compat now resolve from PyPI (removed
 # their git-source overrides). The version-range overrides below already target
 # the released artifacts: core>=0.46.7,<0.47.0 and
@@ -1238,7 +1247,9 @@ override-dependencies = [
     # OMN-21106 / OMN-21109: floor raised 0.47.39 -> 0.47.44 (core#1987, TA.2).
     # OMN-17427: floor raised 0.47.44 -> 0.47.46 (core#2023).
     # OMN-17427: floor raised 0.47.46 -> 0.47.47 (core#2029, brief_drafting).
-    "omnibase-core>=0.47.47,<0.48.0",
+    # OMN-17427: core 0.47.48 admits extraction_proposer, tail_summary and context_selection
+    # on the wire Literal; omnibase_infra d20586c7d pins 0.47.48 (INFRA_CORE_PINS).
+    "omnibase-core>=0.47.48,<0.48.0",
     "omnibase-spi>=0.23.3,<0.24.0",
     # OMN-18159: raised in lockstep with the dependency floor above --
     # 0.38.22 is the first release whose derived topology grants let the
@@ -1453,6 +1464,8 @@ ignore = [
 # The operator-supervision hook entry prints its verdict to stdout and stderr: a hook's only
 # channel to the Claude Code client.
 "src/omnimarket/nodes/node_operator_access_mode_effect/handlers/handler_operator_hook_cli.py" = ["T201"]
+"src/omnimarket/nodes/node_lab_secret_store_override_effect/handlers/handler_lab_secret_store_override_cli.py" = ["T201"]
+"src/omnimarket/nodes/node_legacy_worktree_audit_effect/handlers/handler_legacy_worktree_audit.py" = ["T201"]
 "src/omnimarket/nodes/node_friction_synthesis_effect/handlers/handler_friction_synthesis_cli.py" = ["T201"]
 "src/omnimarket/nodes/node_host_thermal_observe_effect/handlers/handler_host_thermal_cli.py" = ["T201"]
 # OMN-18300 delegation ladder. The runner and the bundle builder are CLIs and
