@@ -462,6 +462,11 @@ requirements:
         statement: "AC105: node_lab_sli_compute returns one verdict per row of its contract sli_table (ok, breach, unknown or not_applicable) with the row's own severity, an indicator with no reading is unknown and never ok, and a reading for an unknown or repeated indicator is rejected; node_lab_sli_alert_effect pushes the operator and requests a fix lane for SEV1, requests a fix lane for SEV2, batches SEV3 and dark indicators into one fix lane, never acts on SEV4, suppresses a still-firing indicator inside its severity's renotify window and records each delivery; node_lab_sli_collect_effect reads the PR watcher state, host probes and the scheduler and lists any unreadable source; node_lab_sli_board_compute keeps the per-indicator history and renders every indicator with its severity and trend -- falsifier: uv run pytest tests/nodes/node_lab_sli_compute/test_golden_chain_lab_sli.py tests/nodes/node_lab_sli_compute/test_error_chain_lab_sli.py tests/nodes/node_lab_sli_compute/test_golden_chain_lab_sli_collect.py -q fails at the merge base"
       - id: "AC107"
         statement: "AC107: with no lab_sli_pack overlay, or one whose status is disabled, each of node_lab_sli_collect_effect, node_lab_sli_compute, node_lab_sli_alert_effect and node_lab_sli_board_compute constructs and then refuses handle() with LabSliPackDisabledError before any probe or push; status enabled runs the node; any other status is refused as a broken overlay -- falsifier: uv run pytest tests/nodes/node_lab_sli_compute/test_lab_sli_pack_gate.py -q fails at the merge base"
+  - id: "req-rehome-operator-access-mode-and-silent-failure-alarm"
+    statement: "The operator access mode effect node and the silent-failure alarm compute node live in the portable node package with their contracts, handlers and focused tests, so the internal copies can be repointed and deleted after a release."
+    acceptance:
+      - id: "AC109"
+        statement: "AC109: node_operator_access_mode_effect and node_silent_failure_alarm_compute are registered onex.nodes entry points of omnimarket and their focused tests pass in omnimarket -- falsifier: uv run pytest tests/nodes/node_operator_access_mode_effect/test_operator_access_mode.py tests/nodes/node_operator_access_mode_effect/test_foreground_wait_guard.py tests/nodes/node_operator_access_mode_effect/test_operator_hooks_refusal_row_omn21020.py tests/nodes/node_operator_access_mode_effect/test_golden_chain_operator_access_mode_effect.py tests/nodes/node_silent_failure_alarm_compute/test_silent_failure_alarm_compute.py tests/nodes/node_silent_failure_alarm_compute/test_golden_chain_silent_failure_alarm_compute.py -q finds a failing test, or the entry points are absent from pyproject.toml"
   - id: "req-review-lab-rubric-measured"
     statement: "The review task class records the lab model's measured adequacy against the lab-first bar."
     acceptance:
@@ -912,6 +917,9 @@ evidence_requirements:
   - kind: "tests"
     description: "AC76 and AC77: the dev cause-lane receiver's suite and the chain gate's receiver leg."
     command: "uv run pytest tests/nodes/node_dev_cause_lane_receiver_effect/test_dev_cause_lane_receiver_omn17427.py tests/ci/test_red_ci_bus_chain_omn20730.py -q -p no:randomly --no-cov"
+  - kind: "tests"
+    description: "AC109: the operator access mode and silent-failure alarm compute node tests pass in omnimarket."
+    command: "uv run pytest tests/nodes/node_operator_access_mode_effect/test_operator_access_mode.py tests/nodes/node_operator_access_mode_effect/test_foreground_wait_guard.py tests/nodes/node_operator_access_mode_effect/test_operator_hooks_refusal_row_omn21020.py tests/nodes/node_operator_access_mode_effect/test_golden_chain_operator_access_mode_effect.py tests/nodes/node_silent_failure_alarm_compute/test_silent_failure_alarm_compute.py tests/nodes/node_silent_failure_alarm_compute/test_golden_chain_silent_failure_alarm_compute.py -q"
   - kind: "tests"
     description: "AC78: the review class records its measured lab verdict, earned against the policy bar, and the shipped contracts still pass the lab-first check."
     command: "uv run pytest tests/unit/delegation/test_lab_first_routing_omn17427.py -q -p no:randomly --no-cov"
@@ -2086,6 +2094,35 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_dev_cause_lane_receiver_effect/handlers/handler_dev_cause_lane_start.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys; source = sys.stdin.read(); assert "class HandlerDevCauseLaneStart" in source and source.index("self._ledger.claim(") < source.index("self._runner.start("); print("dev cause-lane receiver deploy probe: PASS")'
+  - id: "dod-omn17427-ac76-rehome-access-mode-alarm-compute"
+    description: "The operator access mode effect node and the silent-failure alarm compute node run their moved tests in omnimarket and are registered onex.nodes entry points. The node directories and tests are absent at the merge base."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_operator_access_mode_effect/test_operator_access_mode.py tests/nodes/node_operator_access_mode_effect/test_foreground_wait_guard.py tests/nodes/node_operator_access_mode_effect/test_operator_hooks_refusal_row_omn21020.py tests/nodes/node_operator_access_mode_effect/test_golden_chain_operator_access_mode_effect.py tests/nodes/node_silent_failure_alarm_compute/test_silent_failure_alarm_compute.py tests/nodes/node_silent_failure_alarm_compute/test_golden_chain_silent_failure_alarm_compute.py -q -p no:randomly"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_rehomed_access_alarm_local_invocation.py tests/test_market_node_runtime_dogfood.py::test_market_node_runtime_dogfood_inventory_classifies_all_entry_points -q -p no:randomly -p no:cacheprovider"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "command"
+        check_value: >-
+          test "$(grep -c -E '^node_(operator_access_mode_effect|silent_failure_alarm_compute) = ' pyproject.toml)" -eq 2
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC109"]
+  - id: "dod-omn17427-access-alarm-deploy-probe"
+    description: "Deploy probe. GitHub serves the silent-failure alarm compute contract at the checked-out HEAD, routing seven decision operations. It fails at the merge base, where the node does not exist, and needs only GitHub access from the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_silent_failure_alarm_compute/contract.yaml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | python3 -c 'import sys, yaml; c = yaml.safe_load(sys.stdin.read()); ops = c["handler_routing"]["handlers"]; assert len(ops) == 7, len(ops); print("silent failure alarm compute deploy probe: PASS")'
+  - id: "dod-omn17427-access-alarm-local-deploy-probe"
+    description: "Deploy probe. Load both checked-out local node contracts, validate their declared request models and invoke their handlers with session facts and placement runs. Assert the access mode and placement alarm results. The hosted runner needs the locked Python dependencies and this checkout, with no external services or credentials."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/test_rehomed_access_alarm_local_invocation.py -q -p no:randomly -p no:cacheprovider"
+        cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn17427-review-lab-rubric-measured"
     description: "The review class records verdict fail with its 25 of 60 measurement, and the verdict is the one that measurement earns against the policy bar. The recorded-measurement test fails at the merge base, where the class reads unmeasured."
     source: "manual"
