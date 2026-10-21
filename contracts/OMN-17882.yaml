@@ -66,3 +66,55 @@ dod_evidence:
         check_value: "uv run pytest tests/test_omn17426_savings_aggregate_views_per_tenant.py::test_runner_apply_publishes_only_its_tenant_series_buckets tests/test_omn17426_savings_aggregates_bus_backed.py::test_terminal_apply_publishes_and_serves_only_its_tenant_series_rows -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
+  - id: "dod-omn17882-ac3-topic-reader-declaration"
+    description: "Checks this topic's contract has a bus-backed declaration and no per-topic reader opt-out. This check does not run the cross-repository no-reader validator; omnibase_infra runs the global gate in exposure-reader-coverage.yml CI."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_omn17426_savings_aggregates_bus_backed.py::test_the_bus_backed_series_does_not_opt_out_of_reader_coverage -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC3"]
+  - id: "dod-omn17882-ac4-dev-catalogue-readback"
+    description: "After deployment, a bounded read-only GET of the dev lane /health and /projections endpoints asserts the series topic is bus-backed and lists its tenant/bucket key, and that bus_backed_topics grew beyond the pre-deploy count captured from the same endpoint. Set ONEX_LAB_BASELINE_BUS_BACKED_TOPIC_COUNT from that pre-deploy readback."
+    source: "manual"
+    execution_scope: "local_done_gate"
+    checks:
+      - check_type: "command"
+        check_value: |-
+          set -eu
+          test -n "${ONEX_LAB_PROJECTION_API:-}"
+          test -n "${ONEX_LAB_BASELINE_BUS_BACKED_TOPIC_COUNT:-}"
+          api="${ONEX_LAB_PROJECTION_API%/}"
+          health="$(curl --fail --silent --show-error --max-time 8 "$api/health")"
+          catalog="$(curl --fail --silent --show-error --max-time 8 "$api/projections")"
+          jq -n -e --argjson health "$health" --argjson catalog "$catalog" --arg topic "onex.snapshot.projection.delegation.savings-series.v1" --argjson baseline "$ONEX_LAB_BASELINE_BUS_BACKED_TOPIC_COUNT" '
+            ($catalog.topics | map(select(.topic == $topic)) | first) as $row |
+            if (($health.bus_backed_topics | index($topic)) != null)
+              and (($health.bus_backed_topics | length) > $baseline)
+              and ($row != null)
+              and ($row.status == "ok")
+              and ($row.backing == "bus")
+              and ($row.bus_backed == true)
+              and ($row.key_columns == ["tenant_id", "bucket"])
+              and ($row.tenant_column == "tenant_id")
+            then {topic: $topic, bus_backed_topic_count: ($health.bus_backed_topics | length), baseline_count: $baseline}
+            else error("series catalogue or health readback did not meet AC4") end'
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC4"]
+  - id: "dod-omn17882-ac5-rendered-series-after-consumer"
+    description: "Pending the downstream omnidash consumer and deployment: the local Done gate must run the named Playwright test against the live dashboard and verify a served daily savings row is visibly rendered as a measured value, not a pending state. The check is intentionally local because hosted CI has no deployed dev dashboard."
+    source: "manual"
+    execution_scope: "local_done_gate"
+    checks:
+      - check_type: "test_passes"
+        check_value: "pnpm exec playwright test tests/e2e/local-dashboard-omn17882-savings-series-live.spec.ts --grep 'AC5 rendered savings series'"
+        cwd: "${OMNI_HOME}/OmniNode-Workflow/worktrees/OMN-21166/omnidash"
+    binds_ac: ["AC5"]
+  - id: "dod-omn17882-ac6-series-view-fields"
+    description: "The real-Postgres view test asserts the exact retained column tuple and values for counterfactual, baseline, model-routing and token fields, with tenant separation and the existing grant preserved."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/test_omn17426_savings_aggregate_views_per_tenant.py::test_savings_series_keeps_same_day_totals_separate_by_tenant -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC6"]

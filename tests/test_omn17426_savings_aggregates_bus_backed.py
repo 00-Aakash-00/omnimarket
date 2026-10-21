@@ -146,6 +146,24 @@ def test_the_daily_series_is_backed_by_tenant_and_bucket() -> None:
     assert exposure.columns[-1] == SNAPSHOT_TENANT_COLUMN
 
 
+def test_the_bus_backed_series_does_not_opt_out_of_reader_coverage() -> None:
+    """OMN-17199: a bus-backed series with an Overview reader has no opt-out.
+
+    This per-topic contract check does not run the cross-repository reader
+    validator. ``omnibase_infra`` runs that global no-reader gate in its
+    ``exposure-reader-coverage.yml`` CI workflow.
+    """
+    contract = yaml.safe_load(_CONTRACT_PATH.read_text(encoding="utf-8"))
+    projection = contract["projection_api"]
+    assert isinstance(projection, dict)
+    series = [item for item in projection["exposures"] if item["topic"] == SERIES_TOPIC]
+    assert len(series) == 1, f"expected one series exposure, got {len(series)}"
+    exposure = series[0]
+    assert exposure["bus_backed"] is True
+    assert "consumers" not in exposure
+    assert "consumers_reason" not in exposure
+
+
 def test_every_converted_snapshot_topic_is_declared_as_published() -> None:
     """A bus_backed exposure whose topic no node claims to publish is a page
     that refuses forever while reporting itself as backed."""
