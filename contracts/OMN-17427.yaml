@@ -3037,3 +3037,17 @@ dod_evidence:
     - check_type: command
       check_value: uv run pytest tests/unit/nodes/node_projection_delegation/test_harness_savings_counterfactual_omn20303.py -k test_harness_saving_keeps_counterfactual -q -n 0 --no-cov --refuse-skips
       cwd: ${OMNI_HOME}/omnimarket
+  - id: "dod-omn17427-canary-provisioned-python"
+    description: "Dispatch cause omnimarket:canary (macos-latest). Both install-canary jobs carry setup-uv's explicit Python selection and managed installation directory across the clean-home boundary, and uv discovers that interpreter. These two cases fail at the merge base with KeyError UV_PYTHON. This is focused fix-forward evidence; it does not attest the umbrella ticket's nightly integration-pass reports or graduation review."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run --frozen pytest tests/test_omn19454_install_canary.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-canary-python-deploy-probe"
+    description: "Hosted deploy probe. Read each checked-out canary job's actual pass-env arguments, build its isolated install environment, and ask the real uv executable to find the selected Python offline. This fails at the merge base, needs only the checkout and its uv test environment, and attests the workflow artifact rather than a live macOS deployment."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/test_omn19454_install_canary.py -q -n 0 -p no:randomly --no-cov -k workflow_install_uses_setup_uv_python"
+        cwd: "${OMNI_HOME}/omnimarket"
