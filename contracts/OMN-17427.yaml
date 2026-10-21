@@ -537,6 +537,11 @@ requirements:
     acceptance:
       - id: "AC93"
         statement: "AC93: the sync and async delegate-skill row builders store the terminal's trace_id as text, leave the column NULL when the terminal carries none, and keep a stored trace_id across a later sparse terminal -- falsifier: uv run pytest tests/unit/delegation/test_delegate_skill_trace_id_omn19448.py -q fails at the merge base"
+  - id: "req-evidence-comment-class"
+    statement: "A done-evidence comment is drafted on the lab rung as the internal evidence_comment task class, and a draft that cites an identifier absent from the lane report, skips or reorders a criterion, or restates a criterion as its evidence is refused before use."
+    acceptance:
+      - id: "AC92"
+        statement: "AC92: a drafted evidence comment citing a sha, pull request number or ticket id absent from the lane report is refused by the gate, as is one that skips or reorders a criterion, restates its criterion, or cites no token of the report -- falsifier: the focused pytest accepts any of those drafts, or refuses the faithful draft"
   - id: "req-release-staleness-dev-merge-tags"
     statement: "Release staleness counts commits reached by immutable dev merge tags as published while preserving the age limit for untagged packaged commits."
     acceptance:
@@ -2405,6 +2410,21 @@ dod_evidence:
       - check_type: "command"
         check_value: |-
           sh -c 'set -eu; for f in src/omnimarket/nodes/node_projection_delegation/handlers/handler_projection_delegation.py src/omnimarket/nodes/node_projection_delegation/handlers/handler_delegation.py; do grep -Fq "row[\"trace_id\"] = str(event.trace_id)" "$f"; done; echo "delegate-skill trace_id deploy probe: PASS"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac92-evidence-comment-class"
+    description: "The evidence_comment class chain passes: the class is internal, local only and never selected from a prompt, a faithful draft is accepted, and a draft with an identifier absent from the report, a missing or reordered criterion, a restated criterion or an entry with no report token is refused."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/delegation/test_omn17427_evidence_comment_class.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC92"]
+  - id: "dod-omn17427-evidence-comment-class-deploy-probe"
+    description: "Deploy probe. The hosted runner loads the packaged evidence_comment task-class contract and runs the faithful-draft control through its quality gate. This fails at the merge base and needs only uv and this checkout, without a broker or credentials."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/unit/delegation/test_omn17427_evidence_comment_class.py -q -p no:randomly --no-cov -k test_faithful_draft_is_accepted_and_both_entry_checks_ran"
         cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn17427-release-staleness-dev-tags-published"
     description: "Immutable dev merge tags cover packaged release debt and work without a version release. These tests fail against the merge-base workflow, which only counts version tags."
