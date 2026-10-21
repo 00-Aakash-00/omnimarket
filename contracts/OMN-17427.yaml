@@ -721,10 +721,15 @@ requirements:
     acceptance:
       - id: "AC163"
         statement: "AC163: the runtime discovers the existing effect's lab-job handler and dispatches the submit node's ModelEventEnvelope to it; the handler retains the original brief, records reducer transitions, and refuses a second launch for a taken job -- falsifier: uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'runtime_discovers or launches_once or wire_models' -q"
-      - id: "AC161"
-        statement: "AC161: coding-session adapters launch a brief on stdin in a worktree at the requested full commit and retain a typed receipt; a replay returns that receipt, and a reused identity with different instructions is refused -- falsifier: uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'session_adapter or agent_adapters or exact_commit' -q"
+      - id: "AC164"
+        statement: "AC164: coding-session adapters launch a brief on stdin in a worktree at the requested full commit and retain a typed receipt; a replay returns that receipt, and a reused identity with different instructions is refused -- falsifier: uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'session_adapter or agent_adapters or exact_commit' -q"
       - id: "AC162"
         statement: "AC162: the model adapter uses the model router's complete endpoint and the generic inference handler's wire shape; contract generation parameters survive overrides and unmeasured, ignored or rejected parameters are refused before inference -- falsifier: uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'model_adapter or parameters or generation_overrides' -q"
+  - id: req-omn20303-harness-counterfactual-readback
+    statement: A harness terminal whose token-derived saving is projected keeps the same saving and its premium counterfactual in the delegation projection.
+    acceptance:
+    - id: AC161
+      statement: 'AC161: OMN-20303 AC3 harness readback regression: both delegation writers retain the baseline of an unreported token-derived harness saving, preserve a stored pinned baseline, and invent no baseline for failed, zero-token, unresolved or explicitly reported terminals -- falsifier: uv run pytest tests/unit/nodes/node_projection_delegation/test_harness_savings_counterfactual_omn20303.py -q -n 0 --no-cov'
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -3038,7 +3043,7 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k 'session_adapter or agent_adapters or exact_commit' -q"
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC161"]
+    binds_ac: ["AC164"]
   - id: "dod-omn17427-ac162-generation-routing"
     description: "Generic inference payload and logical routing; this is not a live per-provider compatibility matrix."
     source: "manual"
@@ -3054,3 +3059,21 @@ dod_evidence:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_delegation_targets.py -k runtime_discovers -q"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: dod-omn20303-ac3-harness-counterfactual
+    description: 'The live dev-lane readback found 19 harness savings rows without a delegation counterfactual, including 9bfb4098-38cb-4ac5-bf64-224dd2001541. The two writer regressions fail at the base on a missing baseline; the controls retain existing attribution and truthful absence. Post-deploy readback remains required.'
+    source: manual
+    binds_ac: [AC161]
+    checks:
+    - check_type: test_passes
+      check_value: uv run pytest tests/unit/nodes/node_projection_delegation/test_harness_savings_counterfactual_omn20303.py -q -n 0 --no-cov --refuse-skips
+      cwd: ${OMNI_HOME}/omnimarket
+    - check_type: test_passes
+      check_value: env -u ONEX_TENANT_ID uv run pytest tests/test_omn20303_real_postgres_savings_one_row_per_run.py -k harness_saving -q -n 0 --no-cov --refuse-skips
+      cwd: ${OMNI_HOME}/omnimarket
+  - id: dod-omn20303-ac3-harness-deploy-probe
+    description: 'Hosted deployment check: replay the live harness terminal metering shape through both packaged delegation writers and the savings writer, asserting the joined saving and its pinned baseline. Fails at the base without deployed-service access. This is a runtime-path check, not a live deployment attestation.'
+    source: manual
+    checks:
+    - check_type: command
+      check_value: uv run pytest tests/unit/nodes/node_projection_delegation/test_harness_savings_counterfactual_omn20303.py -k test_harness_saving_keeps_counterfactual -q -n 0 --no-cov --refuse-skips
+      cwd: ${OMNI_HOME}/omnimarket
