@@ -777,6 +777,11 @@ requirements:
     acceptance:
       - id: "AC182"
         statement: "AC182: node_landing_tlc_receipt_effect is a registered onex.nodes entry point of omnimarket declared once (metadata.yaml and pyproject.toml, not its contract), publish builds a receipt bound to the decision pin and packs it under tag landing-tlc-<pin8>-<model8>, refuses a model check that found a violation, ran nothing or has an unreadable pin, and sync installs a published receipt, leaves a current one alone, replaces one built from another model, refuses a receipt the gate refuses or an archive naming a path outside its directory, and reports a failed release read, in each refusal changing nothing -- falsifier: uv run pytest tests/nodes/node_landing_tlc_receipt_effect/test_landing_tlc_receipt_effect.py -q -p no:randomly --no-cov fails at the merge base, where the node does not exist"
+  - id: "req-evidence-wait-per-verifier-run"
+    statement: "Every Repo Evidence Dependency poller gives each repo-evidence / dod-verify run its own wait window, so an edited event that restarts the pull_request_target verifier late in the wait no longer times the poller out while the new run is still verifying, and one stuck run still fails closed at its deadline."
+    acceptance:
+      - id: "AC162"
+        statement: "AC162: each of the six Repo Evidence Dependency pollers restarts its 2580 second window when a new repo-evidence / dod-verify run id appears and still times out a single run that never concludes -- falsifier: uv run pytest tests/ci/test_repo_evidence_prerequisite_workflow.py -q -n 0 --no-cov -k 'restarted_verifier or stuck_verifier' fails at the merge base, where the window is counted from the poller's own start"
   - id: "req-terminal-emit-cleanup-deadline"
     statement: "Kafka session cleanup and thread handoff share the terminal emitter's invocation deadline, and a timed-out coroutine is cancelled on the shared event loop."
     acceptance:
@@ -1084,6 +1089,9 @@ evidence_requirements:
   - kind: "tests"
     description: "AC182: the landing TLC receipt effect node builds, packs, installs and refuses receipts against a temporary gate and a fake release transport, and its entry point agrees with the installed package."
     command: "uv run pytest tests/nodes/node_landing_tlc_receipt_effect/test_landing_tlc_receipt_effect.py -q -p no:randomly --no-cov"
+  - kind: "tests"
+    description: "AC162: a Repo Evidence Dependency poller gives a restarted verifier run its own window and still times out one stuck run."
+    command: "uv run pytest tests/ci/test_repo_evidence_prerequisite_workflow.py -q -n 0 --no-cov -k 'restarted_verifier or stuck_verifier'"
   - kind: "tests"
     description: "AC182: the declared label set tests pass on a declaring and an undeclared backend, and an omitted wire field reads as undeclared."
     command: "uv run pytest tests/unit/delegation/test_declared_label_set_membership_omn18989.py -q"
@@ -3492,6 +3500,14 @@ dod_evidence:
       - check_type: "command"
         check_value: "uv run pytest tests/nodes/node_landing_tlc_receipt_effect/test_landing_tlc_receipt_effect.py -q -n 0 -p no:randomly --no-cov --refuse-skips -k 'cli_publish or sync_installs'"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac162-evidence-wait-per-run"
+    description: "Each Repo Evidence Dependency poller restarts its wait window for a new repo-evidence / dod-verify run id and still fails closed on one run that never concludes. The six restarted-verifier tests fail at the merge base, where the window runs from the poller's own start and a verifier restarted by an edited event times it out."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_repo_evidence_prerequisite_workflow.py -q -n 0 -p no:randomly --no-cov -k 'restarted_verifier or stuck_verifier'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC162"]
   - id: "dod-omn17427-ac145-compaction-build-timings"
     description: "Tier read_ms under an injected clock, build_ms on prepared and fallback receipts (None when the barrier fails first), model_section_ms on prepared, and ModelCompactionRoundTrip.from_prepared splitting the build. At the merge base 23 of these tests fail."
     source: "manual"
