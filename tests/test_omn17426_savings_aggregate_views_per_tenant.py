@@ -105,19 +105,21 @@ OVERVIEW = "projection_cost_savings_overview"
 SAVINGS = "projection_delegation_savings"
 
 
+async def _run_migration(conn: asyncpg.Connection, migration: Path) -> None:
+    sql = _CONCURRENT_INDEX.sub("CREATE INDEX", migration.read_text("utf-8"))
+    sql = _PUBLIC_SCHEMA.sub("", sql)
+    try:
+        await conn.execute(sql)
+    except Exception as exc:
+        raise AssertionError(f"migration {migration.name} failed: {exc}") from exc
+
+
 async def _apply(conn: asyncpg.Connection) -> None:
     for node in _MIGRATION_NODES:
         for migration in sorted(
             (_NODES / node / "migrations").glob("*.sql"), key=lambda p: p.name
         ):
-            sql = _CONCURRENT_INDEX.sub("CREATE INDEX", migration.read_text("utf-8"))
-            sql = _PUBLIC_SCHEMA.sub("", sql)
-            try:
-                await conn.execute(sql)
-            except Exception as exc:
-                raise AssertionError(
-                    f"migration {migration.name} failed: {exc}"
-                ) from exc
+            await _run_migration(conn, migration)
 
 
 async def _seed(conn: asyncpg.Connection) -> None:
@@ -532,14 +534,35 @@ async def test_savings_series_keeps_same_day_totals_separate_by_tenant(
         "prem_pct",
         "tenant_id",
     ], columns
-    assert (
-        await views.fetchval(
-            "SELECT has_table_privilege('app_dashboard', "
-            "current_schema() || '.' || $1, 'SELECT')",
-            "projection_delegation_savings_series",
-        )
-        is True
+    # The dashboard read grant is NOT created by this node chain: the series
+    # view is owned by role_omnidash and its app_dashboard SELECT is declared
+    # by omnibase_infra's node migration 091_grant_app_dashboard_savings_series,
+    # which runs before 099 on a deployed database. So the omnimarket-only chain
+    # applied by the fixture grants nothing (the control: this is False), the
+    # test stands in for infra's 091, and then replays 099 over the granted view
+    # to prove CREATE OR REPLACE keeps the grant (the failure mode named above).
+    privilege_query = (
+        "SELECT has_table_privilege('app_dashboard', "
+        "current_schema() || '.' || $1, 'SELECT')"
     )
+    assert (
+        await views.fetchval(privilege_query, "projection_delegation_savings_series")
+        is False
+    ), "control: the omnimarket chain alone grants app_dashboard nothing"
+    await views.execute(
+        "GRANT SELECT ON projection_delegation_savings_series TO app_dashboard"
+    )
+    await _run_migration(
+        views,
+        _NODES
+        / "node_projection_savings"
+        / "migrations"
+        / "099_savings_series_tenant_bucket.sql",
+    )
+    assert (
+        await views.fetchval(privilege_query, "projection_delegation_savings_series")
+        is True
+    ), "099's CREATE OR REPLACE dropped the dashboard SELECT grant"
 
     rows = await views.fetch(
         "SELECT tenant_id, bucket, actual_cost_usd, baseline_cost_usd, "
@@ -603,6 +626,7 @@ async def test_runner_apply_publishes_only_its_tenant_series_buckets(
     """
 
     published: list[dict[str, Any]] = []
+    await views.execute("SET TIME ZONE 'UTC'")
 
     # Positive control: the other tenant has a savings row on the same day as
     # tenant A's existing row. A query without the runner's tenant predicate
@@ -704,8 +728,23 @@ async def test_runner_apply_publishes_only_its_tenant_series_buckets(
         )
         rows = [json.loads(message["value"])["row"] for message in series_messages]
         assert {row["tenant_id"] for row in rows} == {str(TENANT_A)}
+        # The series buckets on savings_estimates.created_at (migrations 078
+        # through 099), which the runner leaves to DEFAULT NOW(): a row lands in
+        # the day it was RECORDED, not the day of the event (2026-05-20). So the
+        # expectation is read from the stored row, never hard-coded.
+        applied_bucket = await views.fetchval(
+            "SELECT date_trunc('day', created_at) FROM savings_estimates "
+            "WHERE tenant_id = $1 AND session_id <> $2",
+            str(TENANT_A),
+            RUN_A,
+        )
+        assert applied_bucket is not None, "control: the runner wrote its row"
+        assert applied_bucket != datetime(2026, 9, 12, tzinfo=UTC), (
+            "the applied row must land in a different day from the seeded one, "
+            "or the two-bucket count below proves nothing"
+        )
         assert {datetime.fromisoformat(row["bucket"]) for row in rows} == {
-            datetime(2026, 5, 20, tzinfo=UTC),
+            applied_bucket,
             datetime(2026, 9, 12, tzinfo=UTC),
         }
         assert len({message["key"] for message in series_messages}) == 2

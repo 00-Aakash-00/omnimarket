@@ -55,7 +55,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/test_omn17426_savings_aggregate_views_per_tenant.py::test_savings_series_keeps_same_day_totals_separate_by_tenant tests/test_omn17426_savings_aggregates_bus_backed.py::test_the_daily_series_is_backed_by_tenant_and_bucket tests/test_omn17426_savings_aggregates_bus_backed.py::test_runner_binds_both_aggregates_and_not_the_per_row_exposure -q"
+        check_value: "uv run pytest tests/test_omn17426_savings_aggregate_views_per_tenant.py::test_savings_series_keeps_same_day_totals_separate_by_tenant tests/test_omn17426_savings_aggregates_bus_backed.py::test_the_daily_series_is_backed_by_tenant_and_bucket tests/test_omn17426_savings_aggregates_bus_backed.py::test_the_runner_binds_both_aggregates_and_not_the_per_row_exposure -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
   - id: "dod-omn17882-ac2-real-runner-series-publish"
