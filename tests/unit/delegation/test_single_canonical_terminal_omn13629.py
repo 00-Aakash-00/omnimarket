@@ -212,7 +212,7 @@ class TestSavingsRunnerCanonicalRepointOmn13629:
     @staticmethod
     def _mock_db() -> Any:
         mock_db = MagicMock(spec=AsyncpgAdapter)
-        mock_db.execute = AsyncMock(return_value=None)
+        mock_db.execute = AsyncMock(return_value=[])
         # OMN-19438: tenant_registry_mirror holds no row in this double, so the
         # house tenant resolves through the closed legacy UUID.
         mock_db.fetchval = AsyncMock(return_value=None)
@@ -260,9 +260,16 @@ class TestSavingsRunnerCanonicalRepointOmn13629:
         assert ok is True
         dlq_rows = [(t, v) for t, v in published if t == _SAVINGS_DLQ_TOPIC]
         assert dlq_rows == [], "failed terminal must NOT be DLQ'd as malformed"
-        assert runner._db.execute.await_count == 2
-        for call in runner._db.execute.await_args_list:
-            assert call.args[0].lstrip().startswith("SELECT $1::text AS snapshot_grain")
+        # No write: the two aggregate snapshot reads, then one read of the
+        # tenant's daily series, which also counts failed runs from
+        # delegation_events and so is republished after this event too.
+        queries = [call.args[0].lstrip() for call in runner._db.execute.await_args_list]
+        assert len(queries) == 3
+        for query in queries[:2]:
+            assert query.startswith("SELECT $1::text AS snapshot_grain")
+        assert queries[2].startswith(
+            "SELECT * FROM projection_delegation_savings_series "
+        )
 
     def test_completed_terminal_with_savings_upserts_row(self) -> None:
         """A canonical COMPLETED terminal whose re-derived counterfactual beats the
