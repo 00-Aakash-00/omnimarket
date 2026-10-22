@@ -61,8 +61,10 @@ def _rung_one_refusal() -> ModelQualityGateResult:
 
 
 def _rung(kind: str, *, passed: bool) -> dict[str, object]:
+    del kind  # names the rung for the reader; the wire record declares no kind
     return {
-        "attempt_kind": kind,
+        # No attempt_kind: the typed lineage (attempt and parent ids) is not what
+        # this test is about, and a declared kind requires it.
         "tier": "local",
         "backend_id": _BACKEND,
         "host": _HOST,

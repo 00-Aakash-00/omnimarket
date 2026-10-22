@@ -189,5 +189,5 @@ dod_evidence:
     source: manual
     checks:
     - check_type: test_passes
-      check_value: uv run pytest tests/test_failed_run_attribution.py tests/test_rung_verdict_never_authors_run_row.py -q -n 0 --no-cov -p no:cacheprovider
+      check_value: uv run pytest tests/test_failed_run_attribution.py tests/test_rung_verdict_never_authors_run_row.py tests/test_omn19448_failed_run_attribution_real_postgres.py -q -n 0 --no-cov -p no:cacheprovider
       cwd: ${OMNI_HOME}/omnimarket

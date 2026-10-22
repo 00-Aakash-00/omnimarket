@@ -95,8 +95,10 @@ from omnimarket.nodes.node_projection_delegation.models.model_attempt_reduction 
     reduce_delegation_attempts,
 )
 from omnimarket.nodes.node_projection_delegation.models.model_terminal_precedence import (
+    NOT_ROUTED,
     apply_terminal_precedence,
     fold_terminal_ownership,
+    names_no_model,
     rung_verdict_fill,
     supersedes_handler_failure,
 )
@@ -143,7 +145,6 @@ CONFLICT_KEY = "correlation_id"
 _DELEGATE_SKILL_PLACEHOLDER = "delegate-skill"
 # OMN-19448: what a failed run that was never routed reads for model, backend
 # and host, and the model values that name no model.
-_NOT_ROUTED = "not routed"
 _UNNAMED_MODELS = frozenset({"unknown", "none"})
 GENERATION_TABLE = "generation_events"
 JUDGE_VERDICT_TABLE = "delegation_judge_verdict_events"
@@ -2082,7 +2083,11 @@ def _preserve_existing_evidence(
 
 def _is_unnamed_model(value: object) -> bool:
     """True for a model column that names no model (OMN-19448)."""
-    return _is_blank(value) or str(value).strip().lower() in _UNNAMED_MODELS
+    return (
+        _is_blank(value)
+        or str(value).strip().lower() in _UNNAMED_MODELS
+        or names_no_model(value)
+    )
 
 
 def _preserve_run_attribution(
@@ -2129,14 +2134,14 @@ def _stamp_not_routed(row: dict[str, object]) -> None:
         return
     cause = row.get("terminal_failure_cause")
     reason = str(cause) if not _is_blank(cause) else "no routing decision recorded"
-    row["model_name"] = f"{_NOT_ROUTED} ({reason})"
+    row["model_name"] = f"{NOT_ROUTED} ({reason})"
     if _is_blank(row.get("delegated_to")) or (
         row.get("delegated_to") == _DELEGATE_SKILL_PLACEHOLDER
     ):
         row["delegated_to"] = row["model_name"]
     for key in ("backend_id", "host"):
         if _is_blank(row.get(key)):
-            row[key] = _NOT_ROUTED
+            row[key] = NOT_ROUTED
 
 
 def _deciding_rung_stop_reason(rungs: object) -> tuple[str | None, bool | None]:

@@ -174,7 +174,11 @@ class TestEnvelopeIdIsStrippedNotForbidden:
             "field ModelQualityGateResult should ever be asked to accept"
         )
         assert insert_calls == [], "a verdict-first delivery must author no run row"
-        assert published == [], "an accepted no-op must neither DLQ nor republish"
+        assert [
+            t
+            for t in published
+            if t != "onex.evt.omnimarket.projection-delegation-applied.v1"
+        ] == [], "an accepted no-op must neither DLQ nor republish a row"
 
     def test_runtime_injected_keys_already_covers_envelope_id(self) -> None:
         """Positive control distinguishing the two seams: the OMN-16249

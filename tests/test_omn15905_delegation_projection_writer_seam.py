@@ -385,7 +385,12 @@ class TestQualityGateResultWriterParity:
             for call in mock_db.execute.await_args_list
             if str(call.args[0]).strip().startswith("INSERT INTO delegation_events")
         ] == []
-        assert published == []
+        # The runner's applied acknowledgement is not a row republish.
+        assert [
+            t
+            for t in published
+            if t != "onex.evt.omnimarket.projection-delegation-applied.v1"
+        ] == []
 
     def test_quality_gate_result_on_existing_row_only_updates_verdict_columns(
         self,

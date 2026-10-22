@@ -288,9 +288,11 @@ class TestDefectAEnvelopeKeyIsNotAProducerField:
         )
         assert ok is True
         assert _delegation_writes(db) == []
-        assert published == [], (
-            "verdict-first neither quarantines nor republishes a row"
-        )
+        assert [
+            t
+            for t, _ in published
+            if t != "onex.evt.omnimarket.projection-delegation-applied.v1"
+        ] == [], "verdict-first neither quarantines nor republishes a row"
 
     def test_a_real_unknown_producer_field_is_still_refused(self) -> None:
         """The strip removes exactly the transport keys, never widens the model."""
@@ -485,7 +487,11 @@ class TestBothDefectsMustBeFixedTogether:
             )
         )
         assert _delegation_writes(db) == []
-        assert published == [], "the preceding rung verdict must not republish"
+        assert [
+            t
+            for t, _ in published
+            if t != "onex.evt.omnimarket.projection-delegation-applied.v1"
+        ] == [], "the preceding rung verdict must not republish a row"
         asyncio.run(
             runner.project_event(
                 runner._topic_delegation_failed,
