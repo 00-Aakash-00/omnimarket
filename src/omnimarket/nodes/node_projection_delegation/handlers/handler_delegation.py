@@ -69,6 +69,7 @@ from omnimarket.nodes.node_projection_delegation.handlers.handler_projection_del
     _is_zero,
     _judge_verdict_projection_row,
     _measure_actual_cost,
+    _name_run_model,
     _preserve_terminal_failure,
     _stamp_accepting_attempt,
     _stamp_declared_failure_cause,
@@ -1532,6 +1533,7 @@ class DelegationProjectionRunner(BaseProjectionRunner):
             tenant=tenant,
         )
         if not existing_rows:
+            _name_run_model(row, {})
             return
         existing = existing_rows[0]
         # OMN-17427: same terminal ownership decision as the sync preserve step.
@@ -1601,6 +1603,7 @@ class DelegationProjectionRunner(BaseProjectionRunner):
         ):
             row["compliance_attempts"] = existing["compliance_attempts"]
         _preserve_terminal_failure(existing, row)
+        _name_run_model(row, existing)
 
     async def _materialize_budget_state_async(
         self,

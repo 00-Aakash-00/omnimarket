@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -1998,6 +1998,7 @@ def _preserve_existing_evidence(
     existing_rows = db.query(TABLE, filters)
     if not existing_rows:
         apply_terminal_precedence({}, row)
+        _name_run_model(row, {})
         return
     existing = existing_rows[0]
     # OMN-17427: a stored failure terminal is never partly overwritten by a
@@ -2071,6 +2072,41 @@ def _preserve_existing_evidence(
     ):
         row["compliance_attempts"] = existing["compliance_attempts"]
     _preserve_terminal_failure(existing, row)
+    _name_run_model(row, existing)
+
+
+def _is_unnamed_model(value: object) -> bool:
+    """A model cell that names nothing: blank, ``none`` or the skill placeholder."""
+    return _is_blank(value) or str(value).strip().lower() in {
+        "none",
+        _DELEGATE_SKILL_PLACEHOLDER,
+    }
+
+
+def _name_run_model(row: dict[str, object], existing: Mapping[str, object]) -> None:
+    """Name the run's model and backend from evidence the row already holds.
+
+    OMN-19448. A delegate-skill terminal for a run whose budget ended
+    (``timeout``, ``runtime_shutdown``) names no model and no rungs, while the
+    run's canonical terminal, projected before or after it, named the routed
+    model and the backend that served it. The sparse terminal used to blank the
+    stored ``model_name`` (it is not a preserved column), and a row holding
+    ``routed_model`` still read model unknown with no backend. Now an unnamed
+    model or target keeps the stored one, then falls back to ``routed_model``,
+    and a blank ``backend_id`` falls back to ``answering_backend``. A named
+    value is never replaced.
+    """
+    for key in ("model_name", "delegated_to"):
+        if _is_unnamed_model(row.get(key)) and not _is_unnamed_model(existing.get(key)):
+            row[key] = existing[key]
+    routed_model = _blank_to_none(row.get("routed_model"))
+    if routed_model is not None:
+        for key in ("model_name", "delegated_to"):
+            if _is_unnamed_model(row.get(key)):
+                row[key] = routed_model
+    answering_backend = _blank_to_none(row.get("answering_backend"))
+    if answering_backend is not None and _is_blank(row.get("backend_id")):
+        row["backend_id"] = answering_backend
 
 
 def _deciding_rung_stop_reason(rungs: object) -> tuple[str | None, bool | None]:

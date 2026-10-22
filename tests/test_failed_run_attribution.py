@@ -174,3 +174,70 @@ def test_the_producer_keeps_a_latency_the_port_measured() -> None:
         budget_evidence=None,
     )
     assert response.metrics.latency_ms == 11780
+
+
+def _timed_out_terminal(correlation_id: str) -> dict[str, object]:
+    """A delegate-skill timeout terminal: no model, no rungs, as recorded."""
+    event = _failed_terminal([], execution_duration_ms=110062)
+    event.update(
+        {
+            "status": "timeout",
+            "correlation_id": correlation_id,
+            "terminal_failure_cause": "timeout",
+            "error_message": "timed out at stage=terminal_wait",
+        }
+    )
+    return event
+
+
+def _stored_then_timed_out(stored: dict[str, object]) -> dict[str, Any]:
+    """Project a timeout terminal over a row an earlier terminal left."""
+    db = InmemoryDatabaseAdapter()
+    handler = HandlerProjectionDelegation()
+    first = _timed_out_terminal(str(uuid4()))
+    handler.handle({**first, "_db": db})
+    db.tables[TABLE][0].update(stored)
+    handler.handle({**first, "_db": db})
+    rows = db.query(TABLE)
+    assert len(rows) == 1
+    return rows[0]
+
+
+def test_a_sparse_timeout_terminal_keeps_the_stored_model() -> None:
+    row = _stored_then_timed_out(
+        {
+            "model_name": "Qwen3.8-27B",
+            "delegated_to": "Qwen3.8-27B",
+            "routed_model": "Qwen3.8-27B",
+            "backend_id": "local-coder",
+        }
+    )
+    assert row["terminal_failure_cause"] == "timeout"
+    assert row["model_name"] == "Qwen3.8-27B"
+    assert row["delegated_to"] == "Qwen3.8-27B"
+    assert row["backend_id"] == "local-coder"
+
+
+def test_a_row_holding_a_routed_model_names_it_as_the_model() -> None:
+    # Recorded on the dev lane, 2026-10-22: run c4a2b68a held routed_model
+    # Qwen3.8-27B and answering_backend local-coder, model_name blank and
+    # delegated_to the delegate-skill placeholder, backend_id blank.
+    row = _stored_then_timed_out(
+        {
+            "model_name": "",
+            "delegated_to": "delegate-skill",
+            "routed_model": "Qwen3.8-27B",
+            "answering_backend": "local-coder",
+            "backend_id": None,
+        }
+    )
+    assert row["model_name"] == "Qwen3.8-27B"
+    assert row["delegated_to"] == "Qwen3.8-27B"
+    assert row["backend_id"] == "local-coder"
+
+
+def test_a_timeout_with_no_routing_evidence_names_no_model() -> None:
+    row = _project(_timed_out_terminal(str(uuid4())))
+    assert not row.get("model_name")
+    assert not row.get("backend_id")
+    assert row["latency_ms"] == 110062

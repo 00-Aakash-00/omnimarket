@@ -60,8 +60,18 @@ def _rung_one_refusal() -> ModelQualityGateResult:
     )
 
 
+_FIRST_ATTEMPT_ID = "6f1b0c4e-2a3d-4e5f-8a9b-0c1d2e3f4a5b"
+_SECOND_ATTEMPT_ID = "7a2c1d5f-3b4e-4f60-9b0c-1d2e3f4a5b6c"
+
+
 def _rung(kind: str, *, passed: bool) -> dict[str, object]:
+    lineage: dict[str, object] = (
+        {"attempt_id": _FIRST_ATTEMPT_ID}
+        if kind == "first_try"
+        else {"attempt_id": _SECOND_ATTEMPT_ID, "parent_attempt_id": _FIRST_ATTEMPT_ID}
+    )
     return {
+        **lineage,
         "attempt_kind": kind,
         "tier": "local",
         "backend_id": _BACKEND,
