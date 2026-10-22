@@ -829,6 +829,11 @@ requirements:
     acceptance:
       - id: "AC186"
         statement: "AC186: _base_red ignores a check row whose workflow run the branch record's runs rows place on another head branch, keeps a row whose run is unlisted, and returns the non-roll-up reds when any exist -- falsifier: uv run pytest tests/nodes/node_throughput_tick_decision_compute/test_repo_status_throughput_tick_decision_compute.py -q -k 'another_branchs_run or base_red_roll_up_beside' fails at the merge base, where a main-push run's CI Summary failure on the dev sha reads as base_branch_red and the verdict names CI Summary"
+  - id: "req-create-ticket-pillar-lane-refusal"
+    statement: "node_create_ticket refuses --pillar for a pillar whose owner map entry declares assignable_by_lanes false when the caller is a lane (ONEX_LANE or ONEX_REMOTE_LANE, a subagent session, or a headless session), before the ticket-creation guard records anything; an interactive operator session, a pillar without the flag and a ticket with no pillar are unchanged."
+    acceptance:
+      - id: "AC188"
+        statement: "AC188: a lane's create request, and its dry run, naming a pillar whose entry sets assignable_by_lanes false raises refused for a lane with no assignee and no guard input; an interactive session assigns that owner, a lane assigns an unflagged pillar's owner, a lane with no pillar files under the creator, and handler_lane_intake.lane_caller answers the pillar hook's test over eight environments (tests/nodes/node_create_ticket/test_pillar_lane_refusal.py) -- falsifier: uv run pytest tests/nodes/node_create_ticket/test_pillar_lane_refusal.py -q fails at the merge base, where lane_caller does not exist and the file cannot be collected"
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -3570,4 +3575,19 @@ dod_evidence:
     checks:
       - check_type: "command"
         check_value: "uv run pytest tests/nodes/node_throughput_tick_decision_compute/test_repo_status_throughput_tick_decision_compute.py -q -n 0 -p no:randomly --no-cov --refuse-skips -k 'another_branchs_run or unlisted_run or base_red_roll_up'"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac188-pillar-lane-refusal"
+    description: "AC188: node_create_ticket refuses a lane's --pillar for a pillar whose owner the map keeps out of lanes' hands, before the guard spends intake budget, and leaves an interactive session, an unflagged pillar and a pillar-less ticket unchanged. The file fails collection at the merge base, where handler_lane_intake.lane_caller does not exist. This is focused fix-forward evidence; it does not attest the umbrella ticket's nightly integration-pass reports or graduation review."
+    source: "manual"
+    binds_ac: ["AC188"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_create_ticket/test_pillar_lane_refusal.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-pillar-lane-refusal-probe"
+    description: "Deploy probe. In the checked-out package, a lane's create request and its dry run naming a flagged pillar are refused before the guard records anything. It fails at the merge base and needs only uv and this checkout on the hosted runner; no Linear credential and no live pillar map. It does not attest a live deployment."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/nodes/node_create_ticket/test_pillar_lane_refusal.py -q -n 0 -p no:randomly --no-cov -k 'cannot_assign_the_locked_pillar_owner or dry_run_is_refused'"
         cwd: "${OMNI_HOME}/omnimarket"
