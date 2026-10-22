@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -141,6 +141,10 @@ CONFLICT_KEY = "correlation_id"
 # The delegated_to a delegate-skill terminal states when it names no model or
 # provider (ModelDelegationEventProjectionRow.from_terminal_event).
 _DELEGATE_SKILL_PLACEHOLDER = "delegate-skill"
+# OMN-19448: what a failed run that was never routed reads for model, backend
+# and host, and the model values that name no model.
+_NOT_ROUTED = "not routed"
+_UNNAMED_MODELS = frozenset({"unknown", "none"})
 GENERATION_TABLE = "generation_events"
 JUDGE_VERDICT_TABLE = "delegation_judge_verdict_events"
 JUDGE_VERDICT_CONFLICT_KEY = "event_hash"
@@ -913,6 +917,7 @@ class HandlerProjectionDelegation:
         )
         row.update(evidence)
         _preserve_existing_evidence(db, row)
+        _stamp_not_routed(row)
         # OMN-20303: the canonical completion can outlive the outer handler
         # during shutdown. Keep the same token-derived baseline the savings
         # writer uses, only after retaining any originally pinned baseline.
@@ -1154,6 +1159,7 @@ class HandlerProjectionDelegation:
         # delegation-completed.v1 canonical event. _preserve_existing_evidence
         # retains the existing non-blank value when the incoming row has none.
         _preserve_existing_evidence(db, row)
+        _stamp_not_routed(row)
         _stamp_unmeasured_latency(row, event.execution_duration_ms)
         apply_modelled_terminal_savings(row, event)
         ok = bool(
@@ -2070,7 +2076,67 @@ def _preserve_existing_evidence(
         and _as_int(existing.get("compliance_attempts")) > 1
     ):
         row["compliance_attempts"] = existing["compliance_attempts"]
+    _preserve_run_attribution(existing, row)
     _preserve_terminal_failure(existing, row)
+
+
+def _is_unnamed_model(value: object) -> bool:
+    """True for a model column that names no model (OMN-19448)."""
+    return _is_blank(value) or str(value).strip().lower() in _UNNAMED_MODELS
+
+
+def _preserve_run_attribution(
+    existing: Mapping[str, object], row: dict[str, object]
+) -> None:
+    """Keep the model a stored event named when a later event names none (OMN-19448).
+
+    A failed run names the model of its last rung. A sparse event for the same
+    run (a canonical terminal, a late timeout) carries no model, so whichever
+    order the events arrive in, the row keeps the model that was named: this
+    runs on every write, and a later event that does name a model replaces it.
+    """
+    for key in ("model_name", "cost_tier_name"):
+        if _is_unnamed_model(row.get(key)) and not _is_unnamed_model(existing.get(key)):
+            row[key] = existing[key]
+    stored_target = existing.get("delegated_to")
+    if (
+        (
+            _is_blank(row.get("delegated_to"))
+            or row.get("delegated_to") == _DELEGATE_SKILL_PLACEHOLDER
+        )
+        and not _is_unnamed_model(stored_target)
+        and stored_target != _DELEGATE_SKILL_PLACEHOLDER
+    ):
+        row["delegated_to"] = stored_target
+
+
+def _stamp_not_routed(row: dict[str, object]) -> None:
+    """Name a failed run that carried no try as not routed, with the reason (OMN-19448).
+
+    A run that failed before any try (a timeout before routing, a runtime
+    shutdown) has no rung to name a model, backend or host from, and its row
+    used to read blank, which the dashboard shows as an unknown model. When
+    neither this event nor an earlier one named a model, the row reads
+    ``not routed (<cause>)`` for the model and ``not routed`` for the backend and
+    host, so a failed run never reads unknown. A run that was routed names its
+    routed model and backend instead and is not touched here.
+    """
+    if row.get("terminal_ok") is not False:
+        return
+    if not _is_unnamed_model(row.get("model_name")) or not _is_blank(
+        row.get("routed_model")
+    ):
+        return
+    cause = row.get("terminal_failure_cause")
+    reason = str(cause) if not _is_blank(cause) else "no routing decision recorded"
+    row["model_name"] = f"{_NOT_ROUTED} ({reason})"
+    if _is_blank(row.get("delegated_to")) or (
+        row.get("delegated_to") == _DELEGATE_SKILL_PLACEHOLDER
+    ):
+        row["delegated_to"] = row["model_name"]
+    for key in ("backend_id", "host"):
+        if _is_blank(row.get(key)):
+            row[key] = _NOT_ROUTED
 
 
 def _deciding_rung_stop_reason(rungs: object) -> tuple[str | None, bool | None]:

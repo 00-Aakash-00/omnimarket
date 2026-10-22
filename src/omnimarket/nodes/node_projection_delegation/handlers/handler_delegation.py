@@ -69,9 +69,11 @@ from omnimarket.nodes.node_projection_delegation.handlers.handler_projection_del
     _is_zero,
     _judge_verdict_projection_row,
     _measure_actual_cost,
+    _preserve_run_attribution,
     _preserve_terminal_failure,
     _stamp_accepting_attempt,
     _stamp_declared_failure_cause,
+    _stamp_not_routed,
     _stamp_routing_tier,
     _stamp_terminal_stop_reason,
     _stamp_terminal_timing_and_requested_model,
@@ -1600,6 +1602,7 @@ class DelegationProjectionRunner(BaseProjectionRunner):
             and _as_int_local(existing.get("compliance_attempts")) > 1
         ):
             row["compliance_attempts"] = existing["compliance_attempts"]
+        _preserve_run_attribution(existing, row)
         _preserve_terminal_failure(existing, row)
 
     async def _materialize_budget_state_async(
@@ -1773,6 +1776,7 @@ class DelegationProjectionRunner(BaseProjectionRunner):
         _stamp_terminal_trace_and_routing(row, event)
         _stamp_terminal_stop_reason(row, event.finish_reason, event.truncated)
         await self._preserve_existing_evidence_async(row)
+        _stamp_not_routed(row)
         # Same fallback as the sync writer: an original pinned counterfactual
         # wins over the canonical savings writer's reconstructed baseline.
         if row.get("premium_counterfactual") is None and canonical_counterfactual:
@@ -2071,6 +2075,7 @@ class DelegationProjectionRunner(BaseProjectionRunner):
         # late-arriving timeout terminal must not clobber the real answer an
         # earlier delegation-completed.v1 already wrote).
         await self._preserve_existing_evidence_async(row)
+        _stamp_not_routed(row)
         _stamp_unmeasured_latency(row, event.execution_duration_ms)
         apply_modelled_terminal_savings(row, event)
         await self._write_delegation_row(

@@ -114,11 +114,72 @@ def test_a_run_refused_on_every_rung_names_its_deciding_rung() -> None:
     assert not row.get("answering_backend")
 
 
-def test_a_failure_with_no_rungs_states_no_backend() -> None:
+def test_a_failure_with_no_rungs_reads_not_routed_with_its_reason() -> None:
+    """OMN-19448 rule 2: a run that failed before any try never reads blank."""
     row = _project(_failed_terminal([]))
-    assert not row.get("backend_id")
-    assert not row.get("host")
-    assert not row.get("model_name")
+    assert row["model_name"] == "not routed (quality_gate_refused)"
+    assert row["delegated_to"] == row["model_name"]
+    assert row["backend_id"] == "not routed"
+    assert row["host"] == "not routed"
+    assert not row.get("answering_backend")
+
+
+@pytest.mark.parametrize("cause", ["timeout", "runtime_shutdown"])
+def test_a_run_that_failed_before_any_try_names_why_it_was_not_routed(
+    cause: str,
+) -> None:
+    """OMN-19448 rule 2: timeouts and runtime shutdown carry no try."""
+    event = {**_failed_terminal([]), "terminal_failure_cause": cause}
+    row = _project(event)
+    assert row["model_name"] == f"not routed ({cause})"
+    assert row["backend_id"] == "not routed"
+
+
+def _project_in_order(
+    events: list[dict[str, object]],
+) -> dict[str, Any]:
+    db = InmemoryDatabaseAdapter()
+    handler = HandlerProjectionDelegation()
+    for event in events:
+        handler.handle({**event, "_db": db})
+    rows = db.query(TABLE)
+    assert len(rows) == 1
+    return rows[0]
+
+
+@pytest.mark.parametrize("routed_first", [True, False])
+def test_a_failed_run_keeps_its_model_whatever_order_events_arrive_in(
+    routed_first: bool,
+) -> None:
+    """OMN-19448 rule 2: a sparse failed terminal never blanks a named model.
+
+    The same run is told twice: once with its refused rung, once as a late
+    terminal that carries no try (a timeout, a shutdown). Either order leaves
+    the row naming the rung's model, backend and host.
+    """
+    correlation_id = str(uuid4())
+    with_rung = {
+        **_failed_terminal(
+            [
+                _refused_rung(
+                    "Qwen3.8-27B", "local-heavy-reasoning", "lab-host-a", "local"
+                )
+            ]
+        ),
+        "correlation_id": correlation_id,
+    }
+    sparse = {
+        **_failed_terminal([]),
+        "correlation_id": correlation_id,
+        "terminal_failure_cause": "timeout",
+    }
+    events = [with_rung, sparse] if routed_first else [sparse, with_rung]
+    row = _project_in_order(events)
+    assert row["terminal_ok"] is False
+    assert row["model_name"] == "Qwen3.8-27B"
+    assert row["delegated_to"] == "Qwen3.8-27B"
+    assert row["backend_id"] == "local-heavy-reasoning"
+    assert row["host"] == "lab-host-a"
 
 
 def test_a_terminal_that_timed_no_call_reports_its_measured_duration() -> None:
