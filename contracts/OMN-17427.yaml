@@ -807,6 +807,11 @@ requirements:
     acceptance:
       - id: "AC184"
         statement: "AC184: a tier source answering five open_work rows in forward, reversed or shuffled order yields a built pack whose rendered text carries the rows in that same order -- falsifier: uv run pytest tests/nodes/node_context_pack_orchestrator/test_handler_context_pack_orchestrator.py -q -k source_order fails at the merge base, where every artifact keeps the default source_priority 100 and the builder orders a tier's chunks by hash"
+  - id: "req-sqlite-open-releases-lock-on-failure"
+    statement: "Both local SQLite opens (SqliteDatabaseAdapter._connect and the BYOK credential adapter's _connect) close their connection when a setup step raises, so a failed open never keeps the delegation store locked in a long-lived process such as the review gateway."
+    acceptance:
+      - id: "AC186"
+        statement: "AC186: an open whose store step raises after BEGIN IMMEDIATE, and a credential open whose commit is refused by a reader's SHARED lock, each leave the store free for a BEGIN IMMEDIATE with timeout 0 while the raised exception is still referenced -- falsifier: uv run pytest tests/unit/projection/test_sqlite_connect_releases_lock_on_failure_omn17427.py -q fails at the merge base, where the refused connection keeps RESERVED"
 evidence_requirements:
   - kind: "tests"
     description: "AC72: the market node runtime dogfood inventory test passes with the CLI-run token pool node on the expected-missing list."
@@ -1044,6 +1049,9 @@ evidence_requirements:
   - kind: "tests"
     description: "AC184: a built pack carries a tier's entries in source order."
     command: "uv run pytest tests/nodes/node_context_pack_orchestrator/test_handler_context_pack_orchestrator.py -q -k source_order"
+  - kind: "tests"
+    description: "AC186: a failed SQLite open releases the store's write lock."
+    command: "uv run pytest tests/unit/projection/test_sqlite_connect_releases_lock_on_failure_omn17427.py -q"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -3485,4 +3493,19 @@ dod_evidence:
     checks:
       - check_type: "command"
         check_value: "uv run pytest tests/nodes/node_context_pack_orchestrator/test_handler_context_pack_orchestrator.py -q -n 0 -p no:randomly --no-cov -k 'source_order and days1'"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-ac186-sqlite-open-releases-lock"
+    description: "A SQLite open that fails after its write began closes its connection, so the store is free for the next writer while the exception is still alive. At the merge base both cases fail: the failed connection keeps RESERVED, the state that wedged the claude-sonnet review gateway on 2026-10-22."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/projection/test_sqlite_connect_releases_lock_on_failure_omn17427.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC186"]
+  - id: "dod-omn17427-sqlite-lock-deploy-probe"
+    description: "Deploy probe. In the checked-out package, a credential open whose commit is refused by a reader leaves the store free for a writer. It fails at the merge base and needs only uv and this checkout on the hosted runner."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run pytest tests/unit/projection/test_sqlite_connect_releases_lock_on_failure_omn17427.py -q -n 0 -p no:randomly --no-cov -k credential_open"
         cwd: "${OMNI_HOME}/omnimarket"
