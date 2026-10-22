@@ -704,6 +704,9 @@ async def test_runner_apply_publishes_only_its_tenant_series_buckets(
             },
             "_envelope": {"envelope_timestamp": event_time.isoformat()},
         }
+        # The database's UTC day immediately before and after the apply: the
+        # row's record day must be one of these two instants' days.
+        day_before = await views.fetchval("SELECT date_trunc('day', now())")
         ok = await runner.project_event(
             "onex.evt.omnimarket.delegate-skill-completed.v1",
             event,
@@ -714,6 +717,7 @@ async def test_runner_apply_publishes_only_its_tenant_series_buckets(
                 offset=41,
             ),
         )
+        day_after = await views.fetchval("SELECT date_trunc('day', now())")
 
         assert ok is True
         series_messages = [
@@ -728,10 +732,12 @@ async def test_runner_apply_publishes_only_its_tenant_series_buckets(
         )
         rows = [json.loads(message["value"])["row"] for message in series_messages]
         assert {row["tenant_id"] for row in rows} == {str(TENANT_A)}
-        # The series buckets on savings_estimates.created_at (migrations 078
-        # through 099), which the runner leaves to DEFAULT NOW(): a row lands in
-        # the day it was RECORDED, not the day of the event (2026-05-20). So the
-        # expectation is read from the stored row, never hard-coded.
+        # The series buckets by RECORD day: savings_estimates.created_at
+        # (migrations 078 through 099), which the runner leaves to DEFAULT NOW().
+        # Whether it should bucket by event day (2026-05-20) is an open product
+        # product question, not decided here. The expectation is the
+        # database clock's day around the apply, not the stored row, so a runner
+        # that wrote created_at on another day would fail.
         applied_bucket = await views.fetchval(
             "SELECT date_trunc('day', created_at) FROM savings_estimates "
             "WHERE tenant_id = $1 AND session_id <> $2",
@@ -739,6 +745,10 @@ async def test_runner_apply_publishes_only_its_tenant_series_buckets(
             RUN_A,
         )
         assert applied_bucket is not None, "control: the runner wrote its row"
+        assert applied_bucket in {day_before, day_after}, (
+            f"row recorded on {applied_bucket}, not the apply's day "
+            f"({day_before} .. {day_after})"
+        )
         assert applied_bucket != datetime(2026, 9, 12, tzinfo=UTC), (
             "the applied row must land in a different day from the seeded one, "
             "or the two-bucket count below proves nothing"
