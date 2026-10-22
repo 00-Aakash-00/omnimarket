@@ -735,7 +735,7 @@ async def test_runner_apply_publishes_only_its_tenant_series_buckets(
         # The series buckets by RECORD day: savings_estimates.created_at
         # (migrations 078 through 099), which the runner leaves to DEFAULT NOW().
         # Whether it should bucket by event day (2026-05-20) is an open product
-        # product question, not decided here. The expectation is the
+        # question, not decided here. The expectation is the
         # database clock's day around the apply, not the stored row, so a runner
         # that wrote created_at on another day would fail.
         applied_bucket = await views.fetchval(
