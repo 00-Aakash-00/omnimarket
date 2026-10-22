@@ -185,7 +185,7 @@ dod_evidence:
       check_value: uv run pytest tests/test_omn19448_terminal_acceptance_real_postgres.py -q -n 0 --no-cov -p no:cacheprovider --refuse-skips -k 'async and canonical and quality_gate_refused'
       cwd: ${OMNI_HOME}/omnimarket
   - id: dod-omn19448-failed-run-attribution
-    description: 'A rung quality-gate verdict never creates the run row or states its verdict, so a run that climbed and passed (0c94d119 on the dev lane, 2026-10-22) no longer reads failed with an unknown model before its terminal. A failed run with rungs names the deciding rung model, backend and host; a sparse timeout terminal keeps the stored model and falls back to routed_model and answering_backend; a terminal that timed no call reports its measured duration instead of 0 ms.'
+    description: 'A rung quality-gate verdict never creates the run row or states its verdict, so a run that climbed and passed (0c94d119 on the dev lane, 2026-10-22) no longer reads failed with an unknown model before its terminal. A failed run with rungs names the deciding rung model, backend and host; a terminal that timed no call reports its measured duration instead of 0 ms.'
     source: manual
     checks:
     - check_type: test_passes
