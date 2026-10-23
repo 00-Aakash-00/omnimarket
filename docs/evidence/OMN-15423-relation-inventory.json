@@ -1,6 +1,13 @@
 {
   "blocked_relations": [
     {
+      "authoritative_sources": [],
+      "current_database": "omnidash_analytics",
+      "kind": "table",
+      "name": "compaction_receipts",
+      "reason": "no authoritative CREATE TABLE migration found"
+    },
+    {
       "authoritative_sources": [
         "omnibase_infra/docker/migrations/forward/090_create_delegation_workflow_state.sql",
         "omnibase_infra/docker/migrations/forward/093_add_delegation_workflow_state_outbox_columns.sql"
@@ -96,7 +103,7 @@
   "relation_counts": {
     "extension": 1,
     "function": 15,
-    "sequence": 37,
+    "sequence": 36,
     "table": 114,
     "view": 10
   },
@@ -1124,50 +1131,6 @@
       "target_schema": "omninode_internal",
       "writers": [
         "node_projection_claude_hook_events",
-        "service:omnimarket_projection_migration_runner"
-      ]
-    },
-    {
-      "accessor_nodes": [
-        "service:omnimarket_projection_migration_runner"
-      ],
-      "authoritative_sources": [
-        "src/omnimarket/nodes/node_projection_compaction_receipts/migrations/0000_create_compaction_receipts.sql"
-      ],
-      "blocked_reasons": [],
-      "classification_evidence": "implicit BIGSERIAL sequence for compaction_receipts",
-      "classification_status": "classified",
-      "constraints": [],
-      "contract_sources": [
-        "scripts/application-relation-ownership.yaml"
-      ],
-      "current_schema": [
-        "omninode_internal"
-      ],
-      "dependencies": [
-        "compaction_receipts"
-      ],
-      "dependent_objects": [
-        "table:compaction_receipts"
-      ],
-      "domain": "OMNINODE_INTERNAL",
-      "dsn_consumers": [
-        "OMNIDASH_ANALYTICS_DB_URL"
-      ],
-      "foreign_keys": [],
-      "grants": [],
-      "indexes": [],
-      "keys": [],
-      "kind": "sequence",
-      "migration_root": "src/omnimarket/nodes",
-      "migration_stream": "node:node_projection_compaction_receipts",
-      "name": "compaction_receipts_projection_cursor_seq",
-      "owner_declaration": "node_projection_compaction_receipts",
-      "partitioning": [],
-      "producer": "node_projection_compaction_receipts",
-      "readers": [],
-      "target_schema": "omninode_internal",
-      "writers": [
         "service:omnimarket_projection_migration_runner"
       ]
     },
@@ -3508,52 +3471,42 @@
       "accessor_nodes": [
         "service:omnimarket_projection_migration_runner"
       ],
-      "authoritative_sources": [
-        "src/omnimarket/nodes/node_projection_compaction_receipts/migrations/0000_create_compaction_receipts.sql"
+      "authoritative_sources": [],
+      "blocked_reasons": [
+        "no authoritative CREATE TABLE migration found"
       ],
-      "blocked_reasons": [],
       "classification_evidence": "contract.yaml -> db_io.db_tables schema",
-      "classification_status": "classified",
+      "classification_status": "blocked",
       "constraints": [],
       "contract_sources": [
         "scripts/application-relation-ownership.yaml"
       ],
       "current_schema": [
-        "omninode_internal"
+        "public"
       ],
       "dependencies": [],
-      "dependent_objects": [
-        "sequence:compaction_receipts_projection_cursor_seq"
-      ],
+      "dependent_objects": [],
       "domain": "OMNINODE_INTERNAL",
       "dsn_consumers": [
         "OMNIDASH_ANALYTICS_DB_URL"
       ],
       "foreign_keys": [],
-      "grants": [
-        "SELECT, INSERT, UPDATE TO omninode_runtime"
-      ],
-      "indexes": [
-        "idx_compaction_receipts_cursor",
-        "idx_compaction_receipts_session_verdict"
-      ],
+      "grants": [],
+      "indexes": [],
       "internal_tenant_column_transform": {
         "key_fk_index_partition_dependencies": [],
         "runtime_collision_scan": "not_applicable",
         "source_occurrences": [],
         "status": "not_applicable_no_source_tenant_id"
       },
-      "keys": [
-        "PRIMARY KEY (session_id, receipt_key)",
-        "UNIQUE INDEX idx_compaction_receipts_cursor"
-      ],
+      "keys": [],
       "kind": "table",
       "migration_root": "src/omnimarket/nodes",
-      "migration_stream": "node:node_projection_compaction_receipts",
+      "migration_stream": null,
       "name": "compaction_receipts",
-      "owner_declaration": "node_projection_compaction_receipts",
+      "owner_declaration": null,
       "partitioning": [],
-      "producer": "node_projection_compaction_receipts",
+      "producer": null,
       "readers": [
         "service:omnimarket_projection_migration_runner"
       ],
@@ -9728,7 +9681,7 @@
     "parity_status": "blocked",
     "physical_database": "omnidash_analytics",
     "reason": "the retained census contains counts but not a complete object-name export; repository migrations therefore cannot prove name-for-name live parity without a fresh authorized catalog read",
-    "source_created_tables": 105,
+    "source_created_tables": 104,
     "source_declared_tables": 114
   },
   "runtime_evidence": {
@@ -9745,7 +9698,7 @@
       "status": "blocked"
     },
     "live_catalog_parity": {
-      "reason": "repository sources contain 105 CREATE TABLE objects while the retained live census reports 86 base tables; exact overlap and the at-least-0-table gap require an authorized catalog read",
+      "reason": "repository sources contain 104 CREATE TABLE objects while the retained live census reports 86 base tables; exact overlap and the at-least-0-table gap require an authorized catalog read",
       "status": "blocked"
     }
   },

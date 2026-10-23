@@ -1,39 +1,48 @@
 ---
 schema_version: "1.0.0"
 ticket_id: "OMN-21336"
-title: "TA.13b stage (a): declare the compaction_receipts relation and its node-owned migrations ahead of the writer node"
-summary: "Stage (a) of the compaction receipts projection writer. omnibase_infra's OMN-15361 SQL ownership gate refuses to grant omninode_internal.compaction_receipts_projection_cursor_seq until this repository's ownership manifest declares it, so this change lands the ownership rows, the two node-owned migrations (0000 create, 0001 omninode_runtime grant) and the regenerated relation inventory first. The infrastructure vendor PR names this PR in a Node-Migration-Source-PR trailer. The writer node itself (contract, handlers, tests and the AC1/AC2 falsifiers of the ticket) follows in stage (c), after the infrastructure dev-merge tag carries the vendored migrations."
+title: "TA.13b stage (a): declare compaction_receipts ownership ahead of migration delivery"
+summary: "Declare the compaction_receipts table and cursor sequence so infrastructure can resolve their ownership before vending their migrations. This stage carries no node package or SQL. Migration delivery and the writer follow after infrastructure vendors and releases the lineage."
 is_seam_ticket: false
 interface_change: false
 interfaces_touched: []
 requirements:
   - id: "req-omn21336-relation-declared"
     statement: |-
-      The ownership manifest declares omninode_internal.compaction_receipts (db_io, read_write) and its BIGSERIAL cursor sequence, both pointing at the node-owned 0000 migration, and the relation inventory counts the new relation once as source-created and once as source-declared.
+      The ownership manifest declares omninode_internal.compaction_receipts (db_io, read_write) and its cursor sequence before migration delivery. The table declaration names the future node-owned 0000 migration; this stage adds no executable SQL or node package.
     acceptance:
       - id: "AC1"
         statement: |-
-          AC1: the relation inventory regenerated from source equals the checked-in evidence, and its census reads 105 source-created and 114 source-declared tables -- falsifier: scripts/generate_application_relation_inventory.py --check fails, or test_retained_live_census_gap_fails_closed fails.
+          AC1: the manifest has exactly one typed table declaration and one cursor sequence declaration in omninode_internal, the inventory matches source with 104 source-created and 114 source-declared tables, and this stage adds no node SQL -- falsifier: test_compaction_receipts_ownership_precedes_migration_delivery or test_retained_live_census_gap_fails_closed fails.
 evidence_requirements:
   - kind: "tests"
     description: "AC1: relation inventory census and evidence freshness."
-    command: "uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q -n 0"
+    command: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q --no-cov"
 emergency_bypass:
   enabled: false
   justification: ""
   follow_up_ticket_id: ""
 dod_evidence:
   - id: "dod-omn21336-relation-inventory"
-    description: "AC1: the census counts compaction_receipts once as source-created and once as source-declared."
+    description: "AC1: ownership increases the declared census without delivering SQL ahead of infrastructure."
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q -n 0"
+        check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
   - id: "dod-omn21336-inventory-fresh"
-    description: "AC1: the checked-in relation inventory equals the one generated from source."
+    description: "AC1: the table and sequence ownership rows are declared exactly once, with the expected schema, migration and access, and the checked-in inventory matches source. The merge base lacks both ownership rows, so this check fails there."
     source: "manual"
     checks:
-      - check_type: "command"
-        check_value: "uv run python scripts/generate_application_relation_inventory.py --check"
+      - check_type: "test_passes"
+        check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q --no-cov -k compaction_receipts_ownership_precedes_migration_delivery"
+        cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
+  - id: "dod-omn21336-deploy-ownership-readback"
+    description: "Hosted deployment preparation smoke: load the ownership manifest through the runtime inventory generator and require the new declarations and fresh inventory. No database, deployed lane or writer is required for this declaration-only stage."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q --no-cov -k compaction_receipts_ownership_precedes_migration_delivery"
+        cwd: "${OMNI_HOME}/omnimarket"
