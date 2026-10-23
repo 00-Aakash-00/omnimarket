@@ -68,10 +68,47 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC4"]
   - id: "dod-omn21329-brief-mint-through-node"
-    description: "The AC5 change is made in the internal plugin (lane_brief.py lab_mint_problems, shared by the runner and check --lab), which takes no pull request. Offline check from this repository: the node the brief names exists with its contract and its entry point."
+    description: "Offline node prerequisite for AC5: the brief can use a node that admits a guarded create into Backlog without a project and reports a refusal through its CLI with the guard finding codes. These behavioral assertions replace the runtime import sweep, which also passed before this change. The internal plugin runner and lane_brief check --lab remain outside this repository; this check does not validate their brief admission rules."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/nodes/node_create_ticket/test_create_ticket_gate.py -q -p no:randomly --no-cov -k 'create_ticket_gate_admits_stub or create_ticket_gate_refuses_cli'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC5"]
+  - id: "dod-omn21329-deploy-node-cli"
+    description: "Hosted deploy smoke: dispatch node_create_ticket through the in-process ONEX runtime with an executable admitting test guard and dry_run true. Require a successful typed receipt, status dry_run, no ticket id, and the finding_codes array added by this change. The merge-base result lacks finding_codes. No Linear key, installed plugin, or lane services are required. This checks the packaged node at the evaluated checkout, not a production rollout or the pending live ticket mint."
     source: "manual"
     checks:
       - check_type: "command"
-        check_value: "uv run python -m omnimarket.nodes.node_runtime_sweep --import-check"
+        check_value: |
+          set -eu;
+          probe_dir="$(mktemp -d)";
+          trap 'rm -rf "$probe_dir"' EXIT;
+          uv sync --locked;
+          .venv/bin/python -c '
+          import json
+          import sys
+          from pathlib import Path
+          root = Path(sys.argv[1])
+          (root / "hooks/lib").mkdir(parents=True)
+          (root / "hooks/config").mkdir()
+          (root / "hooks/lib/ticket_creation_guard.py").write_text("import sys\nsys.exit(0)\n")
+          (root / "hooks/config/ticket_creation_policy.json").write_text(json.dumps({"lane_intake": {"label": "lane-created", "stamp_prefix": "created-by-lane:"}}))
+          (root / "input.json").write_text(json.dumps({"title": "Ticket gate deploy smoke", "description": "Offline admission probe", "dry_run": True}))
+          ' "$probe_dir";
+          env COMPOSE_PROJECT_NAME=landing-l15663-lab PYTHONDONTWRITEBYTECODE=1 ONEX_LANE=omn21329-deploy-probe ONEX_TICKET_GUARD_PATH="$probe_dir/hooks/lib/ticket_creation_guard.py" .venv/bin/onex node node_create_ticket --input "$probe_dir/input.json" --state-root "$probe_dir/state" --backend event_bus=inmemory --timeout 30 --output receipt --omnibase-path "$PWD" > "$probe_dir/receipt.json";
+          .venv/bin/python -c '
+          import json
+          import sys
+          from pathlib import Path
+          receipt = json.loads(Path(sys.argv[1]).read_text())
+          assert receipt["status"] == "success", receipt
+          assert receipt["exit_code"] == 0, receipt
+          result = receipt["result"]
+          assert result["status"] == "dry_run", result
+          assert result["ticket_id"] == "", result
+          assert result["dry_run"] is True, result
+          assert result["finding_codes"] == [], result
+          print(json.dumps({"run_id": receipt["run_id"], "status": result["status"], "finding_codes": result["finding_codes"]}))
+          ' "$probe_dir/receipt.json";
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC5"]
