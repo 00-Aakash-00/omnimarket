@@ -4159,6 +4159,7 @@
         "node_dod_verify",
         "node_lab_secret_store_override_effect",
         "node_llm_delegation_call_effect",
+        "node_measured_model_selection_compute",
         "node_metering_summary_compute",
         "node_projection_baselines",
         "node_projection_cost_by_repo",
@@ -8543,6 +8544,7 @@
       "readers": [
         "node_delegate_skill_orchestrator",
         "node_projection_delegation",
+        "node_projection_local_environment",
         "node_projection_read_effect",
         "node_projection_savings",
         "service:omnimarket_projection_migration_runner"
@@ -9215,7 +9217,8 @@
       "authoritative_sources": [
         "src/omnimarket/nodes/node_projection_savings/migrations/077_create_cost_savings_overview_projection_view.sql",
         "src/omnimarket/nodes/node_projection_savings/migrations/089_savings_aggregate_views_per_tenant.sql",
-        "src/omnimarket/nodes/node_projection_savings/migrations/094_savings_overview_measured_provenance.sql"
+        "src/omnimarket/nodes/node_projection_savings/migrations/094_savings_overview_measured_provenance.sql",
+        "src/omnimarket/nodes/node_projection_savings/migrations/097_savings_overview_all_runs.sql"
       ],
       "blocked_reasons": [],
       "classification_evidence": "owning node migration plus referenced table domains",
@@ -9361,7 +9364,8 @@
         "src/omnimarket/nodes/node_projection_savings/migrations/087_savings_views_read_persisted_provenance.sql",
         "src/omnimarket/nodes/node_projection_savings/migrations/089_savings_aggregate_views_per_tenant.sql",
         "src/omnimarket/nodes/node_projection_savings/migrations/090_savings_aggregate_excludes_model_text.sql",
-        "src/omnimarket/nodes/node_projection_savings/migrations/096_delegation_savings_unpriced_calls.sql"
+        "src/omnimarket/nodes/node_projection_savings/migrations/096_delegation_savings_unpriced_calls.sql",
+        "src/omnimarket/nodes/node_projection_savings/migrations/098_delegation_savings_measured_population.sql"
       ],
       "blocked_reasons": [],
       "classification_evidence": "owning node migration plus referenced table domains",
