@@ -4286,7 +4286,8 @@
     },
     {
       "accessor_nodes": [
-        "node_llm_delegation_call_effect"
+        "node_llm_delegation_call_effect",
+        "service:omnimarket_projection_migration_runner"
       ],
       "authoritative_sources": [
         "src/omnimarket/nodes/node_llm_delegation_call_effect/migrations/0000_delegation_lab_job_execution.sql"
@@ -4296,6 +4297,7 @@
       "classification_status": "classified",
       "constraints": [],
       "contract_sources": [
+        "scripts/application-relation-ownership.yaml",
         "src/omnimarket/nodes/node_llm_delegation_call_effect/contract.yaml"
       ],
       "current_schema": [
@@ -4333,16 +4335,19 @@
       "partitioning": [],
       "producer": "node_llm_delegation_call_effect",
       "readers": [
-        "node_llm_delegation_call_effect"
+        "node_llm_delegation_call_effect",
+        "service:omnimarket_projection_migration_runner"
       ],
       "target_schema": "omninode_internal",
       "writers": [
-        "node_llm_delegation_call_effect"
+        "node_llm_delegation_call_effect",
+        "service:omnimarket_projection_migration_runner"
       ]
     },
     {
       "accessor_nodes": [
-        "node_llm_delegation_call_effect"
+        "node_llm_delegation_call_effect",
+        "service:omnimarket_projection_migration_runner"
       ],
       "authoritative_sources": [
         "src/omnimarket/nodes/node_llm_delegation_call_effect/migrations/0000_delegation_lab_job_execution.sql"
@@ -4352,6 +4357,7 @@
       "classification_status": "classified",
       "constraints": [],
       "contract_sources": [
+        "scripts/application-relation-ownership.yaml",
         "src/omnimarket/nodes/node_llm_delegation_call_effect/contract.yaml"
       ],
       "current_schema": [
@@ -4387,11 +4393,13 @@
       "partitioning": [],
       "producer": "node_llm_delegation_call_effect",
       "readers": [
-        "node_llm_delegation_call_effect"
+        "node_llm_delegation_call_effect",
+        "service:omnimarket_projection_migration_runner"
       ],
       "target_schema": "omninode_internal",
       "writers": [
-        "node_llm_delegation_call_effect"
+        "node_llm_delegation_call_effect",
+        "service:omnimarket_projection_migration_runner"
       ]
     },
     {
