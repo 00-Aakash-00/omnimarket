@@ -566,6 +566,12 @@ jobs:
           # on this fleet — that gap is why every review DEGRADED with "all models
           # failed" despite a reachable endpoint.
           LOCAL_LLM_SHARED_SECRET: ${{ secrets.LOCAL_LLM_SHARED_SECRET }}
+          # OMN-20910: the Claude API voters' key, for this step only, as omnibase_infra's
+          # reviewer passes it. A provider anthropic voter reads the variable its own
+          # api_key_env names, and omniintelligence reads ANTHROPIC_API_KEY when none is
+          # named, so the key is exported under both names.
+          ANTHROPIC_API_KEY: ${{ secrets.HOSTILE_REVIEW_ANTHROPIC_API_KEY }}
+          REVIEW_ANTHROPIC_API_KEY: ${{ secrets.HOSTILE_REVIEW_ANTHROPIC_API_KEY }}
           # LLM_ENDPOINT_CIDR_ALLOWLIST (preflight) and REVIEW_VOTERS_OVERLAY come from the
           # job-level env block above, not from this step.
         working-directory: ../omniintelligence
