@@ -2,7 +2,7 @@
 schema_version: "1.0.0"
 ticket_id: "OMN-21341"
 title: "TA.15c omnimarket half: the rendered mod module writes one failure line on every failure path"
-summary: "The rendered Claude Code mod module's fixed failure table fell back natively (or denied) with no line at all, so a /compact whose adapter was absent, exited non-zero or threw was silent. Each failure entry now writes exactly one transcript line through $.ui.log, naming the exit code or the error text, then falls back or denies as before. This is the one failure line OMN-21116 AC2 asks for. The receipt-mode client the adapter loads is the omnibase_infra half of OMN-21341 (AC1, AC2) and is not in this repository."
+summary: "The rendered Claude Code mod module's fixed failure table fell back natively (or denied) with no line at all, so a /compact whose adapter was absent, exited non-zero or threw was silent. Each failure entry now writes exactly one transcript line through $.ui.log, naming the exit code or the error text, then falls back or denies as before. This is the one failure line OMN-21116 AC2 asks for. The adapter default receipt-mode client spec moves to omnibase_infra.handlers.handler_receipt_mode_publish_await:HandlerReceiptModePublishAwait, the omnibase_infra half of OMN-21341 (AC1); AC2 (no exit 4) is proven on h200 once a dev-merge tag of omnibase_infra carrying it is installed."
 is_seam_ticket: false
 interface_change: false
 interfaces_touched: []
