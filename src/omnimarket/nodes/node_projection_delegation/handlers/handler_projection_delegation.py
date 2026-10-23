@@ -99,7 +99,6 @@ from omnimarket.nodes.node_projection_delegation.models.model_terminal_precedenc
     apply_terminal_precedence,
     fold_terminal_ownership,
     names_no_model,
-    rung_verdict_fill,
     supersedes_handler_failure,
 )
 from omnimarket.pricing import (
@@ -1268,13 +1267,7 @@ class HandlerProjectionDelegation:
         tenant_identity: str | None = None,
         event_timestamp: datetime | None = None,
     ) -> ModelProjectionResult:
-        """Fill what a rung's quality-gate verdict may add to its run's row.
-
-        OMN-19448 supersedes the verdict-first INSERT described below: a verdict
-        is one rung's, the run's terminal owns the row, and the verdict now
-        creates no row and states no run verdict, detail or score (see
-        ``rung_verdict_fill``). The history that follows explains the NOT NULL
-        and tenant columns the remaining write still names.
+        """UPSERT a quality-gate verdict onto the delegation_events row.
 
         OMN-15850. The business-proof ``quality_gate`` check
         (``evaluate_business_proof.py::_check_quality_gate``) reads
@@ -1415,45 +1408,110 @@ class HandlerProjectionDelegation:
             )
             return ModelProjectionResult(rows_upserted=0, table=TABLE)
         write_tenant = resolved_tenant_uuid
-        # OMN-19448: a rung's verdict is not the run's. The workflow publishes
-        # one verdict per rung before the run's terminal, so a verdict that
-        # created the row (task type, model, tokens and tier blank, verdict
-        # false) showed every climbing run as a failed run with an unknown model
-        # until its terminal landed, and a late first-rung refusal rewrote a
-        # passed run's verdict. The terminal carries every rung on its ladder
-        # and owns the row; the verdict only fills a blank ``score_source``.
-        correlation_id = str(event.correlation_id)
-        existing = db.query(TABLE, {CONFLICT_KEY: correlation_id})
-        fill = rung_verdict_fill(
-            existing[0] if existing else None,
-            {"score_source": event.score_source or None},
-        )
-        if not fill:
-            logger.info(
-                "quality-gate verdict for correlation_id=%s writes no row "
-                "(OMN-19448): %s",
-                correlation_id,
-                "the run's terminal has not been projected yet and a rung's "
-                "verdict does not author the run row"
-                if not existing
-                else "the stored terminal owns the run's verdict",
-            )
-            return ModelProjectionResult(rows_upserted=0, table=TABLE)
         row: dict[str, object] = {
-            "correlation_id": correlation_id,
+            "correlation_id": str(event.correlation_id),
+            # OMN-17422: the verdict row always NAMES its tenant. Leaving the
+            # key off let the deployed column DEFAULT supply the value while
+            # ``resolve_write_tenant`` synthesised the ``app.tenant_id`` GUC
+            # from an independent authority, and Postgres refuses the proposed
+            # INSERT row of an ``ON CONFLICT`` statement whenever those two
+            # disagree -- the dev-lane refusal this ticket closes. The async
+            # twin additionally keeps the column out of its ``DO UPDATE SET``
+            # clause; this path writes through the shared
+            # ``DatabaseAdapter.upsert`` protocol, which has no per-column
+            # update seam, so on an existing row it rewrites the attribution
+            # with the value it resolved from the producer's own envelope
+            # stamp -- the same identity the terminal event recorded, or a
+            # refusal under RLS if it is not.
             "tenant_id": write_tenant,
-            # OMN-15583 / OMN-17228: named so the proposed INSERT row satisfies
-            # NOT NULL on a lane whose DEFAULTs went missing, and held insert-only
-            # so they never touch the stored terminal's values.
+            # OMN-17228: named here for the same reason ``timestamp`` is named
+            # below, and on the same measured lane fact.
+            # ``delegation_events.task_type`` and ``delegated_to`` are both
+            # ``TEXT NOT NULL DEFAULT ''`` in ``0007_delegation_events.sql``'s
+            # CREATE TABLE and both are re-declared in its OMN-15376
+            # reconciliation block as ``ADD COLUMN IF NOT EXISTS ... DEFAULT
+            # ''`` -- which no-ops on a column that already exists and
+            # therefore never installs the missing DEFAULT on a drifted lane.
+            # the dev lane (DEV-SYSTEM ``i-06169517a92b45f86``) is such a lane:
+            # read live from ``information_schema.columns`` 2026-09-10, both
+            # are ``is_nullable=NO`` with ``column_default=NULL``. Postgres
+            # evaluates NOT NULL against the PROPOSED insert row before the
+            # conflict is resolved, so omitting them fails the statement even
+            # when it was only ever going to take the DO UPDATE arm.
+            #
+            # THIS PATH IS THE ONE THAT RUNS. The async twin
+            # (``handler_delegation._project_quality_gate_result``) took this
+            # fix on 2026-09-10 and this file's own prose asserted the twin was
+            # what the deployed ``omnimarket-projection-delegation-writer``
+            # runs. It is not: the writer is dispatched by the omnibase_infra
+            # runtime's auto-wiring, which calls THIS handler. Live traceback
+            # from the running pod, 2026-09-15T16:43Z --
+            # ``handler_projection_delegation.py:1195`` ->
+            # ``:525`` -> ``psycopg2.errors.NotNullViolation: null value in
+            # column "task_type"``. The refusal is not dead-lettered on that
+            # path: omnibase_infra wraps it in
+            # ``ProjectionNotMaterializedError`` and withholds the offset
+            # (OMN-17379), so one verdict wedged the partition rather than
+            # costing one row.
+            #
+            # The value is the empty string because that is precisely what
+            # ``0007`` declares as these columns' DEFAULT, so naming it
+            # reproduces the schema's own intent without depending on a DEFAULT
+            # a drifted lane does not have. ``ModelQualityGateResult`` is
+            # ``extra="forbid"`` and carries neither field, so the verdict has
+            # nothing truer to say about them. Both are held insert-only below.
             "task_type": "",
             "delegated_to": "",
-            "timestamp": event_timestamp,
-            **fill,
+            "quality_gate_passed": event.passed,
+            "quality_gate_detail": "; ".join(event.failure_reasons) or None,
+            "actual_score": (
+                event.actual_score
+                if event.actual_score is not None
+                else event.quality_score
+            ),
+            "score_source": event.score_source or None,
         }
+        existing = db.query(TABLE, {CONFLICT_KEY: row["correlation_id"]})
+        if not existing:
+            # OMN-13171 pattern: only a genuine fresh row needs the explicit
+            # stamp -- an UPDATE leaves the terminal event's created_at intact
+            # because it is not named in this dict (ON CONFLICT DO UPDATE SET
+            # <listed columns only>).
+            row["created_at"] = datetime.now(tz=UTC).isoformat()
+        # OMN-15583 / OMN-17228: ``timestamp`` is named UNCONDITIONALLY, not
+        # only on a fresh row, and held insert-only below.
+        #
+        # The previous revision named it inside the ``not existing`` branch and
+        # explained that as the fresh-row-only guard, citing "the shared
+        # ``DatabaseAdapter.upsert`` protocol, which has no per-column
+        # insert-only seam" and asserting that the async twin "is the path the
+        # deployed ``omnimarket-projection-delegation-writer`` runs". Both
+        # halves are now false. OMN-18159 routed all three write paths through
+        # ``_write_delegation_row``, which takes ``insert_only_columns``, so
+        # the seam exists here; and the live traceback above proves THIS
+        # handler is the deployed one.
+        #
+        # The residual that revision stated -- "on a drifted lane whose
+        # ``timestamp`` column has no default, an existing-row UPSERT from THIS
+        # path still proposes a NULL for it" -- was therefore reachable, not
+        # hypothetical: a verdict arriving after its terminal on the dev lane
+        # proposes a NULL ``timestamp`` and wedges the partition exactly as
+        # ``task_type`` did. Naming it always and holding it insert-only closes
+        # that and the probe's read-then-write race in one move: a terminal
+        # landing between the probe and this statement takes the DO UPDATE arm,
+        # which no longer carries it.
+        row["timestamp"] = event_timestamp
         ok = bool(
             self._write_delegation_row(
                 db,
                 row,
+                # Named so the proposed INSERT row is valid on a lane whose
+                # DEFAULTs went missing; held out of DO UPDATE SET so the
+                # empty-string placeholders can never erase a real task type,
+                # target or event time a terminal event already recorded. This
+                # is the same frozenset the async twin passes, and the
+                # divergence between the two is what
+                # ``tests/test_omn17228_sync_writer_not_null_columns.py`` binds.
                 insert_only_columns=frozenset(
                     {"task_type", "delegated_to", "timestamp"}
                 ),

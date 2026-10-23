@@ -241,14 +241,7 @@ def test_a_stored_unknown_spend_is_not_priced_as_a_free_call(tmp_path: Path) -> 
     HandlerProjectionDelegation(
         publisher=RecordingPublisher()
     ).project_quality_gate_result(
-        # OMN-19448 rule 1: a verdict rewrites a stored row only to fill a blank
-        # score_source, so it names one.
-        ModelQualityGateResult(
-            correlation_id=cid,
-            passed=True,
-            quality_score=1.0,
-            score_source="deterministic_acceptance",
-        ),
+        ModelQualityGateResult(correlation_id=cid, passed=True, quality_score=1.0),
         db,
         tenant_identity="savings-tenant",
         event_timestamp=datetime(2026, 10, 13, 12, tzinfo=UTC),

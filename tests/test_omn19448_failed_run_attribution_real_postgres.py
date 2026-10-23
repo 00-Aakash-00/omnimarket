@@ -16,9 +16,6 @@ from uuid import uuid4
 import pytest
 
 from omnimarket.projection.runner import MessageMeta
-from tests.test_omn15905_delegation_projection_writer_seam import (
-    _real_quality_gate_result_payload,
-)
 from tests.test_omn15909_real_postgres_projection_write_path_gate import (
     _provisioned_runner,
 )
@@ -58,20 +55,3 @@ async def test_a_run_that_failed_before_any_try_reads_not_routed(cause: str) -> 
         assert row["backend_id"] == "not routed"
         assert row["host"] == "not routed"
         assert row["latency_ms"] == 4321
-
-
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_a_rung_verdict_creates_no_run_row() -> None:
-    """OMN-19448 rule 1: a verdict that arrives before its terminal writes nothing."""
-    cid = str(uuid4())
-    async with _provisioned_runner() as (runner, connection, _schema):
-        assert await runner.project_event(
-            runner._topic_quality_gate_result,
-            _real_quality_gate_result_payload(correlation_id=cid, passed=False),
-            MessageMeta(partition=0, offset=0, fallback_id=cid),
-        )
-        count = await connection.fetchval(
-            "SELECT count(*) FROM delegation_events WHERE correlation_id = $1", cid
-        )
-        assert count == 0

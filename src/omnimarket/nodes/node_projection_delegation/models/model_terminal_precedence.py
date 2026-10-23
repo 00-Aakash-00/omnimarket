@@ -319,35 +319,6 @@ def apply_terminal_precedence(
     _state_unstated_outcome(existing, row)
 
 
-# OMN-19448: the only column a rung's quality verdict may still add to its run's
-# row. The verdict is one rung's result and the terminal carries every rung on
-# its ladder, so the run's verdict, detail and score are the terminal's.
-_RUNG_VERDICT_FILL_COLUMNS = ("score_source",)
-
-
-def rung_verdict_fill(
-    existing: Mapping[str, object] | None, verdict: Mapping[str, object]
-) -> dict[str, object]:
-    """The columns a rung's ``quality-gate-result`` may write on its run's row.
-
-    OMN-19448. The delegation workflow publishes one verdict per rung, before
-    the run's terminal. Run 0c94d119 on the dev lane passed on its second rung,
-    but its first rung's refusal arrived first and created the row with no task
-    type, model, tokens or tier and ``quality_gate_passed`` false, so the
-    dashboard showed a failed run with an unknown model until the terminal
-    landed. A verdict therefore never creates the row, and on a stored row it
-    never states the run's verdict, detail or score: it only fills a blank
-    ``score_source``. An empty result means the verdict writes nothing.
-    """
-    if not existing:
-        return {}
-    return {
-        column: verdict[column]
-        for column in _RUNG_VERDICT_FILL_COLUMNS
-        if not _is_blank(verdict.get(column)) and _is_blank(existing.get(column))
-    }
-
-
 def supersedes_handler_failure(
     existing: Mapping[str, object], row: Mapping[str, object]
 ) -> bool:
@@ -366,7 +337,6 @@ __all__ = [
     "keep_stored_terminal",
     "names_no_model",
     "outcome_for_failure_cause",
-    "rung_verdict_fill",
     "stored_terminal_owns_outcome",
     "supersedes_handler_failure",
 ]
