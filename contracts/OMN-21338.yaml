@@ -46,19 +46,24 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
   - id: "dod-omn21338-ac3-deploy-probe"
-    description: "The AC3 deploy-probe entry in contracts/OMN-21338.yaml describes a synthetic container readback, not the live-day database receipt required after deployment. The hosted runner starts an isolated disposable Docker container from ghcr.io/astral-sh/uv:python3.12-bookworm-slim, mounts this PR checkout read-only, installs the locked project dependencies into a temporary container environment, then runs the parity CLI on three generated archive-roll batches and a JSON export with one row before and one after the selected UTC day. The probe requires exit 0, three file rows, three projection rows, and no mismatches."
+    description: "The AC3 deploy-probe entry describes a synthetic container readback, not the live-day database receipt required after deployment. The check syncs this checkout's locked environment, then starts a disposable ubuntu:24.04 Docker container that bind-mounts the checkout (with its .venv) and the venv's base interpreter read-only at their host paths and installs nothing, so it stays inside the dod-verify per-check budget. In the container the parity CLI runs on three generated archive-roll batches and a JSON export with one row before and one after the selected UTC day. The probe requires exit 0, three file rows, three projection rows, and no mismatches."
     source: "manual"
     checks:
       - check_type: "command"
         check_value: |
           set -eu;
+          uv sync --locked >&2;
+          here="$(pwd -P)";
+          py="$here/.venv/bin/python";
+          pyroot="$("$py" -c 'import os, sys; print(os.path.dirname(os.path.realpath(sys.base_prefix)))')";
           docker run --rm -i --label com.docker.compose.project=landing-l15885-lab \
-            --mount "type=bind,src=$(pwd),dst=/workspace,readonly" \
-            --workdir /workspace \
+            --mount "type=bind,src=$here,dst=$here,readonly" \
+            --mount "type=bind,src=$pyroot,dst=$pyroot,readonly" \
+            --workdir "$here" \
             --env PYTHONDONTWRITEBYTECODE=1 \
-            --env UV_PROJECT_ENVIRONMENT=/tmp/omnimarket-venv \
-            ghcr.io/astral-sh/uv:python3.12-bookworm-slim \
-            sh -eu -c 'apt-get update >&2; apt-get install -y --no-install-recommends git ca-certificates >&2; uv sync --locked --no-dev >&2; exec /tmp/omnimarket-venv/bin/python -' <<'PY'
+            --env LD_LIBRARY_PATH \
+            ubuntu:24.04 \
+            "$py" - <<'PY'
           import hashlib
           import json
           import subprocess
