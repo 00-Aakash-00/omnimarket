@@ -88,10 +88,12 @@ def test_secret_path_and_length_fail() -> None:
 
 
 def test_no_m4_line_and_unavailable_friction_fail() -> None:
-    draft = GOOD.replace("M4", "board") + "Friction: x\n(via Sam's agent)\n"
+    draft = GOOD.replace("M4", "board") + "*Friction*\n- x\n(via Sam's agent)\n"
     problems = HANDLER.check_draft(draft, _facts())
     assert any("M4" in p for p in problems)
-    assert any("friction" in p for p in problems)
+    assert any("Friction section" in p for p in problems)
+    prose = GOOD + "No friction data exists yet.\n(via Sam's agent)\n"
+    assert HANDLER.check_draft(prose, _facts()) == []
 
 
 def test_window_uses_last_sent_and_caps(tmp_path: Path) -> None:

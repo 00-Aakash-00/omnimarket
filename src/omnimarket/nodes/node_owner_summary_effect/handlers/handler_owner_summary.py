@@ -55,6 +55,7 @@ MAX_WORDS = 420
 TEXT_LIMIT = 240
 LANE_LIST_LIMIT = 80
 STALE_WATCHER_S = 1800
+FRICTION_HEADING = re.compile(r"(?im)^\W*friction\W*$")
 KEY_NAME = re.compile(r"[a-zA-Z_-]+")
 KEY_VALUE = re.compile(r"^[a-zA-Z_-]+=")
 CONTROLLER_LANE = re.compile(r"^landing-L\d+")
@@ -509,9 +510,9 @@ class HandlerOwnerSummary:
                 )
         if "M4" not in text:
             problems.append("the draft has no M4 board line")
-        if facts.friction_status != "ok" and re.search(r"(?i)\bfriction\b", text):
+        if facts.friction_status != "ok" and FRICTION_HEADING.search(text):
             problems.append(
-                "the draft has a friction section but the friction data is unavailable"
+                "the draft has a Friction section but the friction data is unavailable"
             )
         return problems
 
