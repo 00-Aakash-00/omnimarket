@@ -52,7 +52,8 @@ dod_evidence:
       - check_type: "command"
         check_value: |
           set -eu;
-          uv sync --locked >&2;
+          out="$(mktemp)";
+          uv sync --locked -q >"$out" 2>&1 || { echo "AC3 probe: uv sync failed: $(tail -c 400 "$out" | tr '\n' ' ')" >&2; exit 1; };
           here="$(pwd -P)";
           py="$here/.venv/bin/python";
           pyroot="$("$py" -c 'import os, sys; print(os.path.dirname(os.path.realpath(sys.base_prefix)))')";
@@ -63,7 +64,7 @@ dod_evidence:
             --env PYTHONDONTWRITEBYTECODE=1 \
             --env LD_LIBRARY_PATH \
             ubuntu:24.04 \
-            "$py" - <<'PY'
+            "$py" - >"$out" 2>&1 <<'PY' || fail=1
           import hashlib
           import json
           import subprocess
@@ -122,5 +123,7 @@ dod_evidence:
           assert report["mismatches"] == [], report
           print("probe ok", report["file_rows"], report["projection_rows"])
           PY
+          [ "${fail:-0}" = 0 ] || { echo "AC3 probe: container run failed: $(tail -c 600 "$out" | tr '\n' ' ')" >&2; exit 1; };
+          cat "$out";
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC3"]
