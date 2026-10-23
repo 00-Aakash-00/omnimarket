@@ -41,13 +41,14 @@ _TRANSCRIPT_ROLES = frozenset({"user", "assistant"})
 def _event_messages(
     messages: list[JsonValue],
 ) -> tuple[ModelContextPackRenderMessage, ...]:
-    return tuple(
-        ModelContextPackRenderMessage(role=m["role"], text=m["text"])
-        for m in messages
-        if isinstance(m, dict)
-        and isinstance(m.get("role"), str)
-        and isinstance(m.get("text"), str)
-    )
+    out: list[ModelContextPackRenderMessage] = []
+    for m in messages:
+        if not isinstance(m, dict):
+            continue
+        role, text = m.get("role"), m.get("text")
+        if isinstance(role, str) and isinstance(text, str):
+            out.append(ModelContextPackRenderMessage(role=role, text=text))
+    return tuple(out)
 
 
 def _block_text(content: JsonValue) -> str | None:
@@ -55,13 +56,13 @@ def _block_text(content: JsonValue) -> str | None:
         return content
     if not isinstance(content, list):
         return None
-    return "\n".join(
-        block["text"]
-        for block in content
-        if isinstance(block, dict)
-        and block.get("type") == "text"
-        and isinstance(block.get("text"), str)
-    )
+    texts: list[str] = []
+    for block in content:
+        if isinstance(block, dict) and block.get("type") == "text":
+            text = block.get("text")
+            if isinstance(text, str):
+                texts.append(text)
+    return "\n".join(texts)
 
 
 def _transcript_messages(path: Path) -> tuple[ModelContextPackRenderMessage, ...]:
