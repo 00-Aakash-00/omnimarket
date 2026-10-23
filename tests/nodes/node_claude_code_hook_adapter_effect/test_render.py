@@ -52,8 +52,13 @@ def test_ac1_command_is_exactly_the_adapter_entry_with_the_binding_name() -> Non
 
 def test_ac2_required_host_maps_never_started_to_deny() -> None:
     text = _render(make_binding(), max_mode=EnumClientMaxMode.REQUIRED).module_text
-    assert "never_started: () => ({ deny:" in text
-    assert "never_started: (next, e) => next(e)" not in text
+    assert (
+        "never_started: ($, next, e, why) => ($.ui.log(FAILED + why), { deny:" in text
+    )
+    assert (
+        "never_started: ($, next, e, why) => ($.ui.log(FAILED + why), next(e))"
+        not in text
+    )
 
 
 @pytest.mark.parametrize(
@@ -61,8 +66,13 @@ def test_ac2_required_host_maps_never_started_to_deny() -> None:
 )
 def test_ac2_observe_and_selective_map_never_started_to_native(mode) -> None:
     text = _render(make_binding(), max_mode=mode).module_text
-    assert "never_started: (next, e) => next(e)" in text
-    assert "never_started: () => ({ deny:" not in text
+    assert (
+        "never_started: ($, next, e, why) => ($.ui.log(FAILED + why), next(e))" in text
+    )
+    assert (
+        "never_started: ($, next, e, why) => ($.ui.log(FAILED + why), { deny:"
+        not in text
+    )
 
 
 def test_ac2_changing_the_maximum_changes_only_the_failure_table_literal() -> None:
@@ -145,5 +155,20 @@ def test_ac11_additive_row_renders_one_registration_with_the_exact_command(
 
 def test_catch_handler_never_throws_for_a_replacing_binding() -> None:
     text = _render(make_binding(), max_mode=EnumClientMaxMode.REQUIRED).module_text
-    assert ".catch(($, e, next) => FAILURE.other(next, e))" in text
-    assert "other: () => ({ deny:" in text
+    assert ".catch(($, e, next) => FAILURE.other($, next, e, 'hook threw'))" in text
+    assert "other: ($, next, e, why) => ($.ui.log(FAILED + why), { deny:" in text
+
+
+@pytest.mark.parametrize("mode", list(EnumClientMaxMode))
+def test_every_failure_entry_writes_exactly_one_transcript_line(mode) -> None:
+    """OMN-21341 AC3 (OMN-21116 AC2): a failed /compact is never silent."""
+    text = _render(make_binding(), max_mode=mode).module_text
+    table = text.split("const FAILURE = {", 1)[1].split("\n}", 1)[0]
+    entries = [line for line in table.splitlines() if line.strip()]
+    assert [e.strip().split(":", 1)[0] for e in entries] == ["never_started", "other"]
+    for entry in entries:
+        assert entry.count("$.ui.log(") == 1, entry
+    assert "const FAILED = " in text
+    # Every call into the table hands it the engine interface and a reason.
+    assert "FAILURE.other($, next, e, 'exit ' + ran.exitCode)" in text
+    assert "]]($, next, e, String(err))" in text

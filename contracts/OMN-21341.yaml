@@ -1,0 +1,32 @@
+---
+schema_version: "1.0.0"
+ticket_id: "OMN-21341"
+title: "TA.15c omnimarket half: the rendered mod module writes one failure line on every failure path"
+summary: "The rendered Claude Code mod module's fixed failure table fell back natively (or denied) with no line at all, so a /compact whose adapter was absent, exited non-zero or threw was silent. Each failure entry now writes exactly one transcript line through $.ui.log, naming the exit code or the error text, then falls back or denies as before. This is the one failure line OMN-21116 AC2 asks for. The receipt-mode client the adapter loads is the omnibase_infra half of OMN-21341 (AC1, AC2) and is not in this repository."
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: "req-omn21341-failure-line"
+    statement: |-
+      Every entry of the rendered module's failure table, at every host maximum mode, writes exactly one $.ui.log line before it falls back natively or denies, and every call into the table passes the engine interface and a reason.
+    acceptance:
+      - id: "AC3"
+        statement: |-
+          AC3: the rendered mod module's fixed failure table writes exactly one transcript line through $.ui.log on every failure path (adapter absent, non-zero exit, thrown hook) before it falls back natively or denies -- falsifier: uv run pytest tests/nodes/node_claude_code_hook_adapter_effect/test_render.py -q fails.
+evidence_requirements:
+  - kind: "tests"
+    description: "AC3: the render tests, including the one-line-per-failure-entry test at every max mode and the no-branching residue check."
+    command: "uv run pytest tests/nodes/node_claude_code_hook_adapter_effect/test_render.py -q -n 0"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn21341-failure-line"
+    description: "AC3: one $.ui.log line per failure entry, no branching added."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_claude_code_hook_adapter_effect/test_render.py -q -n 0"
+    binds_ac: ["AC3"]
