@@ -46,7 +46,7 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
   - id: "dod-omn21338-ac3-deploy-probe"
-    description: "The AC3 deploy-probe entry describes a synthetic container readback, not the live-day database receipt required after deployment. The check syncs this checkout's locked environment, then starts a disposable ubuntu:24.04 Docker container that bind-mounts the checkout (with its .venv) and the venv's base interpreter read-only at their host paths and installs nothing, so it stays inside the dod-verify per-check budget. In the container the parity CLI runs on three generated archive-roll batches and a JSON export with one row before and one after the selected UTC day. The probe requires exit 0, three file rows, three projection rows, and no mismatches."
+    description: "The AC3 deploy-probe entry describes a synthetic container readback, not the live-day database receipt required after deployment. The check syncs this checkout's locked environment, then starts a disposable ubuntu:24.04 Docker container that bind-mounts the checkout (with its .venv), the venv's base interpreter and the host libsqlite3 its _sqlite3 module links (the image has none) read-only at their host paths and installs nothing, so it stays inside the dod-verify per-check budget. In the container the parity CLI runs on three generated archive-roll batches and a JSON export with one row before and one after the selected UTC day. The probe requires exit 0, three file rows, three projection rows, and no mismatches."
     source: "manual"
     checks:
       - check_type: "command"
@@ -57,12 +57,20 @@ dod_evidence:
           here="$(pwd -P)";
           py="$here/.venv/bin/python";
           pyroot="$("$py" -c 'import os, sys; print(os.path.dirname(os.path.realpath(sys.base_prefix)))')";
+          sqlite_so="$("$py" -c 'import _sqlite3; print(_sqlite3.__file__)')";
+          lib="$(ldd "$sqlite_so" 2>/dev/null | awk '$1 ~ /^libsqlite3[.]so/ && $3 ~ /^[/]/ {print $3; exit}')";
+          set --;
+          if [ -n "$lib" ]; then
+            real="$(readlink -f "$lib")";
+            set -- --mount "type=bind,src=$real,dst=$(dirname "$real")/$(basename "$lib"),readonly";
+          fi;
           docker run --rm -i --label com.docker.compose.project=landing-l15885-lab \
             --mount "type=bind,src=$here,dst=$here,readonly" \
             --mount "type=bind,src=$pyroot,dst=$pyroot,readonly" \
             --workdir "$here" \
             --env PYTHONDONTWRITEBYTECODE=1 \
             --env LD_LIBRARY_PATH \
+            "$@" \
             ubuntu:24.04 \
             "$py" - >"$out" 2>&1 <<'PY' || fail=1
           import hashlib
@@ -117,8 +125,8 @@ dod_evidence:
               ],
               capture_output=True, text=True,
           )
+          assert done.returncode == 0, (done.returncode, done.stdout[-300:], done.stderr[-1500:])
           report = json.loads(done.stdout)
-          assert done.returncode == 0, (done.returncode, done.stdout, done.stderr)
           assert report["file_rows"] == report["projection_rows"] == 3, report
           assert report["mismatches"] == [], report
           print("probe ok", report["file_rows"], report["projection_rows"])
