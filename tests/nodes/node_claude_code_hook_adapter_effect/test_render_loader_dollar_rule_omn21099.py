@@ -46,7 +46,7 @@ const DEADLINE_compaction = 30000
 
 export const register: Register = on => {
   on("session.compact", { trigger: "manual" }, async ($, e, next) => {
-    const plan = await $.process.run(ARGV_compaction, { stdin: JSON.stringify(e), timeoutMs: DEADLINE_compaction }).then(
+    const plan = await $.process.run(ARGV_compaction, { stdin: JSON.stringify({ ...e, session_id: await $.session.id(), cwd: await $.session.cwd() }), timeoutMs: DEADLINE_compaction }).then(
       ran => PLAN[String(ran.exitCode === 0)](ran),
       err => ({ ran: undefined, lines: [FAILED + String(err)], answer: FALLBACK[KIND[String(PATTERN_compaction.test(String(err)))]] }),
     )

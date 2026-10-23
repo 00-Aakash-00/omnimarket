@@ -46,7 +46,7 @@ export const register: Register = on => {
 
 BINDING_HOOK = """\
   on(@@event@@, @@matcher@@, async ($, e, next) => {
-    const plan = await $.process.run(ARGV_@@name@@, { stdin: JSON.stringify(e), timeoutMs: DEADLINE_@@name@@ }).then(
+    const plan = await $.process.run(ARGV_@@name@@, { stdin: JSON.stringify({ ...e, session_id: await $.session.id(), cwd: await $.session.cwd() }), timeoutMs: DEADLINE_@@name@@ }).then(
       ran => PLAN[String(ran.exitCode === 0)](ran),
       err => ({ ran: undefined, lines: [FAILED + String(err)], answer: FALLBACK[KIND[String(PATTERN_@@name@@.test(String(err)))]] }),
     )
