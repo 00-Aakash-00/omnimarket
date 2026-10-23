@@ -16,7 +16,7 @@ requirements:
 evidence_requirements:
   - kind: "tests"
     description: "The adapter template compact binding tests pass; none exists at the merge base."
-    command: "uv run pytest tests/nodes/node_claude_code_hook_adapter_effect -q --no-cov -k adapter_template_compact_binding"
+    command: "uv run pytest tests/nodes/node_claude_code_hook_adapter_effect/test_adapter_template_compact_binding.py -q --no-cov -k adapter_template_compact_binding"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -27,7 +27,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/node_claude_code_hook_adapter_effect -q --no-cov -k adapter_template_compact_binding"
+        check_value: "uv run pytest tests/nodes/node_claude_code_hook_adapter_effect/test_adapter_template_compact_binding.py -q --no-cov -k adapter_template_compact_binding"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
   - id: "dod-omn21335-ac2-install-readback"
