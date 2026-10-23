@@ -23,7 +23,7 @@ requirements:
 evidence_requirements:
   - kind: "tests"
     description: "The JSON window cases fail on dev (12) and pass with the change (AC1); the roll-boundary cases fail on dev (3) and pass with the change (AC2)."
-    command: "uv run pytest tests/unit/nodes/node_projection_work_ledger/test_work_ledger_parity_json_window.py tests/unit/handlers/test_work_ledger_text_roll_boundary.py -q -n 0 --no-cov"
+    command: "uv run pytest tests/unit/nodes/node_projection_work_ledger/test_work_ledger_parity_json_window.py tests/unit/handlers/test_work_ledger_text_roll_boundary.py -q --no-cov"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -34,7 +34,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests -q -n 0 --no-cov -k work_ledger_parity_json_window"
+        check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/nodes/node_projection_work_ledger/test_work_ledger_parity_json_window.py -q --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC1"]
   - id: "dod-omn21338-ac2-roll-boundary"
@@ -42,18 +42,23 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests -q -n 0 --no-cov -k work_ledger_roll_boundary"
+        check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/handlers/test_work_ledger_text_roll_boundary.py -q --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
   - id: "dod-omn21338-ac3-deploy-probe"
-    description: "Hosted-runner deploy readback on synthetic data only: run the parity CLI on a ledger of three generated roll batches and a JSON export that also holds one row before and one row after the selected day, and require exit 0, three file rows, three projection rows and no mismatch. At the merge base the same probe exits 1 with 2 missing-in-projection and 4 missing-in-file rows. The live-day receipt this criterion names is read from the database after the deploy and is not produced by this check."
+    description: "The AC3 deploy-probe entry in contracts/OMN-21338.yaml describes a synthetic container readback, not the live-day database receipt required after deployment. The hosted runner starts an isolated disposable Docker container from ghcr.io/astral-sh/uv:python3.12-bookworm-slim, mounts this PR checkout read-only, installs the locked project dependencies into a temporary container environment, then runs the parity CLI on three generated archive-roll batches and a JSON export with one row before and one after the selected UTC day. The probe requires exit 0, three file rows, three projection rows, and no mismatches."
     source: "manual"
     checks:
       - check_type: "command"
         check_value: |
           set -eu;
-          uv sync --locked;
-          env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python - <<'PY'
+          docker run --rm -i --label com.docker.compose.project=landing-l15885-lab \
+            --mount "type=bind,src=$(pwd),dst=/workspace,readonly" \
+            --workdir /workspace \
+            --env PYTHONDONTWRITEBYTECODE=1 \
+            --env UV_PROJECT_ENVIRONMENT=/tmp/omnimarket-venv \
+            ghcr.io/astral-sh/uv:python3.12-bookworm-slim \
+            sh -eu -c 'apt-get update >&2; apt-get install -y --no-install-recommends git ca-certificates >&2; uv sync --locked --no-dev >&2; exec /tmp/omnimarket-venv/bin/python -' <<'PY'
           import hashlib
           import json
           import subprocess
