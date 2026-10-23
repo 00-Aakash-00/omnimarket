@@ -149,13 +149,13 @@ def _write_world(tmp_path: Path) -> tuple[Path, Path]:
     ledger.write_text(
         "\n".join(
             [
+                "2026-10-20T10:00:00Z | TERMINAL | lane=old | outcome=done | out of window",
                 "2026-10-24T08:00:00Z | CLAIM | lane=alpha | ticket=OMN-1 | note",
                 "2026-10-24T08:30:00Z | CLAIM | lane=beta | ticket=OMN-2 | note",
                 "2026-10-24T09:00:00Z | TERMINAL | lane=alpha | ticket=OMN-1 | outcome=done"
                 " | closes-CLAIM=2026-10-24T08:00:00Z | delegated=2 codex=abc | all done",
                 "2026-10-24T09:10:00Z | TERMINAL | lane=landing-L123 | outcome=handed-off | ended",
                 "2026-10-24T10:00:00Z | STATUS | lane=m4-c16-diag | ticket=OMN-3 | C16 red again",
-                "2026-10-20T10:00:00Z | TERMINAL | lane=old | outcome=done | out of window",
             ]
         )
     )

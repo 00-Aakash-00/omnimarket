@@ -47,11 +47,12 @@ def _path(value: str | None) -> Path | None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
-    if args.command != "check" and not args.root:
+    root = getattr(args, "root", None)
+    if args.command != "check" and not root:
         parser.error("--omni-home is required when OMNI_HOME is not set")
     request = ModelOwnerSummaryRequest(
         command=args.command,
-        root=Path(args.root or "."),
+        root=Path(root or "."),
         ledger=_path(getattr(args, "ledger", None)),
         watcher_state=_path(getattr(args, "watcher_state", None)),
         state_file=_path(getattr(args, "state_file", None)),
