@@ -48,7 +48,11 @@ def test_ac1_command_is_exactly_the_adapter_entry_with_the_binding_name() -> Non
     assert "['onex-claude-code-hook', '--binding', 'delegation']" in out.module_text, (
         out.module_text
     )
-    assert "stdin: JSON.stringify(e)" in out.module_text
+    # OMN-21099: the event plus the classic base fields, read from the engine.
+    assert (
+        "stdin: JSON.stringify({ ...e, session_id: await $.session.id(), "
+        "cwd: await $.session.cwd() })"
+    ) in out.module_text
 
 
 def test_ac2_required_host_maps_never_started_to_deny() -> None:
