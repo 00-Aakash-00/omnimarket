@@ -1,0 +1,39 @@
+name: projection_compaction_receipts
+version: "1.0.0"
+description: >
+  Records one receipt per captured context compaction and per capture-gap fact,
+  retaining the boundary identity and install-confirm verdict.
+omnibase_core_compat: ">=0.39.0,<1.0.0"
+# OMN-21336 stage (a): this directory holds only the node-owned migration
+# lineage, so the omnibase_infra vendor PR can declare and grant the relation
+# first. The contract, handlers and entry point land in stage (c), which sets
+# full_runtime back to true.
+capabilities:
+  standalone: true
+  full_runtime: false
+  requires_network: true
+  requires_secrets: true
+  side_effect_class: write_db
+dependencies:
+  - "omnibase_core>=0.39.0"
+  - "pyyaml>=6.0"
+tags:
+  - projection
+  - observability
+  - compaction-receipts
+  - reducer
+ownership:
+  compaction_receipts:
+    ddl_owner: omnimarket.nodes.node_projection_compaction_receipts
+    table_role: projection_read_model
+    create_migration: "migrations/0000_create_compaction_receipts.sql"
+    duplicate_migration_policy: forbid_cross_repo_create_table
+    non_owner_repos:
+      - omnibase_infra
+    rationale: >
+      Install-confirm owns the verdict computation; this projection owns its
+      durable receipts. Infrastructure executes this node-owned migration lineage.
+pack: "data"
+display_name: "Projection: Compaction Receipts"
+node_role: "effect"
+tickets: ["OMN-21336"]
