@@ -55,6 +55,8 @@ MAX_WORDS = 420
 TEXT_LIMIT = 240
 LANE_LIST_LIMIT = 80
 STALE_WATCHER_S = 1800
+KEY_NAME = re.compile(r"[a-zA-Z_-]+")
+KEY_VALUE = re.compile(r"^[a-zA-Z_-]+=")
 CONTROLLER_LANE = re.compile(r"^landing-L\d+")
 M4_PATTERN = re.compile(r"\bM4\b|\bC(?:1[1-7]|2[89]|3[01])\b")
 TICKET_PATTERN = re.compile(r"\bOMN-\d+\b")
@@ -298,11 +300,15 @@ class HandlerOwnerSummary:
                 continue
             cells: dict[str, str] = {"ts": parts[0], "type": parts[1], "text": ""}
             for part in parts[2:]:
-                key, sep, value = part.partition("=")
-                if sep and re.fullmatch(r"[a-zA-Z_-]+", key) and key not in cells:
-                    cells[key] = value if key == "codex" else value.split(" ")[0]
-                else:
+                if not KEY_VALUE.match(part):
                     cells["text"] = (cells["text"] + " " + part).strip()
+                    continue
+                for token in part.split():
+                    key, sep, value = token.partition("=")
+                    if sep and KEY_NAME.fullmatch(key):
+                        cells.setdefault(key, value)
+                    else:
+                        cells["text"] = (cells["text"] + " " + token).strip()
             identity = (cells["type"], cells.get("lane", ""), cells["ts"])
             if identity in seen:
                 continue
