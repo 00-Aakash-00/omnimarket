@@ -1,0 +1,77 @@
+---
+schema_version: "1.0.0"
+ticket_id: "OMN-21329"
+title: "Lab lanes mint Linear tickets through node_create_ticket, which runs the create gate inside the node"
+summary: "node_create_ticket judges every create with the omniclaude ticket-creation guard before any Linear call and now reports the guard's own finding codes, including project_set for a request that sets a project. A parity module compares the guard, policy and grammar the node runs with the ones the MCP save_issue hook registers. The remote-lane runner and lane_brief check --lab change for AC5 lives in the internal plugin, not in this repository; this contract binds AC1 to AC3 and the offline half of AC4. The live AC4 read-back on a lab host is run by the orchestrator after merge."
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: "req-create-ticket-gate"
+    statement: |-
+      node_create_ticket refuses what the create gate refuses with the guard's own finding codes and no Linear call, creates what the guard admits in Backlog with no project, and runs the same guard and policy the MCP hook loads.
+    acceptance:
+      - id: "AC1"
+        statement: |-
+          AC1: node_create_ticket refuses a payload the create gate refuses (no Gate line, a criterion without a falsifier, a project set) with the guard's own finding codes, and makes no Linear call -- falsifier: uv run pytest tests -q -k create_ticket_gate_refuses
+      - id: "AC2"
+        statement: |-
+          AC2: node_create_ticket admits a payload the guard admits and creates the issue in Backlog with no project, returning its id -- falsifier: uv run pytest tests -q -k create_ticket_gate_admits
+      - id: "AC3"
+        statement: |-
+          AC3: the guard the node runs is the same code and policy the MCP hook loads, not a copy; a test fails when the two differ -- falsifier: uv run pytest tests -q -k create_ticket_gate_parity
+      - id: "AC4"
+        statement: |-
+          AC4: on a lab host, a headless lane mints one ticket through the node with the host key and reads it back -- falsifier: onex run-node node_create_ticket on a lab host returns an OMN id that get_issue reads back in Backlog
+      - id: "AC5"
+        statement: |-
+          AC5: the remote-lane runner and lane_brief check admit a lab brief that mints through the node and still refuse one that asks for the MCP path -- falsifier: uv run pytest plugins/omni/skills/remote-lane/tests -q -k mint_through_node_admitted
+evidence_requirements:
+  - kind: "tests"
+    description: "Every node_create_ticket test passes, the create_ticket_gate tests included."
+    command: "uv run pytest tests/nodes/node_create_ticket tests/test_golden_chain_create_ticket.py -q -p no:randomly --no-cov"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn21329-gate-refuses"
+    description: "The node raises the guard's finding codes (missing_gate_line, unfalsified_criterion, project_set) and its Linear client records no call. The stub-guard cases run on the hosted runner; the real-guard cases run where the omniclaude plugin is present."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_create_ticket/test_create_ticket_gate.py -q -p no:randomly --no-cov -k create_ticket_gate_refuses"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]
+  - id: "dod-omn21329-gate-admits"
+    description: "A payload the guard admits is created once through the Linear client in Backlog with no project, and the result carries the ticket id."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_create_ticket/test_create_ticket_gate.py -q -p no:randomly --no-cov -k create_ticket_gate_admits"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC2"]
+  - id: "dod-omn21329-gate-parity"
+    description: "The guard, policy and grammar bytes the node runs equal the ones the registered save_issue hook loads; one differing byte fails the test, and no copy of the three files exists under src/omnimarket."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_create_ticket/test_create_ticket_gate.py -q -p no:randomly --no-cov -k create_ticket_gate_parity"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC3"]
+  - id: "dod-omn21329-lab-readback"
+    description: "Offline half of the live read-back: the node's command-line entry prints the guard's finding codes and exits 1 on a refusal, so a headless lane reads the result. The live run on a lab host (mint one ticket with the host key, read it back in Backlog) is pending and is run by the orchestrator after merge; this check does not stand in for it."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_create_ticket/test_create_ticket_gate.py -q -p no:randomly --no-cov -k create_ticket_gate_refuses_cli"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC4"]
+  - id: "dod-omn21329-brief-mint-through-node"
+    description: "The AC5 change is made in the internal plugin (lane_brief.py lab_mint_problems, shared by the runner and check --lab), which takes no pull request. Offline check from this repository: the node the brief names exists with its contract and its entry point."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run python -m omnimarket.nodes.node_runtime_sweep --import-check"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC5"]
