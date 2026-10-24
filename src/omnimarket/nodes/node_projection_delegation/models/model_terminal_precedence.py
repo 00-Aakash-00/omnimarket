@@ -101,6 +101,11 @@ def names_no_model(value: object) -> bool:
     return _is_blank(value) or str(value).strip().startswith(NOT_ROUTED)
 
 
+def stored_flag(value: object) -> bool | None:
+    """Read a stored boolean column across adapters (OMN-19448; see ``_flag``)."""
+    return _flag(value)
+
+
 def is_unevidenced_handler_failure(row: Mapping[str, object]) -> bool:
     """Recognize a handler's budget/cancellation failure with no provider evidence."""
     cause = row.get("terminal_failure_cause")
@@ -337,6 +342,7 @@ __all__ = [
     "keep_stored_terminal",
     "names_no_model",
     "outcome_for_failure_cause",
+    "stored_flag",
     "stored_terminal_owns_outcome",
     "supersedes_handler_failure",
 ]

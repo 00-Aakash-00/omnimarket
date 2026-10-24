@@ -99,6 +99,7 @@ from omnimarket.nodes.node_projection_delegation.models.model_terminal_precedenc
     apply_terminal_precedence,
     fold_terminal_ownership,
     names_no_model,
+    stored_flag,
     supersedes_handler_failure,
 )
 from omnimarket.pricing import (
@@ -2157,7 +2158,13 @@ def _preserve_run_attribution(
     run (a canonical terminal, a late timeout) carries no model, so whichever
     order the events arrive in, the row keeps the model that was named: this
     runs on every write, and a later event that does name a model replaces it.
+    A failure arriving over a stored success carries none of the success's
+    attribution: terminal precedence decides between them (OMN-19559).
     """
+    if stored_flag(existing.get("terminal_ok")) is True and (
+        stored_flag(row.get("terminal_ok")) is False
+    ):
+        return
     for key in ("model_name", "cost_tier_name"):
         if _is_unnamed_model(row.get(key)) and not _is_unnamed_model(existing.get(key)):
             row[key] = existing[key]
