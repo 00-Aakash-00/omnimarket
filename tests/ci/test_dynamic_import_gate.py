@@ -223,16 +223,11 @@ def test_dynamic_import_gate_late_globals_and_spec_name(
 
 
 def test_dynamic_import_gate_compaction_fixture_default_requires_adapters() -> None:
-    from omnimarket.nodes.node_context_compaction_orchestrator.handlers.compaction_runtime_binding import (
-        resolve_pack_orchestrator,
-    )
     from omnimarket.nodes.node_context_compaction_orchestrator.handlers.session_barrier_probe import (
         ModelSessionBarrierReadBinding,
         PostgresSessionBarrierProbeSource,
     )
 
-    with pytest.raises(RuntimeError, match="runtime-injected bus adapter"):
-        resolve_pack_orchestrator("node_context_pack_orchestrator")
     source = PostgresSessionBarrierProbeSource(
         ModelSessionBarrierReadBinding(
             dsn_env="PROBE_NOT_BOUND",

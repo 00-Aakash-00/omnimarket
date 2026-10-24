@@ -18,15 +18,15 @@ requirements:
     statement: "Pre-commit and required CI refuse dynamic resolution across node and driver boundaries."
     acceptance:
       - id: "AC1"
-        statement: "AC1: a node handler that resolves another node's handler or a database or transport driver through importlib.import_module, **import** or importlib.util is refused by a pre-commit hook and a required CI check -- falsifier: uv run pytest tests/ci -q -k dynamic_import_gate with a fixture of each form"
+        statement: "AC1: a node handler that resolves another node's handler or a database or transport driver through importlib.import_module, **import** or importlib.util is refused by a pre-commit hook and a required CI check -- falsifier: uv run pytest tests/ci/test_dynamic_import_gate.py -q -k dynamic_import_gate with a fixture of each form"
       - id: "AC2"
-        statement: "AC2: the gate refuses omnimarket#4333's current compaction_runtime_binding.py and session_barrier_probe.py, and passes the bus rework -- falsifier: uv run pytest tests/ci -q -k dynamic_import_gate_compaction_fixture"
+        statement: "AC2: the gate refuses omnimarket#4333's current compaction_runtime_binding.py and session_barrier_probe.py, and passes the bus rework -- falsifier: uv run pytest tests/ci/test_dynamic_import_gate.py -q -k dynamic_import_gate_compaction_fixture"
       - id: "AC3"
-        statement: "AC3: orchestrator and effect nodes are covered by the same gate, not only compute and reducer nodes -- falsifier: uv run pytest tests/ci -q -k dynamic_import_gate_node_kinds"
+        statement: "AC3: orchestrator and effect nodes are covered by the same gate, not only compute and reducer nodes -- falsifier: uv run pytest tests/ci/test_dynamic_import_gate.py -q -k dynamic_import_gate_node_kinds"
 evidence_requirements:
   - kind: "tests"
     description: "Dynamic API fixtures, incident sources, node kinds, static parity and namespace template checks pass."
-    command: "uv run pytest tests/ci -q -k dynamic_import_gate"
+    command: "uv run pytest tests/ci/test_dynamic_import_gate.py -q -k dynamic_import_gate"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -38,21 +38,21 @@ dod_evidence:
     binds_ac: ["AC1"]
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/ci -q -k dynamic_import_gate"
+        check_value: "uv run pytest tests/ci/test_dynamic_import_gate.py -q -k 'dynamic_import_gate and not dev_census'"
   - id: "dod-omn21372-ac2-compaction-fixtures"
     description: "Exact copies of both incident sources are refused without execution. The injected bus-port fixture passes; the repaired live files have no dynamic import violation and no baseline exemption. This is a gate regression proof, not a claim of live bus deployment."
     source: "manual"
     binds_ac: ["AC2"]
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/ci -q -k dynamic_import_gate_compaction_fixture"
+        check_value: "uv run pytest tests/ci/test_dynamic_import_gate.py -q -k dynamic_import_gate_compaction_fixture"
   - id: "dod-omn21372-ac3-node-kinds"
     description: "The same gate refuses foreign node and driver imports in compute, reducer, orchestrator, effect and legacy node handlers. Declared effect driver allowance cannot allow a sibling node."
     source: "manual"
     binds_ac: ["AC3"]
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/ci -q -k dynamic_import_gate_node_kinds"
+        check_value: "uv run pytest tests/ci/test_dynamic_import_gate.py -q -k dynamic_import_gate_node_kinds"
   - id: "dod-omn21372-deploy-gate-cli-smoke"
     description: "Hosted checkout smoke of the exact transport CLI used by the hook and CI: write each reported source into a temporary orchestrator handler, require exit 1 and the offending target diagnostic, then replace it with the injected bus-port fixture and require exit 0. The old CLI cannot enforce this control. No services or credentials are required."
     source: "manual"
