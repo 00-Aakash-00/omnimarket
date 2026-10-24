@@ -2,14 +2,14 @@
 schema_version: "1.0.0"
 ticket_id: "OMN-21338"
 title: "The work-ledger parity check reads each day's JSON window and the archive-roll boundary correctly, so a clean day reads exact"
-summary: "The JSON row loader of the work-ledger parity check now keeps only rows inside the selected inclusive UTC window and refuses a malformed export timestamp with exit 2, as the database loader's SQL window already does. The shared work_ledger_text splitter, used by the projection parity and the branch witness, now drops a complete, self-consistent generated archive-roll header (metadata comment, banner, empty line) instead of attaching it to the preceding row, so a row keeps one identity across a roll boundary. Malformed, quoted and inconsistent lookalikes remain row content. The live-day receipt (AC3) can only be read after the deploy and is not claimed by this contract's tests."
+summary: "The JSON row loader of the work-ledger parity check now keeps only rows inside the selected inclusive UTC window and refuses a malformed export timestamp with exit 2, as the database loader's SQL window already does. The shared work_ledger_text splitter, used by the projection parity and the branch witness, now drops a complete, self-consistent generated archive-roll header (metadata comment, banner, empty line) instead of attaching it to the preceding row, so a row keeps one identity across a roll boundary. Malformed, quoted and inconsistent lookalikes remain row content. The live-day receipt can only be read after the deploy and is not claimed by this contract's tests."
 is_seam_ticket: false
 interface_change: false
 interfaces_touched: []
 requirements:
   - id: "req-omn21338-parity-window-and-boundary"
     statement: |-
-      The parity check counts each row once, inside the selected UTC day, with one identity across an archive roll.
+      The parity check counts each row once, inside the selected UTC day, with one identity across an archive roll. Post-deploy observation, not a bound criterion: the node_projection_work_ledger parity run for a day after the deploy lists no extra or state row whose cause is a window or boundary miscount.
     acceptance:
       - id: "AC1"
         statement: |-
@@ -17,9 +17,6 @@ requirements:
       - id: "AC2"
         statement: |-
           AC2: a row that crosses an archive-roll boundary keeps one identity in the parity check and the branch witness -- falsifier: uv run pytest tests -q -k work_ledger_roll_boundary
-      - id: "AC3"
-        statement: |-
-          AC3: the parity receipt for a day after the deploy has no extra or state difference caused by either defect -- falsifier: the node_projection_work_ledger parity run for that day lists an extra or state row whose cause is a window or boundary miscount
 evidence_requirements:
   - kind: "tests"
     description: "The JSON window cases fail on dev (12) and pass with the change (AC1); the roll-boundary cases fail on dev (3) and pass with the change (AC2)."
@@ -134,4 +131,3 @@ dod_evidence:
           [ "${fail:-0}" = 0 ] || { echo "AC3 probe: container run failed: $(tail -c 600 "$out" | tr '\n' ' ')" >&2; exit 1; };
           cat "$out";
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC3"]
