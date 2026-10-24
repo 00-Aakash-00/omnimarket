@@ -23,7 +23,7 @@ requirements:
 evidence_requirements:
   - kind: "tests"
     description: "The JSON window cases fail on dev (12) and pass with the change (AC1); the roll-boundary cases fail on dev (3) and pass with the change (AC2)."
-    command: "uv run pytest tests/unit/nodes/node_projection_work_ledger/test_work_ledger_parity_json_window.py tests/unit/handlers/test_work_ledger_text_roll_boundary.py -q --no-cov"
+    command: "uv run pytest tests/unit/nodes/node_projection_work_ledger/test_work_ledger_parity_json_window.py tests/unit/handlers/test_work_ledger_roll_boundary.py -q --no-cov"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -42,7 +42,7 @@ dod_evidence:
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/handlers/test_work_ledger_text_roll_boundary.py -q --no-cov"
+        check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/handlers/test_work_ledger_roll_boundary.py -q --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
   - id: "dod-omn21338-ac3-deploy-probe"
