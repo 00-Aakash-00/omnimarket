@@ -407,7 +407,10 @@ class HandlerContextSourceRepoDoctrine:
                 )
                 if pr is None or commit_type not in types:
                     continue
-                as_of = stamp or datetime.fromisoformat(commit_time)
+                # Newer git prints a UTC %cI as "Z", older git as "+00:00";
+                # render it from the parsed value so the text is git-independent.
+                committed = datetime.fromisoformat(commit_time)
+                as_of = stamp or committed
                 shown = self._git(repo, "show", "--format=", "--name-status", sha)
                 if shown.returncode:
                     return ModelContextSourceResult(
@@ -418,7 +421,7 @@ class HandlerContextSourceRepoDoctrine:
                 if len(files) > config.max_files:
                     rendered.append(f"... and {len(files) - config.max_files} more")
                 text = (
-                    f"{subject}\nmerged {commit_time} as {sha[:12]} on {ref}\nfiles ({len(files)}):\n"
+                    f"{subject}\nmerged {committed.isoformat()} as {sha[:12]} on {ref}\nfiles ({len(files)}):\n"
                     + "\n".join(rendered)
                 )
                 entry = _entry(
