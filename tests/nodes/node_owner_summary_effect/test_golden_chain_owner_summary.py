@@ -302,6 +302,64 @@ def test_facts_merges_queue_lanes_and_no_authors(tmp_path: Path) -> None:
     assert facts.errors == ()
 
 
+def _facts_with_closed_lanes(
+    tmp_path: Path, count: int, blocked: int
+) -> ModelOwnerSummaryFacts:
+    ledger = tmp_path / "ledger.md"
+    start = NOW - timedelta(hours=12)
+    ledger.write_text(
+        "\n".join(
+            f"{(start + timedelta(minutes=n)).strftime('%Y-%m-%dT%H:%M:%SZ')}"
+            f" | TERMINAL | lane=l{n:02d} | ticket=OMN-{1000 + n}"
+            f" | outcome={'blocked' if n <= blocked else 'done'}"
+            for n in range(1, count + 1)
+        )
+    )
+    result = HANDLER.handle(
+        ModelOwnerSummaryRequest(
+            command="facts",
+            root=tmp_path,
+            ledger=ledger,
+            since=start.isoformat(),
+            now=NOW.isoformat(),
+        )
+    )
+    assert result.exit_code == 0
+    assert result.facts is not None
+    return result.facts
+
+
+def test_facts_list_every_blocked_lane_before_newer_ones(tmp_path: Path) -> None:
+    facts = _facts_with_closed_lanes(tmp_path, count=90, blocked=5)
+    assert facts.lanes_closed_count == 90
+    assert len(facts.lanes_closed) == 80
+    assert [lane.lane for lane in facts.lanes_closed if lane.outcome == "blocked"] == [
+        f"l{n:02d}" for n in range(1, 6)
+    ]
+    assert [lane.lane for lane in facts.lanes_closed if lane.outcome == "done"] == [
+        f"l{n:02d}" for n in range(16, 91)
+    ]
+    assert facts.lanes_closed_by_outcome == {"blocked": 5, "done": 85}
+    assert facts.lanes_closed_omitted == 10
+    timestamps = [lane.ts for lane in facts.lanes_closed]
+    assert timestamps == sorted(timestamps)
+
+
+def test_facts_lanes_over_the_limit_all_blocked(tmp_path: Path) -> None:
+    facts = _facts_with_closed_lanes(tmp_path, count=100, blocked=100)
+    assert facts.lanes_closed_count == 100
+    assert [lane.lane for lane in facts.lanes_closed] == [
+        f"l{n:02d}" for n in range(21, 101)
+    ]
+    assert facts.lanes_closed_by_outcome == {"blocked": 100}
+    assert facts.lanes_closed_omitted == 20
+
+
+def test_coverage_tickets_include_old_blocked_lanes(tmp_path: Path) -> None:
+    facts = _facts_with_closed_lanes(tmp_path, count=90, blocked=5)
+    assert set(facts.coverage.tickets) == {f"OMN-{1000 + n}" for n in range(1, 6)}
+
+
 def test_facts_names_an_unreadable_source(tmp_path: Path) -> None:
     result = HANDLER.handle(
         ModelOwnerSummaryRequest(

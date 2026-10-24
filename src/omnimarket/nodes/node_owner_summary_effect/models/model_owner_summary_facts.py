@@ -47,6 +47,7 @@ class ModelOwnerSummaryFacts(BaseModel):
     open_by_class: dict[str, int] = {}
     lanes_closed_count: int = 0
     lanes_closed: tuple[ModelLaneClosed, ...] = ()
+    lanes_closed_omitted: int = 0
     lanes_closed_by_outcome: dict[str, int] = {}
     controller_worker_lanes_closed: int = 0
     lanes_started_not_closed: tuple[ModelLaneStarted, ...] = ()

@@ -413,6 +413,23 @@ class HandlerOwnerSummary:
         rows.reverse()
         return rows
 
+    @staticmethod
+    def _listed_lanes(closed: list[ModelLaneClosed]) -> tuple[ModelLaneClosed, ...]:
+        """Prioritize recent blocked and partial lanes, preserving source order."""
+        priority = {"blocked", "partial"}
+        indices = [
+            i for i in reversed(range(len(closed))) if closed[i].outcome in priority
+        ][:LANE_LIST_LIMIT]
+        remaining = LANE_LIST_LIMIT - len(indices)
+        indices.extend(
+            [
+                i
+                for i in reversed(range(len(closed)))
+                if closed[i].outcome not in priority
+            ][:remaining]
+        )
+        return tuple(closed[i] for i in sorted(indices))
+
     def _lanes(
         self, path: Path, start: datetime, end: datetime, errors: list[str]
     ) -> dict[str, Any]:
@@ -475,9 +492,11 @@ class HandlerOwnerSummary:
         for item in closed:
             key = item.outcome or "unrecorded"
             outcomes[key] = outcomes.get(key, 0) + 1
+        listed = self._listed_lanes(closed)
         return {
             "count": len(closed),
-            "closed": tuple(closed[-LANE_LIST_LIMIT:]),
+            "closed": listed,
+            "omitted": len(closed) - len(listed),
             "outcomes": outcomes,
             "controller": controller_workers,
             "started": tuple(started),
@@ -564,6 +583,7 @@ class HandlerOwnerSummary:
             open_by_class=queue.get("by_class", {}),
             lanes_closed_count=lanes["count"],
             lanes_closed=lanes["closed"],
+            lanes_closed_omitted=lanes["omitted"],
             lanes_closed_by_outcome=lanes["outcomes"],
             controller_worker_lanes_closed=lanes["controller"],
             lanes_started_not_closed=lanes["started"],
