@@ -14,10 +14,10 @@ import yaml
 from omnimarket.nodes.node_owner_summary_effect.__main__ import main
 from omnimarket.nodes.node_owner_summary_effect.handlers import HandlerOwnerSummary
 from omnimarket.nodes.node_owner_summary_effect.handlers.handler_owner_summary import (
+    CHANGE_COVERAGE_LIMIT,
     CLASS_PLAIN,
     COVERAGE_SCOPE,
     DRAFT_RULES,
-    MAX_WORDS,
     PLAIN_WORDS,
     TICKET_COVERAGE_LIMIT,
 )
@@ -627,7 +627,9 @@ def test_coverage_ticket_must_sit_beside_the_change(separator: str) -> None:
         "merged changes cited without their ticket in the same group: omnibase_core#1028 (OMN-17427)"
     ]
     absent = _full_draft().replace("omnibase_core#1028", "the change")
-    assert HANDLER.check_draft(absent, facts) == []
+    assert HANDLER.check_draft(absent, facts) == [
+        "merged changes not cited: omnibase_core#1028"
+    ]
 
 
 def test_coverage_friction_gap_is_named() -> None:
@@ -692,7 +694,8 @@ def test_coverage_every_merged_ticket_is_cited() -> None:
         problems = HANDLER.check_draft(
             _full_draft().replace("omnibase_core#1028", replacement), facts
         )
-        assert "merged changes with no ticket not cited: omnibase_core#1028" in problems
+        assert "merged changes not cited: omnibase_core#1028" in problems
+        assert not any("with no ticket not cited" in problem for problem in problems)
     assert HANDLER.coverage_of(_coverage_facts()).merged_tickets == (
         "OMN-17427",
         "OMN-21348",
@@ -790,9 +793,78 @@ def test_coverage_receipts_are_shorthand(term: str) -> None:
     )
 
 
-def test_coverage_scope_states_the_word_limit() -> None:
-    assert "420 words" in COVERAGE_SCOPE
-    assert f"{MAX_WORDS} words" in COVERAGE_SCOPE
+def test_coverage_scope_states_what_the_check_requires() -> None:
+    for field in ("tickets", "counts", "changes"):
+        assert field in COVERAGE_SCOPE
+    assert "420" not in COVERAGE_SCOPE
+
+
+def test_coverage_merged_changes_are_cited_up_to_the_limit() -> None:
+    facts = _facts().model_copy(
+        update={
+            "merged_changes": tuple(
+                ModelMergedChange(
+                    repo="omnimarket",
+                    number=i + 1,
+                    title="feature",
+                    tickets=("OMN-100",),
+                    merged_at=(NOW - timedelta(minutes=30 - i)).isoformat(),
+                )
+                for i in range(30)
+            ),
+            "clone_only_commits": (),
+        }
+    )
+    coverage = HANDLER.coverage_of(facts)
+    assert CHANGE_COVERAGE_LIMIT == 24
+    assert coverage.changes == tuple(f"omnimarket#{i + 1}" for i in range(24))
+    draft = (
+        "30 changes merged across 1 repository. "
+        + "; ".join(f"{change} OMN-100" for change in coverage.changes)
+        + ". M4 board (milestones). Merges are unconfirmed as running. "
+        "Friction data is unavailable.\n(via Owner's agent)\n"
+    )
+    assert HANDLER.check_draft(draft, facts) == []
+    missing = draft.replace("omnimarket#24 OMN-100", "OMN-100")
+    assert HANDLER.check_draft(missing, facts) == [
+        "merged changes not cited: omnimarket#24"
+    ]
+    # An untracked change beyond the bound still needs its own citation.
+    untracked = facts.merged_changes[-1].model_copy(update={"tickets": ()})
+    beyond = facts.model_copy(
+        update={"merged_changes": (*facts.merged_changes[:-1], untracked)}
+    )
+    assert HANDLER.check_draft(missing, beyond) == [
+        "merged changes not cited: omnimarket#24",
+        "merged changes with no ticket not cited: omnimarket#30",
+    ]
+
+
+def test_coverage_feeds_earlier_findings_forward(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rule = "When a review answers REVISE, write the next review prompt with the earlier answers under the heading === EARLIER FINDINGS === and, after each finding, the line applied or not applied: <the fact that contradicts it>; the rubric and the facts do not change between rounds."
+    assert DRAFT_RULES[7] == DRAFT_RULES[-1] == rule
+    root, ledger = _write_world(tmp_path)
+    assert (
+        main(
+            [
+                "facts",
+                "--omni-home",
+                str(root),
+                "--ledger",
+                str(ledger),
+                "--since",
+                "2026-10-24T00:00:00Z",
+                "--now",
+                NOW.isoformat(),
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert "=== EARLIER FINDINGS ===" in output
+    assert json.loads(output)["draft_rules"][-1] == rule
 
 
 def test_coverage_counts_are_stated() -> None:
@@ -1031,12 +1103,12 @@ def test_coverage_facts_command_hands_the_drafter_its_lists(tmp_path: Path) -> N
     assert facts.open_by_class_plain == {"red": "failing checks"}
     assert "ledger" in facts.plain_words
     assert facts.draft_rules == DRAFT_RULES
-    assert len(DRAFT_RULES) == 7
+    assert len(DRAFT_RULES) == 8
     assert DRAFT_RULES[6] == (
         "Cite a merged change inside the same parentheses or semicolon group as its ticket; call blocked work blocked and partial work partial on the line that cites its ticket; name the friction gap in one clause; do not write first, only, fully or entire."
     )
     assert DRAFT_RULES[0] == (
-        "After the greeting and the window, state the coverage headline, then give each non-dependency merged change as repo#number with its ticket; the dependency bumps get one clause with their count and no ids."
+        "After the greeting and the window, state the coverage headline, then give each non-dependency merged change as repo#number with its ticket; the dependency bumps get one clause with their count and no ids; check refuses a merged change left out."
     )
 
 

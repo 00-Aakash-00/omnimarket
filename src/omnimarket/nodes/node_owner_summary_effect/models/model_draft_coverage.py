@@ -12,6 +12,7 @@ class ModelDraftCoverage(BaseModel):
 
     scope: str = ""
     headline: str = ""
+    changes: tuple[str, ...] = ()
     merged_tickets: tuple[str, ...] = ()
     untracked_changes: tuple[str, ...] = ()
     dependency_changes: int = 0

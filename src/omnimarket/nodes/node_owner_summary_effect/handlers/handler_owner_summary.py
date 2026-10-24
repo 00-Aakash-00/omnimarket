@@ -73,6 +73,7 @@ SECRET_PATTERN = re.compile(
 HOME_PATH_PATTERN = re.compile(r"/(?:Users|home|Volumes)/[A-Za-z]")
 DEPENDENCY_TITLE = re.compile(r"^\s*(?:chore|build)\(deps(?:-dev)?\)", re.IGNORECASE)
 TICKET_COVERAGE_LIMIT = 30
+CHANGE_COVERAGE_LIMIT = 24
 HEADLINE_PATTERN = re.compile(
     r"(\d+) changes? merged across (\d+) repositor(?:y|ies)", re.IGNORECASE
 )
@@ -145,15 +146,16 @@ CLASS_PLAIN: dict[str, str] = {
     "unread": "not yet looked at",
 }
 DRAFT_RULES: tuple[str, ...] = (
-    "After the greeting and the window, state the coverage headline, then give each non-dependency merged change as repo#number with its ticket; the dependency bumps get one clause with their count and no ids.",
+    "After the greeting and the window, state the coverage headline, then give each non-dependency merged change as repo#number with its ticket; the dependency bumps get one clause with their count and no ids; check refuses a merged change left out.",
     "Cite every ticket in coverage.tickets and state every number in coverage.counts (the queue figures are as of generated_at); check refuses a draft that leaves one out. A ticket costs one word, so group them. Name a ticket's kind as ticket_kinds gives it (a partial ticket is not blocked).",
     "Put a lane's report under that lane's own ticket (lanes_closed ticket); when two reports of the same subject disagree, give both with their tickets.",
     "Say a merge as its title does (a configuration or code change); a merge is not a running service, so say what is unconfirmed.",
     "Scope every figure to its row: the snapshot time, the batch, the hosts checked; never write all or every unless one row says so.",
     'Use plain_words and open_by_class_plain for any term a non-specialist would not follow; write "work runs (lanes)" and "M4 board (milestones)" once.',
     "Cite a merged change inside the same parentheses or semicolon group as its ticket; call blocked work blocked and partial work partial on the line that cites its ticket; name the friction gap in one clause; do not write first, only, fully or entire.",
+    "When a review answers REVISE, write the next review prompt with the earlier answers under the heading === EARLIER FINDINGS === and, after each finding, the line applied or not applied: <the fact that contradicts it>; the rubric and the facts do not change between rounds.",
 )
-COVERAGE_SCOPE = f"The check requires every ticket in tickets and every number in counts. Lanes that handed off, were skipped or have no recorded outcome are counted in counts and not listed in lanes_closed; the other closed lanes are listed, blocked and partial first. The draft is limited to {MAX_WORDS} words and names a ticket's blocked or partial work as such."
+COVERAGE_SCOPE = f"The check requires every ticket in tickets, every number in counts and the first {CHANGE_COVERAGE_LIMIT} merged changes in changes. Lanes that handed off, were skipped or have no recorded outcome are counted in counts and not listed in lanes_closed; the other closed lanes are listed, blocked and partial first."
 
 
 def _iso(value: datetime) -> str:
@@ -687,6 +689,10 @@ class HandlerOwnerSummary:
         return ModelDraftCoverage(
             scope=COVERAGE_SCOPE,
             headline=headline,
+            changes=tuple(
+                f"{change.repo}#{change.number}"
+                for change in changes[:CHANGE_COVERAGE_LIMIT]
+            ),
             merged_tickets=merged_tickets,
             untracked_changes=untracked_changes,
             dependency_changes=n - len(changes),
@@ -748,12 +754,20 @@ class HandlerOwnerSummary:
                 problems.append(f'the opening must say "{cov.headline}"')
         missing_changes = [
             change
-            for change in cov.untracked_changes
+            for change in cov.changes
             if not re.search(rf"(?<![\w.-]){re.escape(change)}(?![\w.-])", text)
         ]
         if missing_changes:
+            problems.append(f"merged changes not cited: {', '.join(missing_changes)}")
+        missing_untracked = [
+            change
+            for change in cov.untracked_changes
+            if change not in missing_changes
+            and not re.search(rf"(?<![\w.-]){re.escape(change)}(?![\w.-])", text)
+        ]
+        if missing_untracked:
             problems.append(
-                f"merged changes with no ticket not cited: {', '.join(missing_changes)}"
+                f"merged changes with no ticket not cited: {', '.join(missing_untracked)}"
             )
         if cov.dependency_changes and not DEPENDENCY_WORD.search(text):
             problems.append(
