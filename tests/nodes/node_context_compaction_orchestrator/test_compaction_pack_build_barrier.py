@@ -260,10 +260,9 @@ def test_compaction_pack_build_barrier_no_arg_resolves_lazily_once(
     assert all(command.access.tenant_id == "lab" for command in stub.commands)
 
 
-def test_compaction_pack_build_barrier_real_contract_resolves() -> None:
-    handler = resolve_pack_orchestrator("node_context_pack_orchestrator")
-    assert type(handler).__name__ == "HandlerContextPackOrchestrator"
-    assert callable(handler.handle)
+def test_compaction_pack_build_barrier_requires_injected_bus_port() -> None:
+    with pytest.raises(RuntimeError, match="runtime-injected bus adapter"):
+        resolve_pack_orchestrator("node_context_pack_orchestrator")
 
 
 def test_compaction_pack_build_barrier_uses_recorded_source_revisions() -> None:

@@ -12,12 +12,13 @@ description: >
   as install with its installed_messages_hash after the activated receipt. Any
   failure before activation, typed or raised, replies native and publishes
   fallback with the failure class and the command's invocation_id; no partial
-  package is replied. The runtime's no-argument construction binds
-  HandlerCompactionPackBuild over compaction_runtime.pack_build_node with the
-  tenant from compaction_runtime.tenant_id; an unset tenant keeps
-  pack_builder_unavailable. The default barrier port reads committed sequence
-  stamps from both session projections and never trusts producer journal presence.
-  The barrier's recorded timestamp supplies the ledger and session source revisions.
+  package is replied. Pack builds and projection probes require explicit
+  runtime-owned adapters; the no-argument handler cannot load another node's
+  handler or a database driver. An unset tenant keeps pack_builder_unavailable;
+  missing runtime adapters return the native fallback. An injected barrier port
+  must read committed sequence stamps from both session projections and never
+  trust producer journal presence. The barrier's recorded timestamp supplies
+  the ledger and session source revisions.
   Receipt events carry ids, hashes, failure classes and build
   timings only;
   the package reply carries content and travels on the restricted command family.
@@ -60,7 +61,9 @@ dependencies:
     type: node
     optional: false
 
-# Runtime ports are bound from this contract (OMN-21334, TA.11b).
+# Runtime ports use these settings, with explicit runtime-owned adapters.
+# No-argument construction cannot resolve a sibling handler or a DB driver;
+# without injected adapters it returns the native fallback (OMN-21372).
 compaction_runtime:
   pack_build_node: node_context_pack_orchestrator
   # Tenants are overlay data, as for the context sources: the deploy overlay sets it.

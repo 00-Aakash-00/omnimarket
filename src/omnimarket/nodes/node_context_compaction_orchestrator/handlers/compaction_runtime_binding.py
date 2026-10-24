@@ -4,14 +4,10 @@
 
 from __future__ import annotations
 
-import importlib
-import importlib.resources
-import importlib.util
 import threading
 import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import cast
 
 import yaml
 from omnibase_core.models.context.model_context_access import ModelContextAccess
@@ -106,40 +102,10 @@ def load_compaction_runtime_binding(
 
 
 def resolve_pack_orchestrator(node_name: str) -> ProtocolContextPackBuildCall:
-    """Resolve a no-argument handler through its own node contract (OMN-21334)."""
-    package = f"omnimarket.nodes.{node_name}"
-    try:
-        spec = importlib.util.find_spec(package)
-    except (ImportError, ValueError) as exc:
-        raise ValueError(f"Cannot find pack build node {node_name!r}") from exc
-    if spec is None:
-        raise ValueError(f"Cannot find pack build node {node_name!r}")
-    try:
-        contract = yaml.safe_load(
-            importlib.resources.files(package)
-            .joinpath("contract.yaml")
-            .read_text(encoding="utf-8")
-        )
-    except (OSError, TypeError, yaml.YAMLError) as exc:
-        raise ValueError(
-            f"Cannot read contract for pack build node {node_name!r}"
-        ) from exc
-    handler = contract.get("handler") if isinstance(contract, Mapping) else None
-    if not isinstance(handler, Mapping):
-        raise ValueError(f"Pack build node {node_name!r} must declare a handler")
-    module_name = handler.get("module")
-    class_name = handler.get("class")
-    if not isinstance(module_name, str) or not isinstance(class_name, str):
-        raise ValueError(
-            f"Pack build node {node_name!r} must declare handler module and class"
-        )
-    handler_class = getattr(importlib.import_module(module_name), class_name)
-    instance = handler_class()
-    if not callable(getattr(instance, "handle", None)):
-        raise ValueError(
-            f"Pack build node {node_name!r} handler must have a callable handle"
-        )
-    return cast("ProtocolContextPackBuildCall", instance)
+    """Refuse implicit in-process dispatch; runtime must supply the bus port."""
+    raise RuntimeError(
+        f"Pack build node {node_name!r} requires a runtime-injected bus adapter"
+    )
 
 
 class LazyContractPackBuild:

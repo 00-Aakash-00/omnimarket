@@ -1,10 +1,9 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""Read applied session sequences and barriers from their projections."""
+"""Probe applied sequences using explicit runtime-owned read adapters."""
 
 from __future__ import annotations
 
-import importlib
 import os
 from collections.abc import Callable
 from datetime import UTC
@@ -16,10 +15,6 @@ from omnimarket.models.model_session_stream_barrier import (
     ModelSessionStreamBarrier,
     ModelSessionStreamBarrierProbe,
 )
-from omnimarket.projection.postgres_read_database import connect_read_only
-
-# The driver exposes no stubs; its SQL composer is an explicit dynamic boundary.
-sql: Any = importlib.import_module("psycopg2.sql")
 
 
 class ModelSessionBarrierReadBinding(BaseModel):
@@ -37,20 +32,31 @@ class PostgresSessionBarrierProbeSource:
     """One read-only snapshot, including holes rather than only MAX(sequence).
 
     A producer's journal says what was sent, not what either projection applied.
-    Only committed projection rows are evidence here. Connections belong to one
-    read, so concurrent compactions cannot share a transaction or stale snapshot.
+    Only committed projection rows are evidence here. The runtime must explicitly
+    supply the connection factory and SQL composer; the orchestrator never loads
+    a driver or supplies a default database connection.
     """
 
     def __init__(
         self,
         binding: ModelSessionBarrierReadBinding,
         *,
-        connect: Callable[..., Any] = connect_read_only,
+        connect: Callable[..., Any] | None = None,
+        sql_composer: Any = None,
     ) -> None:
         self._binding = binding
         self._connect = connect
+        self._sql = sql_composer
 
     def read(self, session_id: str, barrier_id: str) -> ModelSessionStreamBarrierProbe:
+        # Transport adapters belong to the runtime/effect boundary. An unwired
+        # orchestrator falls back instead of discovering a driver or opening its
+        # own connection. Explicit adapters keep the projection probe testable.
+        if self._connect is None or self._sql is None:
+            raise RuntimeError(
+                "session barrier requires runtime-injected read adapters"
+            )
+        sql = self._sql
         dsn = os.environ.get(self._binding.dsn_env)
         if not dsn:
             raise RuntimeError("session barrier projection binding is unavailable")
