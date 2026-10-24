@@ -89,7 +89,9 @@ OVERCLAIM = re.compile(
 )
 LANE_WORD = re.compile(r"\blanes?\b", re.IGNORECASE)
 WORK_RUN_WORD = re.compile(r"\bwork runs?\b", re.IGNORECASE)
-SUPERLATIVE = re.compile(r"\b(?:first|only|fully|entire(?:ly)?)\b", re.IGNORECASE)
+SUPERLATIVE = re.compile(
+    r"(?<![\w-])(?:first|only|fully|entire(?:ly)?)(?![\w-])", re.IGNORECASE
+)
 MILESTONE_WORD = re.compile(r"\bmilestones?\b", re.IGNORECASE)
 _JARGON_SOURCE = (
     (r"\bgreen\b", ("green",), "passing checks"),

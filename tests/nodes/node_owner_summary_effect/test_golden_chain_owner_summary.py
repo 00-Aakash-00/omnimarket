@@ -601,6 +601,13 @@ def test_coverage_superlatives_are_refused() -> None:
     ]
 
 
+def test_coverage_superlatives_ignore_hyphenated_terms() -> None:
+    draft = _full_draft().replace(
+        "The merges", "A JSON-only retry and a first-party check. The merges"
+    )
+    assert HANDLER.check_draft(draft, _coverage_facts()) == []
+
+
 def test_coverage_headline_must_match_the_facts() -> None:
     headline = "5 changes merged across 3 repositories"
     for replacement in ("10 changes merged across 4 repositories", ""):
