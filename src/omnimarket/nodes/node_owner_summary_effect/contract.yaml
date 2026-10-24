@@ -6,7 +6,7 @@ node_type: effect
 node_version: {major: 1, minor: 0, patch: 0}
 
 description: >
-  Gather what the factory did in a window from the PR watcher's local state, the canonical clones and the work ledger, check a drafted summary against those facts (footer, length, no secrets or home paths, every ticket and repo#number cited must be in the facts), and record the window end as sent.
+  Gather what the factory did in a window from the PR watcher's local state, the canonical clones and the work ledger, check a drafted summary against those facts (footer, length, no secrets or home paths, every ticket and repo#number cited must be in the facts, and the coverage the facts list: the headline, each merged and blocked ticket, each count, plain words, no overclaim, the friction gap), and record the window end as sent.
 
 input_model: omnimarket.nodes.node_owner_summary_effect.models.model_owner_summary_request.ModelOwnerSummaryRequest
 output_model: omnimarket.nodes.node_owner_summary_effect.models.model_owner_summary_result.ModelOwnerSummaryResult

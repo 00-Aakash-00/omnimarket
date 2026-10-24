@@ -3,6 +3,7 @@
 """Frozen models for the owner summary."""
 
 from .model_clone_commit import ModelCloneCommit
+from .model_draft_coverage import ModelDraftCoverage
 from .model_lane_closed import ModelLaneClosed
 from .model_lane_started import ModelLaneStarted
 from .model_m4_row import ModelM4Row
@@ -13,6 +14,7 @@ from .model_owner_summary_result import ModelOwnerSummaryResult
 
 __all__ = [
     "ModelCloneCommit",
+    "ModelDraftCoverage",
     "ModelLaneClosed",
     "ModelLaneStarted",
     "ModelM4Row",

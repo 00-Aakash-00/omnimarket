@@ -913,6 +913,18 @@ requirements:
     - id: AC4353
       statement: 'AC4353: Watermark has 12-hour default, last sent start, 48-hour cap and facts/check/mark-sent CLI
         round trip. Falsifier: the focused golden-chain owner-summary tests fail when this behavior is absent.'
+  - id: req-owner-summary-coverage
+    statement: Draft check refuses a draft that leaves out the ticket of a merged change, the ticket of an M4 row, the ticket of a
+      blocked or partial lane, a count the facts hold, the headline, the unconfirmed-running statement, the friction gap or
+      the Gaps section, that uses shorthand, an overclaim or an unsupported superlative, or that cites a change away from its
+      ticket; the facts hand the drafter the same lists.
+    acceptance:
+    - id: AC4354
+      statement: 'AC4354: Draft check refuses a draft that leaves out the ticket of a merged change, the ticket of an M4 row, the
+        ticket of a blocked or partial lane, a count the facts hold, the headline, the unconfirmed-running statement, the
+        friction gap or the Gaps section, that uses shorthand, an overclaim or an unsupported superlative, or that cites a
+        change away from its ticket, and the facts hand the drafter the same lists. Falsifier: the focused golden-chain
+        owner-summary coverage tests fail when this behavior is absent.'
 evidence_requirements:
   - kind: "tests"
     description: "AC71: token-pool unit and contract-handler golden-chain tests use temporary stores and fake tokens."
@@ -3908,6 +3920,17 @@ dod_evidence:
     - check_type: test_passes
       check_value: env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/nodes/node_owner_summary_effect/test_golden_chain_owner_summary.py
         -q --no-cov -p no:randomly --refuse-skips -k 'window or cli'
+      cwd: ${OMNI_HOME}/omnimarket
+  - id: dod-omn17427-owner-summary-coverage
+    source: manual
+    binds_ac:
+    - AC4354
+    description: Exercises the omission, shorthand, overclaim, friction gap and ticket placement refusals, the twelve hour
+      window, and the lists the facts command hands the drafter.
+    checks:
+    - check_type: test_passes
+      check_value: env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/nodes/node_owner_summary_effect/test_golden_chain_owner_summary.py
+        -q --no-cov -p no:randomly --refuse-skips -k coverage
       cwd: ${OMNI_HOME}/omnimarket
   - id: dod-omn17427-owner-summary-deploy-probe
     source: manual

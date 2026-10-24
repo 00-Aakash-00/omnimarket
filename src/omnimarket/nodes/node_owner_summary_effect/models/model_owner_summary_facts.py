@@ -11,6 +11,9 @@ from pydantic import BaseModel, ConfigDict
 from omnimarket.nodes.node_owner_summary_effect.models.model_clone_commit import (
     ModelCloneCommit,
 )
+from omnimarket.nodes.node_owner_summary_effect.models.model_draft_coverage import (
+    ModelDraftCoverage,
+)
 from omnimarket.nodes.node_owner_summary_effect.models.model_lane_closed import (
     ModelLaneClosed,
 )
@@ -52,3 +55,7 @@ class ModelOwnerSummaryFacts(BaseModel):
     friction_reason: str = ""
     friction_top_dropped: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
+    coverage: ModelDraftCoverage = ModelDraftCoverage()
+    open_by_class_plain: dict[str, str] = {}
+    plain_words: dict[str, str] = {}
+    draft_rules: tuple[str, ...] = ()

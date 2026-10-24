@@ -13,12 +13,29 @@ import yaml
 
 from omnimarket.nodes.node_owner_summary_effect.__main__ import main
 from omnimarket.nodes.node_owner_summary_effect.handlers import HandlerOwnerSummary
+from omnimarket.nodes.node_owner_summary_effect.handlers.handler_owner_summary import (
+    CLASS_PLAIN,
+    COVERAGE_SCOPE,
+    DRAFT_RULES,
+    PLAIN_WORDS,
+    TICKET_COVERAGE_LIMIT,
+)
 from omnimarket.nodes.node_owner_summary_effect.models import (
     ModelCloneCommit,
     ModelMergedChange,
     ModelOwnerSummaryFacts,
     ModelOwnerSummaryRequest,
 )
+from omnimarket.nodes.node_owner_summary_effect.models.model_draft_coverage import (
+    ModelDraftCoverage,
+)
+from omnimarket.nodes.node_owner_summary_effect.models.model_lane_closed import (
+    ModelLaneClosed,
+)
+from omnimarket.nodes.node_owner_summary_effect.models.model_lane_started import (
+    ModelLaneStarted,
+)
+from omnimarket.nodes.node_owner_summary_effect.models.model_m4_row import ModelM4Row
 
 pytestmark = pytest.mark.unit
 
@@ -30,9 +47,10 @@ NODE = (
 NOW = datetime(2026, 10, 24, 12, 0, 0, tzinfo=UTC)
 HANDLER = HandlerOwnerSummary()
 GOOD = (
-    "Summary. omnimarket#12 landed OMN-100 and omniclaude#7 landed OMN-200.\n"
-    "*M4 board*\n- nothing moved as of the last lane report.\n"
-    "(via Sam's agent)\n"
+    "1 change merged across 1 repository. 0 work runs (lanes) closed.\n"
+    "Merges are unconfirmed as running. Friction data is unavailable. omnimarket#12 landed OMN-100 and omniclaude#7 landed OMN-200.\n"
+    "*M4 board (milestones)*\n- nothing moved as of the last lane report.\n"
+    "(via Owner's agent)\n"
 )
 
 
@@ -65,7 +83,7 @@ def test_good_draft_passes() -> None:
 
 def test_missing_footer_fails() -> None:
     problems = HANDLER.check_draft(
-        GOOD.replace("(via Sam's agent)", "thanks"), _facts()
+        GOOD.replace("(via Owner's agent)", "thanks"), _facts()
     )
     assert any("footer" in p for p in problems)
 
@@ -83,8 +101,12 @@ def test_fabricated_ticket_and_pr_fail() -> None:
 )
 def test_ticket_ids_require_whole_matches(known: str, cited: str) -> None:
     facts = _facts().model_copy(update={"errors": (known,)})
-    assert HANDLER.check_draft(GOOD + f"{known}\n(via Sam's agent)\n", facts) == []
-    problems = HANDLER.check_draft(GOOD + f"{cited}\n(via Sam's agent)\n", facts)
+    assert (
+        HANDLER.check_draft(GOOD + f"Gaps\n{known}\n(via Owner's agent)\n", facts) == []
+    )
+    problems = HANDLER.check_draft(
+        GOOD + f"Gaps\n{cited}\n(via Owner's agent)\n", facts
+    )
     assert problems == [f"{cited} is not in the facts"]
 
 
@@ -167,7 +189,7 @@ def test_terminal_after_window_does_not_close_claim(
 def test_secret_path_and_length_fail() -> None:
     home = "/".join(["", "Users", "someone", "x"])
     token = "xoxb" + "-1234567890-abcdef"
-    draft = GOOD + f"token {token} {home} " + "word " * 500 + "\n(via Sam's agent)\n"
+    draft = GOOD + f"token {token} {home} " + "word " * 500 + "\n(via Owner's agent)\n"
     text = "\n".join(HANDLER.check_draft(draft, _facts()))
     assert "token-shaped" in text
     assert "home or volume path" in text
@@ -175,11 +197,11 @@ def test_secret_path_and_length_fail() -> None:
 
 
 def test_no_m4_line_and_unavailable_friction_fail() -> None:
-    draft = GOOD.replace("M4", "board") + "*Friction*\n- x\n(via Sam's agent)\n"
+    draft = GOOD.replace("M4", "board") + "*Friction*\n- x\n(via Owner's agent)\n"
     problems = HANDLER.check_draft(draft, _facts())
     assert any("M4" in p for p in problems)
     assert any("Friction section" in p for p in problems)
-    prose = GOOD + "No friction data exists yet.\n(via Sam's agent)\n"
+    prose = GOOD + "No friction data exists yet.\n(via Owner's agent)\n"
     assert HANDLER.check_draft(prose, _facts()) == []
 
 
@@ -241,7 +263,7 @@ def _write_world(tmp_path: Path) -> tuple[Path, Path]:
                 "2026-10-20T10:00:00Z | TERMINAL | lane=old | outcome=done | out of window",
                 "2026-10-24T08:00:00Z | CLAIM | lane=alpha | ticket=OMN-1 | note",
                 "2026-10-24T08:30:00Z | CLAIM | lane=beta | ticket=OMN-2 | note",
-                "2026-10-24T09:00:00Z | TERMINAL | lane=alpha | ticket=OMN-1 | outcome=done"
+                "2026-10-24T09:00:00Z | TERMINAL | lane=alpha | ticket=OMN-1 | outcome=blocked"
                 " | closes-CLAIM=2026-10-24T08:00:00Z | delegated=2 codex=abc | all done",
                 "2026-10-24T09:10:00Z | TERMINAL | lane=landing-L123 | outcome=handed-off | ended",
                 "2026-10-24T10:00:00Z | STATUS | lane=m4-c16-diag | ticket=OMN-3 | C16 red again",
@@ -333,7 +355,11 @@ def test_cli_facts_check_and_mark_sent(
     assert json.loads(facts_text)["window_source"] == "--since"
     (tmp_path / "facts.json").write_text(facts_text)
     (tmp_path / "draft.md").write_text(
-        "a#1 landed OMN-5. M4 unchanged as of the last report.\n(via Sam's agent)\n"
+        "1 change merged across 1 repository. a#1 landed OMN-5.\n"
+        "Merges are unconfirmed as running. Friction data is unavailable. 1 work runs (lanes) closed; "
+        "1 controller worker run closed; 1 started and not closed; 2 open pull requests; 2 failing checks; 1 open pull request is a draft.\n"
+        "OMN-1 blocked. M4 board (milestones): OMN-3 unchanged as of the last report.\n"
+        "(via Owner's agent)\n"
     )
     checked = [
         "check",
@@ -344,7 +370,7 @@ def test_cli_facts_check_and_mark_sent(
     ]
     assert main(checked) == 0
     (tmp_path / "draft.md").write_text(
-        "a#9 landed OMN-9. M4 unchanged.\n(via Sam's agent)\n"
+        "a#9 landed OMN-9. M4 unchanged.\n(via Owner's agent)\n"
     )
     assert main(checked) == 1
     assert "FAIL a#9" in capsys.readouterr().out
@@ -371,3 +397,533 @@ def test_contract_declares_its_topics_and_resolvable_handler() -> None:
     assert contract["runtime_dispatch"]["command_topic"] == bus["subscribe_topics"][0]
     assert contract["terminal_event"] == bus["publish_topics"][0]
     assert contract["node_type"] == "effect"
+
+
+def _coverage_facts() -> ModelOwnerSummaryFacts:
+    merges = (
+        (
+            "omnibase_core",
+            1028,
+            "fix(OMN-17427): the landing-metrics tick passes its ledger to the scorecard step",
+            ("OMN-17427",),
+        ),
+        (
+            "omniclaude",
+            2962,
+            "fix(OMN-21348): on a pull request another branch's hosted placement warns, not fails",
+            ("OMN-21348",),
+        ),
+        *(
+            (
+                "omniintelligence",
+                number,
+                f"chore(deps): bump package-{number} from x to y",
+                (),
+            )
+            for number in (1141, 1142, 1143)
+        ),
+    )
+    return _facts().model_copy(
+        update={
+            "merged_changes": tuple(
+                ModelMergedChange(
+                    repo=repo,
+                    number=number,
+                    title=title,
+                    tickets=tickets,
+                    merged_at=NOW.isoformat(),
+                )
+                for repo, number, title, tickets in merges
+            ),
+            "clone_only_commits": (),
+            "m4_rows": (
+                ModelM4Row(
+                    ts=NOW.isoformat(), row_type="STATUS", lane="m4", ticket="OMN-17292"
+                ),
+            ),
+            "lanes_closed": tuple(
+                ModelLaneClosed(
+                    ts=NOW.isoformat(), lane=f"run-{i}", ticket=ticket, outcome=outcome
+                )
+                for i, (ticket, outcome) in enumerate(
+                    (
+                        ("OMN-20174", "blocked"),
+                        ("OMN-20074", "blocked"),
+                        ("OMN-21099", "partial"),
+                        ("OMN-19998", "done"),
+                        ("OMN-21350", "handed-off"),
+                        ("OMN-16228", "skipped"),
+                    )
+                )
+            ),
+            "lanes_closed_count": 6,
+            "controller_worker_lanes_closed": 93,
+            "lanes_started_not_closed": tuple(
+                ModelLaneStarted(ts=NOW.isoformat(), lane=f"open-{i}") for i in range(2)
+            ),
+            "open_total": 488,
+        }
+    )
+
+
+def _full_draft() -> str:
+    return (
+        "5 changes merged across 3 repositories\n"
+        "(omnibase_core#1028 OMN-17427) passes the shared work log to the report card step.\n"
+        "(omniclaude#2962 OMN-21348) warns when another branch's hosted job runs elsewhere.\n"
+        "3 dependency bumps merged.\n"
+        "6 work runs (lanes) closed; 93 controller worker runs closed; "
+        "2 started and not closed; 488 open pull requests.\n"
+        "M4 board (milestones): OMN-17292. Blocked: OMN-20174, OMN-20074. Partial: OMN-21099.\n"
+        "The merges are unconfirmed as running.\n"
+        "Friction data is unavailable.\n"
+        "(via Owner's agent)\n"
+    )
+
+
+def test_coverage_full_draft_passes() -> None:
+    assert HANDLER.check_draft(_full_draft(), _coverage_facts()) == []
+
+
+@pytest.mark.parametrize("separator", ["(", ")", ";", "\n"])
+def test_coverage_ticket_must_sit_beside_the_change(separator: str) -> None:
+    facts = _coverage_facts()
+    draft = _full_draft().replace(
+        "omnibase_core#1028 OMN-17427",
+        f"omnibase_core#1028{separator}OMN-17427",
+    )
+    assert HANDLER.check_draft(draft, facts) == [
+        "merged changes cited without their ticket in the same group: omnibase_core#1028 (OMN-17427)"
+    ]
+    assert HANDLER.check_draft(_full_draft(), facts) == []
+    repeated = _full_draft().replace(
+        "The merges", "omnibase_core#1028; omnibase_core#1028; The merges"
+    )
+    assert HANDLER.check_draft(repeated, facts) == [
+        "merged changes cited without their ticket in the same group: omnibase_core#1028 (OMN-17427)"
+    ]
+    both = draft.replace("omniclaude#2962 OMN-21348", "omniclaude#2962; OMN-21348")
+    assert HANDLER.check_draft(both, facts) == [
+        "merged changes cited without their ticket in the same group: omnibase_core#1028 (OMN-17427), omniclaude#2962 (OMN-21348)"
+    ]
+    wrong_ticket = _full_draft().replace(
+        "omnibase_core#1028 OMN-17427",
+        "omnibase_core#1028 OMN-17427x; OMN-17427",
+    )
+    assert HANDLER.check_draft(wrong_ticket, facts) == [
+        "merged changes cited without their ticket in the same group: omnibase_core#1028 (OMN-17427)"
+    ]
+    absent = _full_draft().replace("omnibase_core#1028", "the change")
+    assert HANDLER.check_draft(absent, facts) == []
+
+
+def test_coverage_friction_gap_is_named() -> None:
+    facts = _coverage_facts()
+    draft = _full_draft().replace("Friction data is unavailable.\n", "")
+    assert HANDLER.check_draft(draft, facts) == [
+        "the friction data is unavailable; say so in one clause (not as a heading)"
+    ]
+    assert HANDLER.check_draft(_full_draft(), facts) == []
+    assert (
+        HANDLER.check_draft(_full_draft().replace("Friction", "FRICTION"), facts) == []
+    )
+    assert (
+        HANDLER.check_draft(draft, facts.model_copy(update={"friction_status": "ok"}))
+        == []
+    )
+
+
+def test_coverage_superlatives_are_refused() -> None:
+    draft = _full_draft().replace(
+        "The merges", "First, only, fully, entirely, entire. FIRST. The merges"
+    )
+    assert HANDLER.check_draft(draft, _coverage_facts()) == [
+        f'"{word}" asserts what no fact row says; drop it or cite the row'
+        for word in ("first", "only", "fully", "entirely", "entire")
+    ]
+
+
+def test_coverage_headline_must_match_the_facts() -> None:
+    headline = "5 changes merged across 3 repositories"
+    for replacement in ("10 changes merged across 4 repositories", ""):
+        assert HANDLER.check_draft(
+            _full_draft().replace(headline, replacement), _coverage_facts()
+        ) == [f'the opening must say "{headline}"']
+
+
+def test_coverage_every_merged_ticket_is_cited() -> None:
+    assert HANDLER.check_draft(
+        _full_draft().replace("OMN-17427", ""), _coverage_facts()
+    ) == [
+        "tickets not cited (M4 rows, merged changes, blocked or partial lanes): OMN-17427",
+        "merged changes cited without their ticket in the same group: omnibase_core#1028 (OMN-17427)",
+    ]
+    facts = _coverage_facts()
+    untracked = facts.merged_changes[0].model_copy(update={"tickets": ()})
+    facts = facts.model_copy(
+        update={"merged_changes": (untracked, *facts.merged_changes[1:])}
+    )
+    assert HANDLER.coverage_of(facts).untracked_changes == ("omnibase_core#1028",)
+    for replacement in (
+        "the change",
+        "omnibase_core#10280",
+        "omnibase_core#1028x",
+    ):
+        problems = HANDLER.check_draft(
+            _full_draft().replace("omnibase_core#1028", replacement), facts
+        )
+        assert "merged changes with no ticket not cited: omnibase_core#1028" in problems
+    assert HANDLER.coverage_of(_coverage_facts()).merged_tickets == (
+        "OMN-17427",
+        "OMN-21348",
+    )
+
+
+def test_coverage_dependency_bumps_are_said_once() -> None:
+    assert HANDLER.check_draft(
+        _full_draft().replace("3 dependency bumps merged.", ""), _coverage_facts()
+    ) == ["3 dependency bumps merged; say so in one clause"]
+
+
+def test_coverage_m4_ticket_is_cited() -> None:
+    assert HANDLER.check_draft(
+        _full_draft().replace("OMN-17292", ""), _coverage_facts()
+    ) == [
+        "tickets not cited (M4 rows, merged changes, blocked or partial lanes): OMN-17292"
+    ]
+
+
+def test_coverage_blocked_and_partial_tickets_are_cited() -> None:
+    facts = _coverage_facts()
+    assert HANDLER.check_draft(
+        _full_draft().replace("OMN-20174", "").replace("OMN-21099", ""), facts
+    ) == [
+        "tickets not cited (M4 rows, merged changes, blocked or partial lanes): OMN-20174, OMN-21099"
+    ]
+    assert not {"OMN-19998", "OMN-21350", "OMN-16228"}.intersection(
+        HANDLER.coverage_of(facts).tickets
+    )
+
+
+def test_coverage_counts_are_stated() -> None:
+    assert HANDLER.check_draft(_full_draft().replace("93", ""), _coverage_facts()) == [
+        "numbers not stated: controller worker lanes closed 93"
+    ]
+
+
+@pytest.mark.parametrize(
+    "term",
+    [
+        "green",
+        "ledger",
+        "landing controller",
+        "routing receipt",
+        "steering prompts",
+        "placement",
+        "red",
+        "installer contract",
+        "launch unit",
+        "pinned",
+        "quorum",
+        "heartbeat",
+        "compaction",
+        "claims table",
+        "scorecard",
+    ],
+)
+def test_coverage_plain_language_refuses_shorthand(term: str) -> None:
+    addition = "green but not armed" if term == "green" else term
+    matched = ("green", "armed") if term == "green" else (term,)
+    assert HANDLER.check_draft(_full_draft(), _coverage_facts()) == []
+    assert HANDLER.check_draft(
+        _full_draft().replace("The merges", f"{addition}. The merges"),
+        _coverage_facts(),
+    ) == [
+        f'"{word}" is shorthand; write "{PLAIN_WORDS[word.rstrip("s") if word == "steering prompts" else word]}"'
+        for word in matched
+    ]
+
+
+def test_coverage_lanes_and_m4_are_glossed() -> None:
+    draft = _full_draft().replace("work runs", "runs").replace("milestones", "board")
+    assert HANDLER.check_draft(draft, _coverage_facts()) == [
+        'define lanes once: write "work runs (lanes)"',
+        'define M4 once: write "M4 board (milestones)"',
+    ]
+
+
+def test_coverage_overclaim_and_unconfirmed() -> None:
+    for phrase, match in (
+        ("can now be scheduled", "can now"),
+        ("now always reads", "now always"),
+    ):
+        assert HANDLER.check_draft(
+            _full_draft().replace("The merges", f"It {phrase}. The merges"),
+            _coverage_facts(),
+        ) == [
+            f'"{match}" claims a running service; a merge is a change, say what is unconfirmed'
+        ]
+    assert HANDLER.check_draft(
+        _full_draft().replace("The merges are unconfirmed as running.", ""),
+        _coverage_facts(),
+    ) == [
+        "the draft never says the merges are unconfirmed as running; a merge is not a deploy"
+    ]
+
+
+def test_coverage_gaps_section_is_required_for_errors() -> None:
+    facts = _coverage_facts().model_copy(
+        update={"errors": ("pr watcher state is 3000 s old",)}
+    )
+    assert HANDLER.check_draft(_full_draft(), facts) == [
+        "the facts hold errors; add a Gaps section that names each one"
+    ]
+    assert (
+        HANDLER.check_draft(
+            _full_draft().replace(
+                "(via",
+                "Gaps\nThe pull request watcher state is 3000 seconds old.\n(via",
+            ),
+            facts,
+        )
+        == []
+    )
+
+
+def test_coverage_ticket_list_is_bounded() -> None:
+    facts = _coverage_facts().model_copy(
+        update={
+            "lanes_closed": tuple(
+                ModelLaneClosed(
+                    ts=NOW.isoformat(),
+                    lane=f"blocked-{i}",
+                    ticket=f"OMN-{30000 + i}",
+                    outcome="blocked",
+                )
+                for i in range(30)
+            ),
+            "lanes_closed_count": 30,
+        }
+    )
+    assert HANDLER.coverage_of(facts).tickets == (
+        "OMN-17292",
+        "OMN-17427",
+        "OMN-21348",
+        *(f"OMN-{30000 + i}" for i in range(TICKET_COVERAGE_LIMIT - 3)),
+    )
+    assert len(HANDLER.coverage_of(facts).tickets) == TICKET_COVERAGE_LIMIT
+
+
+def test_coverage_is_derived_from_the_facts_not_the_stored_copy() -> None:
+    facts = _coverage_facts()
+    old = facts.model_dump(
+        exclude={"coverage", "open_by_class_plain", "plain_words", "draft_rules"}
+    )
+    restored = ModelOwnerSummaryFacts.model_validate_json(json.dumps(old))
+    assert HANDLER.coverage_of(restored) == HANDLER.coverage_of(facts)
+    assert HANDLER.coverage_of(restored).tickets == (
+        "OMN-17292",
+        "OMN-17427",
+        "OMN-21348",
+        "OMN-20174",
+        "OMN-20074",
+        "OMN-21099",
+    )
+    empty = facts.model_copy(update={"coverage": ModelDraftCoverage()})
+    assert HANDLER.check_draft(_full_draft().replace("OMN-17292", ""), empty) == [
+        "tickets not cited (M4 rows, merged changes, blocked or partial lanes): OMN-17292"
+    ]
+
+
+def test_coverage_facts_command_hands_the_drafter_its_lists(tmp_path: Path) -> None:
+    root, ledger = _write_world(tmp_path)
+    result = HANDLER.handle(
+        ModelOwnerSummaryRequest(
+            command="facts",
+            root=root,
+            ledger=ledger,
+            since="2026-10-24T00:00:00Z",
+            now=NOW.isoformat(),
+        )
+    )
+    assert result.exit_code == 0
+    facts = result.facts
+    assert facts is not None
+    assert facts.coverage.headline == "1 change merged across 1 repository"
+    assert facts.coverage.merged_tickets == ("OMN-5",)
+    assert facts.coverage.untracked_changes == ()
+    assert facts.coverage.tickets == ("OMN-3", "OMN-5", "OMN-1")
+    assert facts.coverage.counts == {
+        "lanes closed": 1,
+        "controller worker lanes closed": 1,
+        "lanes started and not closed": 1,
+        "open pull requests": 2,
+        "failing checks": 2,
+        "open pull requests that are drafts": 1,
+    }
+    assert facts.open_by_class_plain == {"red": "failing checks"}
+    assert "ledger" in facts.plain_words
+    assert facts.draft_rules == DRAFT_RULES
+    assert len(DRAFT_RULES) == 7
+    assert DRAFT_RULES[6] == (
+        "Cite a merged change inside the same parentheses or semicolon group as its ticket; name the friction gap in one clause; do not write first, only, fully or entire."
+    )
+    assert DRAFT_RULES[0] == (
+        "After the greeting and the window, state the coverage headline, then give each non-dependency merged change as repo#number with its ticket; the dependency bumps get one clause with their count and no ids."
+    )
+
+
+def test_coverage_scope_describes_the_check(tmp_path: Path) -> None:
+    root, ledger = _write_world(tmp_path)
+    result = HANDLER.handle(
+        ModelOwnerSummaryRequest(
+            command="facts",
+            root=root,
+            ledger=ledger,
+            since="2026-10-24T00:00:00Z",
+            now=NOW.isoformat(),
+        )
+    )
+    assert result.exit_code == 0
+    assert result.facts is not None
+    assert result.facts.coverage.scope == COVERAGE_SCOPE
+    assert "tickets" in COVERAGE_SCOPE
+    assert "counts" in COVERAGE_SCOPE
+    old = result.facts.model_dump(exclude={"coverage"})
+    restored = ModelOwnerSummaryFacts.model_validate_json(json.dumps(old))
+    assert restored.coverage.scope == ""
+    assert HANDLER.coverage_of(restored).scope == COVERAGE_SCOPE
+
+
+def test_coverage_dry_run_round_trip_through_the_cli(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root, ledger = _write_world(tmp_path)
+    assert (
+        main(
+            [
+                "facts",
+                "--omni-home",
+                str(root),
+                "--ledger",
+                str(ledger),
+                "--since",
+                "2026-10-24T00:00:00Z",
+                "--now",
+                NOW.isoformat(),
+            ]
+        )
+        == 0
+    )
+    facts_file = tmp_path / "facts.json"
+    facts_file.write_text(capsys.readouterr().out)
+    draft_file = tmp_path / "draft.md"
+    draft = (
+        "1 change merged across 1 repository. a#1 changed OMN-5.\n"
+        "1 work runs (lanes) closed; 1 controller worker run closed; "
+        "1 started and not closed; 2 open pull requests; 2 failing checks; 1 open pull request is a draft.\n"
+        "M4 board (milestones): OMN-3. Blocked: OMN-1.\n"
+        "Merges are unconfirmed as running. Friction data is unavailable.\n(via Owner's agent)\n"
+    )
+    checked = ["check", "--draft", str(draft_file), "--facts", str(facts_file)]
+    draft_file.write_text(draft.replace("OMN-3", ""))
+    assert main(checked) == 1
+    output = capsys.readouterr().out
+    assert "FAIL" in output
+    assert "OMN-3" in output
+    draft_file.write_text(draft)
+    assert main(checked) == 0
+    assert "PASS" in capsys.readouterr().out
+
+
+def test_coverage_every_reviewer_class_has_a_rule() -> None:
+    facts = _coverage_facts()
+    drafts = {
+        "headline/merge omitted": _full_draft().replace("OMN-17427", ""),
+        "counts": _full_draft().replace("93", ""),
+        "M4 ticket": _full_draft().replace("OMN-17292", ""),
+        "blocked/partial ticket": _full_draft().replace("OMN-21099", ""),
+        "shorthand": _full_draft().replace("The merges", "green. The merges"),
+        "overclaim": _full_draft().replace("The merges", "It can now run. The merges"),
+        "gaps": _full_draft(),
+    }
+    for category, draft in drafts.items():
+        case = (
+            facts.model_copy(update={"errors": ("source unavailable",)})
+            if category == "gaps"
+            else facts
+        )
+        assert HANDLER.check_draft(draft, case), category
+    assert HANDLER.check_draft(_full_draft(), facts) == []
+
+
+def test_coverage_scales_to_a_twelve_hour_window() -> None:
+    tickets = tuple(f"OMN-{40000 + i}" for i in range(12))
+    facts = _facts().model_copy(
+        update={
+            "merged_changes": tuple(
+                ModelMergedChange(
+                    repo="omnimarket",
+                    number=i + 1,
+                    title="feature" if i < 60 else "chore(deps): update package",
+                    tickets=(tickets[i % 12],) if i < 60 else (),
+                    merged_at=(
+                        NOW - timedelta(hours=12) + timedelta(minutes=10 * (i + 1))
+                    ).isoformat(),
+                )
+                for i in range(63)
+            ),
+            "clone_only_commits": (),
+        }
+    )
+    coverage = HANDLER.coverage_of(facts)
+    assert coverage.merged_tickets == tickets
+    assert coverage.untracked_changes == ()
+    assert coverage.dependency_changes == 3
+    draft = (
+        "63 changes merged across 1 repository. 3 dependency bumps. "
+        + "; ".join(f"omnimarket#{i + 1} {tickets[i % 12]}" for i in range(60))
+        + " M4 board (milestones). Merges are unconfirmed as running. Friction data is unavailable. "
+    )
+    footer = "(via Owner's agent)"
+    draft += " ".join(["update"] * (400 - len(draft.split()) - len(footer.split())))
+    draft += "\n" + footer
+    assert len(draft.split()) == 400
+    assert HANDLER.check_draft(draft, facts) == []
+
+
+def test_coverage_queue_classes_are_counted() -> None:
+    classes = {
+        "green-unarmed": 71,
+        "red": 52,
+        "pending": 33,
+        "custom": 24,
+        "queued": 24,
+        "unread": 10,
+    }
+    facts = _coverage_facts().model_copy(
+        update={"open_by_class": classes, "open_drafts": 8}
+    )
+    assert HANDLER.coverage_of(facts).counts == {
+        "lanes closed": 6,
+        "controller worker lanes closed": 93,
+        "lanes started and not closed": 2,
+        "open pull requests": 488,
+        CLASS_PLAIN["green-unarmed"]: 71,
+        CLASS_PLAIN["red"]: 52,
+        CLASS_PLAIN["pending"]: 33,
+        "custom": 24,
+        "open pull requests that are drafts": 8,
+    }
+    draft = _full_draft().replace(
+        "(via", "52 failing checks; 33 checks still running; 24 custom; 8 drafts.\n(via"
+    )
+    assert HANDLER.check_draft(draft, facts) == [
+        "numbers not stated: passing checks, not set to merge automatically 71"
+    ]
+    assert (
+        HANDLER.check_draft(
+            draft.replace("52 failing", "71 passing checks; 52 failing"), facts
+        )
+        == []
+    )

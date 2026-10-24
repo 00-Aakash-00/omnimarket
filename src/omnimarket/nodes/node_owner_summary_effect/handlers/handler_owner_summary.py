@@ -29,6 +29,9 @@ from typing import Any, Literal
 from omnimarket.nodes.node_owner_summary_effect.models.model_clone_commit import (
     ModelCloneCommit,
 )
+from omnimarket.nodes.node_owner_summary_effect.models.model_draft_coverage import (
+    ModelDraftCoverage,
+)
 from omnimarket.nodes.node_owner_summary_effect.models.model_lane_closed import (
     ModelLaneClosed,
 )
@@ -68,6 +71,86 @@ SECRET_PATTERN = re.compile(
     r"xox[abprs]-[A-Za-z0-9-]{10,}|gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}"
 )
 HOME_PATH_PATTERN = re.compile(r"/(?:Users|home|Volumes)/[A-Za-z]")
+DEPENDENCY_TITLE = re.compile(r"^\s*(?:chore|build)\(deps(?:-dev)?\)", re.IGNORECASE)
+TICKET_COVERAGE_LIMIT = 30
+HEADLINE_PATTERN = re.compile(
+    r"(\d+) changes? merged across (\d+) repositor(?:y|ies)", re.IGNORECASE
+)
+GAPS_HEADING = re.compile(r"(?im)^\W*gaps?\b")
+DEPENDENCY_WORD = re.compile(r"dependenc", re.IGNORECASE)
+UNCONFIRMED = re.compile(
+    r"\b(?:unconfirmed|unverified|not (?:yet )?(?:confirmed|verified|shown|running|deployed)"
+    r"|none confirmed|no confirmation)\b",
+    re.IGNORECASE,
+)
+OVERCLAIM = re.compile(
+    r"\b(?:can now|is now|are now|now (?:always|reads|runs|works|writes|passes))\b",
+    re.IGNORECASE,
+)
+LANE_WORD = re.compile(r"\blanes?\b", re.IGNORECASE)
+WORK_RUN_WORD = re.compile(r"\bwork runs?\b", re.IGNORECASE)
+SUPERLATIVE = re.compile(r"\b(?:first|only|fully|entire(?:ly)?)\b", re.IGNORECASE)
+MILESTONE_WORD = re.compile(r"\bmilestones?\b", re.IGNORECASE)
+_JARGON_SOURCE = (
+    (r"\bgreen\b", ("green",), "passing checks"),
+    (r"\bred\b", ("red",), "failing checks"),
+    (
+        r"\b(?:un)?armed\b",
+        ("armed", "unarmed"),
+        "set (or not set) to merge automatically",
+    ),
+    (r"\bledger\b", ("ledger",), "shared work log"),
+    (
+        r"\blanding controller\b",
+        ("landing controller",),
+        "the program that lands pull requests",
+    ),
+    (r"\brouting receipts?\b", ("routing receipt",), "recorded routing evidence"),
+    (r"\bsteering prompts?\b", ("steering prompt",), "operator corrections"),
+    (r"\bticks?\b", ("tick",), "scheduled run"),
+    (r"\bvoters?\b", ("voter",), "automated reviewer"),
+    (r"\bgateway\b", ("gateway",), "review service"),
+    (r"\bworktrees?\b", ("worktree",), "working copy"),
+    (r"\bplacement\b", ("placement",), "where a job runs"),
+    (r"\bplists?\b", ("plist",), "launch settings"),
+    (r"\binstaller contract\b", ("installer contract",), "setup for the scheduled job"),
+    (r"\blaunch units?\b", ("launch unit",), "scheduled-job setup"),
+    (r"\bpinned\b", ("pinned",), "fixed to one"),
+    (r"\bquorum\b", ("quorum",), "enough reviewers agreeing"),
+    (r"\bheartbeat\b", ("heartbeat",), "status signal"),
+    (r"\bcompaction\b", ("compaction",), "trimming a long session"),
+    (r"\bclaims? tables?\b", ("claims table",), "record table"),
+    (r"\bscorecard\b", ("scorecard",), "report card"),
+)
+JARGON: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(pattern, re.IGNORECASE), plain) for pattern, _, plain in _JARGON_SOURCE
+)
+PLAIN_WORDS: dict[str, str] = {
+    term: plain for _, terms, plain in _JARGON_SOURCE for term in terms
+} | {
+    "lane": 'work run (write "work runs (lanes)" once, then either word)',
+    "M4": 'milestones (write "M4 board (milestones)" once)',
+}
+CLASS_PLAIN: dict[str, str] = {
+    "red": "failing checks",
+    "green-unarmed": "passing checks, not set to merge automatically",
+    "green-armed": "passing checks, set to merge automatically",
+    "queue-stuck": "stuck in the merge queue",
+    "held-excluded": "deliberately held back",
+    "pending": "checks still running",
+    "queued": "waiting in the merge queue",
+    "unread": "not yet looked at",
+}
+DRAFT_RULES: tuple[str, ...] = (
+    "After the greeting and the window, state the coverage headline, then give each non-dependency merged change as repo#number with its ticket; the dependency bumps get one clause with their count and no ids.",
+    "Cite every ticket in coverage.tickets and state every number in coverage.counts (the queue figures are as of generated_at); check refuses a draft that leaves one out. A ticket costs one word, so group them.",
+    "Put a lane's report under that lane's own ticket (lanes_closed ticket); when two reports of the same subject disagree, give both with their tickets.",
+    "Say a merge as its title does (a configuration or code change); a merge is not a running service, so say what is unconfirmed.",
+    "Scope every figure to its row: the snapshot time, the batch, the hosts checked; never write all or every unless one row says so.",
+    'Use plain_words and open_by_class_plain for any term a non-specialist would not follow; write "work runs (lanes)" and "M4 board (milestones)" once.',
+    "Cite a merged change inside the same parentheses or semicolon group as its ticket; name the friction gap in one clause; do not write first, only, fully or entire.",
+)
+COVERAGE_SCOPE = "The check requires every ticket in tickets and every number in counts. Other closed lanes enter the draft through lanes_closed_by_outcome."
 
 
 def _iso(value: datetime) -> str:
@@ -490,10 +573,75 @@ class HandlerOwnerSummary:
             friction_top_dropped=friction_top,
             errors=tuple(errors),
         )
+        facts = facts.model_copy(
+            update={
+                "coverage": self.coverage_of(facts),
+                "open_by_class_plain": {
+                    key: CLASS_PLAIN.get(key, key) for key in facts.open_by_class
+                },
+                "plain_words": PLAIN_WORDS.copy(),
+                "draft_rules": DRAFT_RULES,
+            }
+        )
         return ModelOwnerSummaryResult(
             exit_code=0,
             message=f"{len(merged)} merges, {lanes['count']} lanes closed",
             facts=facts,
+        )
+
+    @staticmethod
+    def coverage_of(facts: ModelOwnerSummaryFacts) -> ModelDraftCoverage:
+        """Derive required coverage from source facts, including older facts files."""
+        changes = tuple(
+            change
+            for change in facts.merged_changes
+            if not DEPENDENCY_TITLE.match(change.title)
+        )
+        merged_tickets = tuple(
+            dict.fromkeys(ticket for change in changes for ticket in change.tickets)
+        )
+        untracked_changes = tuple(
+            f"{change.repo}#{change.number}" for change in changes if not change.tickets
+        )
+        n = len(facts.merged_changes)
+        r = len({change.repo for change in facts.merged_changes})
+        headline = ""
+        if n:
+            headline = (
+                f"{n} {'change' if n == 1 else 'changes'} merged across "
+                f"{r} {'repository' if r == 1 else 'repositories'}"
+            )
+        tickets = list(dict.fromkeys(row.ticket for row in facts.m4_rows if row.ticket))
+        tickets.extend(ticket for ticket in merged_tickets if ticket not in tickets)
+        for outcome in ("blocked", "partial"):
+            for lane in facts.lanes_closed:
+                if (
+                    lane.outcome == outcome
+                    and lane.ticket
+                    and lane.ticket not in tickets
+                ):
+                    tickets.append(lane.ticket)
+        counts = {
+            "lanes closed": facts.lanes_closed_count,
+            "controller worker lanes closed": facts.controller_worker_lanes_closed,
+            "lanes started and not closed": len(facts.lanes_started_not_closed),
+            "open pull requests": facts.open_total,
+        }
+        counts.update(
+            (CLASS_PLAIN.get(cls, cls), number)
+            for cls, number in sorted(
+                facts.open_by_class.items(), key=lambda item: (-item[1], item[0])
+            )[:4]
+        )
+        counts["open pull requests that are drafts"] = facts.open_drafts
+        return ModelDraftCoverage(
+            scope=COVERAGE_SCOPE,
+            headline=headline,
+            merged_tickets=merged_tickets,
+            untracked_changes=untracked_changes,
+            dependency_changes=n - len(changes),
+            tickets=tuple(tickets[:TICKET_COVERAGE_LIMIT]),
+            counts={label: number for label, number in counts.items() if number > 0},
         )
 
     @staticmethod
@@ -532,6 +680,104 @@ class HandlerOwnerSummary:
         if facts.friction_status != "ok" and FRICTION_HEADING.search(text):
             problems.append(
                 "the draft has a Friction section but the friction data is unavailable"
+            )
+        cov = HandlerOwnerSummary.coverage_of(facts)
+        if cov.headline:
+            headline = HEADLINE_PATTERN.search(text)
+            expected_counts = (
+                len(facts.merged_changes),
+                len({change.repo for change in facts.merged_changes}),
+            )
+            actual_counts = None
+            if headline:
+                actual_counts = (int(headline.group(1)), int(headline.group(2)))
+            if actual_counts != expected_counts:
+                problems.append(f'the opening must say "{cov.headline}"')
+        missing_changes = [
+            change
+            for change in cov.untracked_changes
+            if not re.search(rf"(?<![\w.-]){re.escape(change)}(?![\w.-])", text)
+        ]
+        if missing_changes:
+            problems.append(
+                f"merged changes with no ticket not cited: {', '.join(missing_changes)}"
+            )
+        if cov.dependency_changes and not DEPENDENCY_WORD.search(text):
+            problems.append(
+                f"{cov.dependency_changes} dependency bumps merged; say so in one clause"
+            )
+        missing_tickets = [
+            ticket
+            for ticket in cov.tickets
+            if not re.search(rf"(?<!\w){re.escape(ticket)}(?!\d)", text)
+        ]
+        if missing_tickets:
+            problems.append(
+                "tickets not cited (M4 rows, merged changes, blocked or partial lanes): "
+                + ", ".join(missing_tickets)
+            )
+        missing_counts = [
+            f"{label} {number}"
+            for label, number in cov.counts.items()
+            if not re.search(rf"(?<![\w#-]){number}(?![\w-])", text)
+        ]
+        if missing_counts:
+            problems.append("numbers not stated: " + "; ".join(missing_counts))
+        for pattern, plain in JARGON:
+            match = pattern.search(text)
+            if match:
+                problems.append(
+                    f'"{match.group().lower()}" is shorthand; write "{plain}"'
+                )
+        if LANE_WORD.search(text) and not WORK_RUN_WORD.search(text):
+            problems.append('define lanes once: write "work runs (lanes)"')
+        if "M4" in text and not MILESTONE_WORD.search(text):
+            problems.append('define M4 once: write "M4 board (milestones)"')
+        for claim in dict.fromkeys(match.lower() for match in OVERCLAIM.findall(text)):
+            problems.append(
+                f'"{claim}" claims a running service; a merge is a change, '
+                "say what is unconfirmed"
+            )
+        has_changes = bool(facts.merged_changes or facts.clone_only_commits)
+        if has_changes and not UNCONFIRMED.search(text):
+            problems.append(
+                "the draft never says the merges are unconfirmed as running; "
+                "a merge is not a deploy"
+            )
+        if facts.errors and not GAPS_HEADING.search(text):
+            problems.append(
+                "the facts hold errors; add a Gaps section that names each one"
+            )
+        groups = re.split(r"[();\n]", text)
+        without_tickets: list[str] = []
+        for change in facts.merged_changes:
+            if not change.tickets or DEPENDENCY_TITLE.search(change.title):
+                continue
+            reference = f"{change.repo}#{change.number}"
+            if any(
+                re.search(rf"(?<![\w.-]){re.escape(reference)}(?![\w.-])", group)
+                and not set(change.tickets).intersection(TICKET_PATTERN.findall(group))
+                for group in groups
+            ):
+                label = f"{reference} ({change.tickets[0]})"
+                if label not in without_tickets:
+                    without_tickets.append(label)
+        if without_tickets:
+            problems.append(
+                "merged changes cited without their ticket in the same group: "
+                + ", ".join(without_tickets)
+            )
+        if facts.friction_status != "ok" and not re.search(
+            r"\bfriction\b", text, re.IGNORECASE
+        ):
+            problems.append(
+                "the friction data is unavailable; say so in one clause (not as a heading)"
+            )
+        for claim in dict.fromkeys(
+            match.lower() for match in SUPERLATIVE.findall(text)
+        ):
+            problems.append(
+                f'"{claim}" asserts what no fact row says; drop it or cite the row'
             )
         return problems
 
