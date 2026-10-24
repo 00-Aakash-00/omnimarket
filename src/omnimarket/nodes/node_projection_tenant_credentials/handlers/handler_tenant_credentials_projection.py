@@ -60,6 +60,7 @@ Two invariants govern the overlay half, both fail-CLOSED:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -78,6 +79,11 @@ from omnimarket.routing.byok_provider_backends import (
     resolve_byok_provider_backend,
 )
 from omnimarket.routing.tenant_overlay_resolver import BYOK_ALL_TASK_TYPES
+
+from .handler_tenant_credentials_store import (
+    registered_expected_version,
+    registered_models,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -261,6 +267,8 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
                     "persisting a secret value into the ref catalog)"
                 )
 
+        models = registered_models(data)
+        expected_version = registered_expected_version(data)
         rows = await self.db_for(self._table_credentials, operation="write").execute(
             f"""
             INSERT INTO {self._table_credentials} (
@@ -310,7 +318,9 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
             provider=str(provider),
             api_key_ref=str(api_key_ref),
             plan=_registered_plan(data),
-            model=_registered_model(data),
+            model=models[0] if models else _registered_model(data),
+            models=models,
+            expected_version=expected_version,
         )
         await self._publish_snapshot_if_available(rows[0] if rows else None, meta, data)
         return True
@@ -323,6 +333,8 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
         api_key_ref: str,
         plan: str | None = None,
         model: str = BYOK_MODEL_UNRESOLVED,
+        models: list[str] | None = None,
+        expected_version: int | None = None,
     ) -> bool:
         """Mint the route that actually selects this customer's key (OMN-17372).
 
@@ -365,6 +377,50 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
             )
             return False
 
+        if expected_version is not None:
+            rows = await self.db_for(
+                self._table_routing_overlay, operation="write"
+            ).execute(
+                f"""
+                UPDATE {self._table_routing_overlay}
+                SET backend_id = $3, provider = $4, endpoint_url = $5,
+                    model_name = $6, secret_ref = $7, timeout_ms = $8,
+                    max_tokens = $9, models = $10::JSONB, version = version + 1,
+                    updated_at = NOW()
+                WHERE tenant_id = $1 AND task_type = $2 AND version = $11
+                  AND NOT EXISTS (SELECT 1 FROM {self._table_credentials}
+                      WHERE api_key_ref = $7 AND revoked_at IS NOT NULL)
+                RETURNING tenant_id, task_type, backend_id, secret_ref, version
+                """,
+                tenant_id,
+                BYOK_ALL_TASK_TYPES,
+                backend.backend_id,
+                backend.provider,
+                backend.endpoint_url,
+                model,
+                api_key_ref,
+                backend.timeout_ms,
+                backend.max_tokens,
+                json.dumps(models or []),
+                expected_version,
+                tenant=tenant_id,
+            )
+            if not rows:
+                current = await self.db_for(
+                    self._table_routing_overlay, operation="write"
+                ).execute(
+                    f"SELECT version FROM {self._table_routing_overlay} WHERE tenant_id = $1 AND task_type = $2",
+                    tenant_id,
+                    BYOK_ALL_TASK_TYPES,
+                    tenant=tenant_id,
+                )
+                logger.warning(
+                    "credential_models_version_conflict tenant_id=%s current_version=%s",
+                    tenant_id,
+                    current[0]["version"] if current else None,
+                )
+            return bool(rows)
+
         # The guard is the whole reason this is INSERT ... SELECT ... WHERE
         # NOT EXISTS rather than a plain VALUES upsert. credential-registered
         # and credential-revoked arrive on two topics with no cross-topic
@@ -379,11 +435,11 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
             f"""
             INSERT INTO {self._table_routing_overlay} (
               tenant_id, task_type, backend_id, provider, endpoint_url, model_name,
-              secret_ref, timeout_ms, max_tokens, created_at, updated_at
+              secret_ref, timeout_ms, max_tokens, created_at, updated_at, models, version
             )
             SELECT
               $1::TEXT, $2::TEXT, $3::TEXT, $4::TEXT, $5::TEXT, $6::TEXT,
-              $7::TEXT, $8::INTEGER, $9::INTEGER, NOW(), NOW()
+              $7::TEXT, $8::INTEGER, $9::INTEGER, NOW(), NOW(), $10::JSONB, 1
             WHERE NOT EXISTS (
               SELECT 1 FROM {self._table_credentials}
                WHERE api_key_ref = $7::TEXT
@@ -397,7 +453,11 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
               secret_ref = EXCLUDED.secret_ref,
               timeout_ms = EXCLUDED.timeout_ms,
               max_tokens = EXCLUDED.max_tokens,
+              models = EXCLUDED.models,
+              version = {self._table_routing_overlay}.version + 1,
               updated_at = NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM {self._table_credentials}
+                WHERE api_key_ref = $7::TEXT AND revoked_at IS NOT NULL)
             RETURNING tenant_id, task_type, backend_id, secret_ref
             """,
             tenant_id,
@@ -409,6 +469,7 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
             api_key_ref,
             backend.timeout_ms,
             backend.max_tokens,
+            json.dumps(models or []),
             # OMN-15919: bind app.tenant_id to the tenant this statement
             # actually names. The adapter previously derived the GUC on its
             # own from resolve_read_tenant(None) -- a second resolver that
@@ -544,7 +605,7 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
         ).execute(
             f"""
             UPDATE {self._table_routing_overlay}
-               SET secret_ref = NULL,
+               SET secret_ref = NULL, version = version + 1,
                    updated_at = NOW()
              WHERE tenant_id = $1::TEXT
                AND secret_ref = $2::TEXT

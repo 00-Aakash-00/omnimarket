@@ -294,6 +294,32 @@ class ModelInferenceCredentialCreateRequest(BaseModel):
         ),
     )
 
+    models: list[str] | None = Field(default=None, min_length=1)
+    expected_version: int | None = Field(default=None, strict=True, gt=0)
+
+    @field_validator("models")
+    @classmethod
+    def _validate_models(cls, models: list[str] | None) -> list[str] | None:
+        if models is None:
+            return None
+        if any(not model.strip() or len(model) > 200 for model in models):
+            raise ValueError(
+                "Each model must be a nonblank provider ID of at most 200 characters"
+            )
+        if len(set(models)) != len(models):
+            raise ValueError("Models must be distinct and ordered")
+        return models
+
+    @model_validator(mode="after")
+    def _normalize_model_alias(self) -> ModelInferenceCredentialCreateRequest:
+        if self.model is not None and self.models is not None:
+            raise ValueError("Choose model or models, not both")
+        if self.model is not None:
+            if not self.model.strip():
+                raise ValueError("Model must not be blank")
+            object.__setattr__(self, "models", [self.model])
+        return self
+
     expires_at: datetime | None = Field(
         default=None,
         description=(
@@ -457,6 +483,8 @@ class ModelInferenceCredentialResponse(BaseModel):
     #: which the route runs. ``None`` when the list could not be read at
     #: registration; the effect then resolves it at the first delegation.
     model: str | None = None
+    models: list[str] = Field(default_factory=list)
+    expected_version: int | None = Field(default=None, strict=True, gt=0)
     #: OMN-20991. The expiry recorded with the credential, if one was given.
     expires_at: datetime | None = None
     #: OMN-20991. Set when the expiry is absent or is not January 1. A warning,
@@ -494,6 +522,8 @@ class ModelCredentialRegisteredEvent(BaseModel):
     name: str
     api_key_ref: str
     metadata: dict[str, str] = Field(default_factory=dict)
+    models: list[str] | None = None
+    expected_version: int | None = Field(default=None, strict=True, gt=0)
     # A locally set key carries both (the local secret store effect); the hosted
     # path does not send them, so they stay optional and an older producer's
     # event still validates. The fingerprint is the first 8 hex characters of
@@ -880,10 +910,19 @@ async def register_inference_credential(
         CredentialStoreUnavailableError: store configured but unauthenticated.
         CredentialStoreWriteRejectedError: the store declined the write.
     """
+    if not request.models:
+        raise CredentialKeyRefusedError(
+            request.provider, "not_chosen", model_not_chosen_message(request.provider)
+        )
     plan, detected_model = await _resolve_registration_plan(request, plan_detector)
-    model = await _resolve_registration_model(
-        request, plan, detected_model, model_discoverer
-    )
+    for choice in request.models:
+        await _resolve_registration_model(
+            request.model_copy(update={"model": choice}),
+            plan,
+            detected_model,
+            model_discoverer,
+        )
+    model = request.models[0]
     api_key_ref = mint_api_key_ref(tenant_id, request.provider)
 
     owns_store = secret_store is None
@@ -909,6 +948,8 @@ async def register_inference_credential(
         provider=request.provider,
         name=request.name,
         api_key_ref=api_key_ref,
+        models=request.models,
+        expected_version=request.expected_version,
         metadata={
             key: value
             for key, value in (("plan", plan), ("model", model))
@@ -947,6 +988,8 @@ async def register_inference_credential(
         provider=request.provider,
         plan=plan,
         model=model,
+        models=request.models,
+        expected_version=request.expected_version,
         expires_at=request.expires_at,
         expiry_warning=credential_expiry_warning(request.expires_at),
         bound_host=request.bound_host,

@@ -41,6 +41,7 @@ from omnibase_core.models.projection.model_upsert_plan import (
 from omnimarket.handlers.handler_projection_derived_write import (
     HandlerProjectionDerivedWrite,
 )
+from omnimarket.models.model_credential_route_write import ModelCredentialRouteWrite
 
 logger = logging.getLogger(__name__)
 
@@ -579,6 +580,8 @@ CREATE TABLE IF NOT EXISTS delegation_routing_tenant_overlay (
     provider     TEXT,
     endpoint_url TEXT NOT NULL,
     model_name   TEXT NOT NULL,
+    models       TEXT NOT NULL DEFAULT '[]',
+    version      INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
     secret_ref   TEXT,
     timeout_ms   INTEGER CHECK (timeout_ms IS NULL OR timeout_ms > 0),
     max_tokens   INTEGER CHECK (max_tokens IS NULL OR max_tokens > 0),
@@ -833,6 +836,21 @@ class SqliteDatabaseAdapter:
                 _TENANT_INFERENCE_CREDENTIALS_ADDED_COLUMNS,
             )
             self._apply_store_steps(conn, self._db_path)
+            self._ensure_columns(
+                conn,
+                "delegation_routing_tenant_overlay",
+                {"models": None, "version": 1},
+            )
+            conn.execute(
+                "UPDATE delegation_routing_tenant_overlay SET version = 1 WHERE version IS NULL"
+            )
+            conn.execute(
+                "UPDATE delegation_routing_tenant_overlay SET models = CASE "
+                "WHEN model_name IS NULL OR trim(model_name) = '' "
+                "OR model_name = 'byok-model-unresolved' THEN '[]' "
+                "ELSE json_array(model_name) END WHERE models IS NULL"
+            )
+            conn.commit()
         except BaseException:
             conn.close()
             raise
@@ -1511,6 +1529,35 @@ class SqliteDatabaseAdapter:
             return []
         return [{column: stored[0].get(column) for column in plan.returning}]
 
+    def replace_credential_route(
+        self,
+        plan: ModelCredentialRouteWrite,
+    ) -> tuple[bool, int | None]:
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            written = conn.execute(
+                plan.sqlite_write,
+                {
+                    key: self._encode(key, value)
+                    for key, value in plan.parameters.items()
+                },
+            ).fetchone()
+            current = conn.execute(
+                plan.sqlite_read,
+                {
+                    key: self._encode(key, value)
+                    for key, value in plan.parameters.items()
+                },
+            ).fetchone()
+            conn.commit()
+            return written is not None, None if current is None else int(current[0])
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     def query(
         self,
         table: str,
@@ -1553,7 +1600,12 @@ class SqliteDatabaseAdapter:
                 ).fetchall()
             else:
                 rows = conn.execute(f"SELECT * FROM {table}{suffix}").fetchall()
-            return [dict(row) for row in rows]
+            result = [dict(row) for row in rows]
+            if table == "delegation_routing_tenant_overlay":
+                for row in result:
+                    if isinstance(row.get("models"), str):
+                        row["models"] = json.loads(row["models"])
+            return result
         finally:
             conn.close()
 

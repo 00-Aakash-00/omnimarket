@@ -461,9 +461,10 @@ def _resolve_bound_host(declared: str | None) -> str | None:
 @click.option(
     "--model",
     "model_option",
-    default=None,
-    help="The model this key runs, checked against the provider's list for it.",
+    multiple=True,
+    help="A model this key runs; repeat in routing order. Each is checked with the provider.",
 )
+@click.option("--expected-version", type=click.IntRange(min=1), default=None)
 @click.option(
     "--expires",
     default=None,
@@ -511,7 +512,8 @@ def register_tenant_key(
     tenant: str,
     name: str | None,
     plan: str | None,
-    model_option: str | None,
+    model_option: tuple[str, ...],
+    expected_version: int | None,
     expires: str | None,
     host: str | None,
     workspace_id: str | None,
@@ -532,7 +534,8 @@ def register_tenant_key(
             provider=provider,
             key_value=SecretStr(value),
             plan=plan,
-            model=model_option,
+            models=list(model_option) if model_option else None,
+            expected_version=expected_version,
             expires_at=expires_at,
             bound_host=bound_host,
             workspace_id=workspace_id,
@@ -573,7 +576,7 @@ def register_tenant_key(
         raise click.ClickException(
             f"{exc}. Nothing was stored and nothing was published."
         ) from exc
-    shown: dict[str, str | None] = {
+    shown: dict[str, object] = {
         "api_key_ref": response.api_key_ref,
         "provider": response.provider,
         "plan": response.plan,
@@ -581,6 +584,7 @@ def register_tenant_key(
     }
     if response.model is not None:
         shown["model"] = response.model
+    shown["models"] = response.models
     if response.expires_at is not None:
         shown["expires_at"] = response.expires_at.astimezone(UTC).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
@@ -611,7 +615,13 @@ def _fold_registered_tenant_key(response: Any, tenant: str) -> None:
         "provider": response.provider,
         "name": response.name,
         "api_key_ref": response.api_key_ref,
-        "metadata": {},
+        "metadata": {
+            key: value
+            for key, value in (("plan", response.plan), ("model", response.model))
+            if value is not None
+        },
+        "models": response.models,
+        "expected_version": response.expected_version,
         "expires_at": None
         if response.expires_at is None
         else response.expires_at.astimezone(UTC).isoformat(),

@@ -39,6 +39,7 @@ from omnibase_core.models.projection.model_upsert_plan import build_upsert_plan
 from omnimarket.handlers.handler_projection_derived_write import (
     HandlerProjectionDerivedWrite,
 )
+from omnimarket.models.model_credential_route_write import ModelCredentialRouteWrite
 from omnimarket.projection.tenant_isolation import (
     TENANT_GUC,
     resolve_read_tenant,
@@ -167,6 +168,30 @@ class PostgresSyncProjectionAdapter:
 
             return Json(value)
         return value
+
+    def replace_credential_route(
+        self,
+        plan: ModelCredentialRouteWrite,
+    ) -> tuple[bool, int | None]:
+        conn = self._connect()
+        try:
+            with (
+                self._tenant_scoped(conn, str(plan.row["tenant_id"])),
+                conn.cursor() as cur,
+            ):
+                cur.execute(
+                    plan.postgres_write,
+                    {key: self._adapt(value) for key, value in plan.parameters.items()},
+                )
+                written = cur.fetchone()
+                cur.execute(
+                    plan.postgres_read,
+                    {key: self._adapt(value) for key, value in plan.parameters.items()},
+                )
+                current = cur.fetchone()
+                return written is not None, None if current is None else int(current[0])
+        finally:
+            conn.close()
 
     def upsert(
         self,

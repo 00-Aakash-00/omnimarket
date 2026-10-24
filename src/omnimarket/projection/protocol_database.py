@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
+from threading import RLock
 from types import MappingProxyType
-from typing import Protocol, runtime_checkable
+from typing import Protocol, cast, runtime_checkable
 
 from omnibase_core.models.projection.model_upsert_plan import (
     SQL_EXPRESSION_SENTINEL_PREFIX,
@@ -19,6 +20,7 @@ from omnibase_core.models.projection.model_upsert_plan import (
 from omnimarket.handlers.handler_projection_derived_write import (
     HandlerProjectionDerivedWrite,
 )
+from omnimarket.models.model_credential_route_write import ModelCredentialRouteWrite
 
 
 @runtime_checkable
@@ -190,6 +192,41 @@ class InmemoryDatabaseAdapter:
     def __init__(self) -> None:
         self.tables: dict[str, list[dict[str, object]]] = {}
         self.upsert_count: int = 0
+        self._credential_route_lock = RLock()
+
+    def replace_credential_route(
+        self,
+        plan: ModelCredentialRouteWrite,
+    ) -> tuple[bool, int | None]:
+        row = dict(plan.row)
+        expected_version = plan.expected_version
+        with self._credential_route_lock:
+            rows = self.query(
+                "delegation_routing_tenant_overlay",
+                {
+                    "tenant_id": row["tenant_id"],
+                    "task_type": row["task_type"],
+                },
+            )
+            # Schema versions are integers; generic projection rows erase that type.
+            current = int(cast(int, rows[0].get("version", 1))) if rows else None
+            revoked = self.query(
+                "tenant_inference_credentials", {"api_key_ref": row["secret_ref"]}
+            )
+            if (revoked and revoked[0].get("revoked_at") is not None) or (
+                expected_version is not None and current != expected_version
+            ):
+                return False, current
+            self.upsert_returning(
+                "delegation_routing_tenant_overlay",
+                "tenant_id,task_type",
+                {
+                    **row,
+                    "version": 1 if current is None else current + 1,
+                },
+                insert_only_columns=frozenset({"created_at"}),
+            )
+            return True, 1 if current is None else current + 1
 
     def upsert(
         self,
