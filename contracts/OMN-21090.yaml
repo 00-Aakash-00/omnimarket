@@ -109,4 +109,3 @@ dod_evidence:
           print(result["task_kind"], result["factor_token_estimates"])
           PY
         cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC4"]
