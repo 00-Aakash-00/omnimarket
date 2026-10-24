@@ -145,14 +145,14 @@ CLASS_PLAIN: dict[str, str] = {
 }
 DRAFT_RULES: tuple[str, ...] = (
     "After the greeting and the window, state the coverage headline, then give each non-dependency merged change as repo#number with its ticket; the dependency bumps get one clause with their count and no ids.",
-    "Cite every ticket in coverage.tickets and state every number in coverage.counts (the queue figures are as of generated_at); check refuses a draft that leaves one out. A ticket costs one word, so group them.",
+    "Cite every ticket in coverage.tickets and state every number in coverage.counts (the queue figures are as of generated_at); check refuses a draft that leaves one out. A ticket costs one word, so group them. Name a ticket's kind as ticket_kinds gives it (a partial ticket is not blocked).",
     "Put a lane's report under that lane's own ticket (lanes_closed ticket); when two reports of the same subject disagree, give both with their tickets.",
     "Say a merge as its title does (a configuration or code change); a merge is not a running service, so say what is unconfirmed.",
     "Scope every figure to its row: the snapshot time, the batch, the hosts checked; never write all or every unless one row says so.",
     'Use plain_words and open_by_class_plain for any term a non-specialist would not follow; write "work runs (lanes)" and "M4 board (milestones)" once.',
     "Cite a merged change inside the same parentheses or semicolon group as its ticket; name the friction gap in one clause; do not write first, only, fully or entire.",
 )
-COVERAGE_SCOPE = "The check requires every ticket in tickets and every number in counts. Other closed lanes enter the draft through lanes_closed_by_outcome."
+COVERAGE_SCOPE = "The check requires every ticket in tickets and every number in counts. Lanes that handed off, were skipped or have no recorded outcome are counted in counts and not listed in lanes_closed; the other closed lanes are listed, blocked and partial first."
 
 
 def _iso(value: datetime) -> str:
@@ -419,6 +419,7 @@ class HandlerOwnerSummary:
     def _listed_lanes(closed: list[ModelLaneClosed]) -> tuple[ModelLaneClosed, ...]:
         """Prioritize recent blocked and partial lanes, preserving source order."""
         priority = {"blocked", "partial"}
+        counted_only = {"handed-off", "skipped", "skipped-owned", ""}
         indices = [
             i for i in reversed(range(len(closed))) if closed[i].outcome in priority
         ][:LANE_LIST_LIMIT]
@@ -427,10 +428,20 @@ class HandlerOwnerSummary:
             [
                 i
                 for i in reversed(range(len(closed)))
-                if closed[i].outcome not in priority
+                if closed[i].outcome not in priority | counted_only
             ][:remaining]
         )
-        return tuple(closed[i] for i in sorted(indices))
+        substantive = {
+            closed[i].lane
+            for i in indices
+            if not closed[i].text.startswith("remote lane on ")
+        }
+        return tuple(
+            closed[i]
+            for i in sorted(indices)
+            if not closed[i].text.startswith("remote lane on ")
+            or closed[i].lane not in substantive
+        )
 
     def _lanes(
         self, path: Path, start: datetime, end: datetime, errors: list[str]
@@ -643,6 +654,17 @@ class HandlerOwnerSummary:
                     and lane.ticket not in tickets
                 ):
                     tickets.append(lane.ticket)
+        tickets = tickets[:TICKET_COVERAGE_LIMIT]
+        kinds: dict[str, set[str]] = {ticket: set() for ticket in tickets}
+        for row in facts.m4_rows:
+            if row.ticket in kinds:
+                kinds[row.ticket].add("m4")
+        for ticket in merged_tickets:
+            if ticket in kinds:
+                kinds[ticket].add("merged")
+        for lane in facts.lanes_closed:
+            if lane.ticket in kinds and lane.outcome in {"blocked", "partial"}:
+                kinds[lane.ticket].add(lane.outcome)
         counts = {
             "lanes closed": facts.lanes_closed_count,
             "controller worker lanes closed": facts.controller_worker_lanes_closed,
@@ -656,13 +678,21 @@ class HandlerOwnerSummary:
             )[:4]
         )
         counts["open pull requests that are drafts"] = facts.open_drafts
+        counts.update(
+            (f"lanes closed as {outcome}", number)
+            for outcome, number in facts.lanes_closed_by_outcome.items()
+            if number > 0
+        )
         return ModelDraftCoverage(
             scope=COVERAGE_SCOPE,
             headline=headline,
             merged_tickets=merged_tickets,
             untracked_changes=untracked_changes,
             dependency_changes=n - len(changes),
-            tickets=tuple(tickets[:TICKET_COVERAGE_LIMIT]),
+            tickets=tuple(tickets),
+            ticket_kinds={
+                ticket: ",".join(sorted(values)) for ticket, values in kinds.items()
+            },
             counts={label: number for label, number in counts.items() if number > 0},
         )
 

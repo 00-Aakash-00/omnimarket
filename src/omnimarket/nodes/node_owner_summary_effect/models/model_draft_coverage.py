@@ -16,4 +16,5 @@ class ModelDraftCoverage(BaseModel):
     untracked_changes: tuple[str, ...] = ()
     dependency_changes: int = 0
     tickets: tuple[str, ...] = ()
+    ticket_kinds: dict[str, str] = {}
     counts: dict[str, int] = {}

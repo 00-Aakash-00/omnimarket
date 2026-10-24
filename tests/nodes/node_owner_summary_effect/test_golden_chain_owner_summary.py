@@ -360,6 +360,60 @@ def test_coverage_tickets_include_old_blocked_lanes(tmp_path: Path) -> None:
     assert set(facts.coverage.tickets) == {f"OMN-{1000 + n}" for n in range(1, 6)}
 
 
+def test_facts_lanes_leave_out_handoffs_and_skips(tmp_path: Path) -> None:
+    root, ledger = _write_world(tmp_path)
+    outcomes = ("handed-off", "skipped", "skipped-owned", "done", "blocked", "")
+    ledger.write_text(
+        "\n".join(
+            f"2026-10-24T09:{i:02d}:00Z | TERMINAL | lane=run-{i}"
+            + (f" | outcome={outcome}" if outcome else "")
+            for i, outcome in enumerate(outcomes)
+        )
+    )
+    result = HANDLER.handle(
+        ModelOwnerSummaryRequest(
+            command="facts",
+            root=root,
+            ledger=ledger,
+            since="2026-10-24T00:00:00Z",
+            now=NOW.isoformat(),
+        )
+    )
+    assert result.exit_code == 0
+    facts = result.facts
+    assert facts is not None
+    assert [row.outcome for row in facts.lanes_closed] == ["done", "blocked"]
+    assert facts.lanes_closed_count == 6
+    assert facts.lanes_closed_omitted == 4
+    assert facts.lanes_closed_by_outcome == {
+        "handed-off": 1,
+        "skipped": 1,
+        "skipped-owned": 1,
+        "done": 1,
+        "blocked": 1,
+        "unrecorded": 1,
+    }
+
+
+def test_facts_lanes_drop_the_runner_duplicate_row(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.md"
+    ledger.write_text(
+        "2026-10-24T09:00:00Z | TERMINAL | lane=alpha | outcome=done | substantive report\n"
+        "2026-10-24T09:01:00Z | TERMINAL | lane=alpha | outcome=done | remote lane on h1 ended status=done\n"
+        "2026-10-24T09:02:00Z | TERMINAL | lane=beta | outcome=done | remote lane on h1 ended status=done\n"
+    )
+    errors: list[str] = []
+    lanes = HANDLER._lanes(ledger, NOW - timedelta(hours=12), NOW, errors)
+    assert errors == []
+    assert [(row.lane, row.text) for row in lanes["closed"]] == [
+        ("alpha", "substantive report"),
+        ("beta", "remote lane on h1 ended status=done"),
+    ]
+    assert lanes["count"] == 3
+    assert lanes["outcomes"] == {"done": 3}
+    assert lanes["omitted"] == 1
+
+
 def test_facts_names_an_unreadable_source(tmp_path: Path) -> None:
     result = HANDLER.handle(
         ModelOwnerSummaryRequest(
@@ -676,6 +730,76 @@ def test_coverage_counts_are_stated() -> None:
     ]
 
 
+def test_coverage_counts_state_every_outcome() -> None:
+    outcomes = {
+        "blocked": 28,
+        "partial": 9,
+        "handed-off": 40,
+        "done": 15,
+        "skipped": 8,
+        "skipped-owned": 7,
+        "unrecorded": 1,
+        "unused": 0,
+    }
+    facts = _coverage_facts().model_copy(
+        update={"lanes_closed_count": 108, "lanes_closed_by_outcome": outcomes}
+    )
+    draft = (
+        _full_draft()
+        .replace("6 work runs", "108 work runs")
+        .replace("(via", "28 blocked.\n(via")
+    )
+    assert HANDLER.check_draft(draft, facts) == [
+        "numbers not stated: lanes closed as partial 9; lanes closed as handed-off 40; "
+        "lanes closed as done 15; lanes closed as skipped 8; "
+        "lanes closed as skipped-owned 7; lanes closed as unrecorded 1"
+    ]
+    complete = draft.replace(
+        "28 blocked.",
+        "28 blocked; 9 partial; 40 handed off; 15 done; 8 skipped; 7 skipped-owned; 1 unrecorded.",
+    )
+    assert HANDLER.check_draft(complete, facts) == []
+    coverage = HANDLER.coverage_of(facts)
+    assert list(coverage.counts)[-7:] == [
+        f"lanes closed as {outcome}" for outcome in outcomes if outcome != "unused"
+    ]
+    all_done = facts.model_copy(update={"lanes_closed_by_outcome": {"done": 108}})
+    assert HANDLER.coverage_of(all_done).counts["lanes closed as done"] == 108
+
+
+def test_coverage_ticket_kinds_say_partial_or_blocked() -> None:
+    facts = _coverage_facts()
+    coverage = HANDLER.coverage_of(facts)
+    assert coverage.ticket_kinds == {
+        "OMN-17292": "m4",
+        "OMN-17427": "merged",
+        "OMN-21348": "merged",
+        "OMN-20174": "blocked",
+        "OMN-20074": "blocked",
+        "OMN-21099": "partial",
+    }
+    shared = facts.model_copy(
+        update={
+            "lanes_closed": (
+                *facts.lanes_closed,
+                facts.lanes_closed[0].model_copy(update={"ticket": "OMN-21099"}),
+                facts.lanes_closed[0].model_copy(update={"ticket": "OMN-17427"}),
+            ),
+            "m4_rows": (
+                *facts.m4_rows,
+                facts.m4_rows[0].model_copy(update={"ticket": "OMN-17427"}),
+            ),
+        }
+    )
+    kinds = HANDLER.coverage_of(shared).ticket_kinds
+    assert kinds["OMN-21099"] == "blocked,partial"
+    assert kinds["OMN-17427"] == "blocked,m4,merged"
+    assert set(kinds) == set(HANDLER.coverage_of(shared).tickets)
+    assert DRAFT_RULES[1].endswith(
+        " Name a ticket's kind as ticket_kinds gives it (a partial ticket is not blocked)."
+    )
+
+
 @pytest.mark.parametrize(
     "term",
     [
@@ -825,6 +949,7 @@ def test_coverage_facts_command_hands_the_drafter_its_lists(tmp_path: Path) -> N
         "open pull requests": 2,
         "failing checks": 2,
         "open pull requests that are drafts": 1,
+        "lanes closed as blocked": 1,
     }
     assert facts.open_by_class_plain == {"red": "failing checks"}
     assert "ledger" in facts.plain_words
