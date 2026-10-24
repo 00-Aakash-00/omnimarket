@@ -77,6 +77,93 @@ def test_fabricated_ticket_and_pr_fail() -> None:
     assert any("omnimarket#13" in p for p in problems)
 
 
+@pytest.mark.parametrize(
+    ("known", "cited"),
+    [("OMN-123", "OMN-12"), ("OMN-1234", "OMN-12"), ("OMN-12", "OMN-1234")],
+)
+def test_ticket_ids_require_whole_matches(known: str, cited: str) -> None:
+    facts = _facts().model_copy(update={"errors": (known,)})
+    assert HANDLER.check_draft(GOOD + f"{known}\n(via Sam's agent)\n", facts) == []
+    problems = HANDLER.check_draft(GOOD + f"{cited}\n(via Sam's agent)\n", facts)
+    assert problems == [f"{cited} is not in the facts"]
+
+
+@pytest.mark.parametrize(
+    ("since", "until"),
+    [
+        ("2026-10-23T12:00:00Z", "2026-10-23T00:00:00Z"),
+        ("2026-10-23T12:00:00Z", "2026-10-23T12:00:00Z"),
+        ("2026-10-24T12:00:00Z", ""),
+        ("2026-10-24T13:00:00Z", ""),
+    ],
+)
+def test_since_must_precede_window_end(tmp_path: Path, since: str, until: str) -> None:
+    with pytest.raises(ValueError, match="--since must be before"):
+        HANDLER.resolve_window(NOW, since, until, tmp_path / "state.json")
+    result = HANDLER.handle(
+        ModelOwnerSummaryRequest(
+            command="facts",
+            root=tmp_path,
+            ledger=tmp_path / "ledger.md",
+            since=since,
+            until=until,
+            now=NOW.isoformat(),
+        )
+    )
+    assert result.exit_code == 2
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_reused_lane_keeps_new_claim_open(tmp_path: Path, explicit: bool) -> None:
+    ledger = tmp_path / "ledger.md"
+    reference = " | closes-CLAIM=2026-10-24T08:00:00Z" if explicit else ""
+    ledger.write_text(
+        "2026-10-24T08:00:00Z | CLAIM | lane=alpha | ticket=OMN-1\n"
+        "2026-10-24T09:00:00Z | CLAIM | lane=beta | ticket=OMN-2\n"
+        "2026-10-24T10:00:00Z | TERMINAL | lane=alpha | outcome=done"
+        f"{reference}\n"
+        "2026-10-24T11:00:00Z | CLAIM | lane=alpha | ticket=OMN-3\n"
+        # A reference to another lane's claim cannot close that claim.
+        "2026-10-24T11:30:00Z | TERMINAL | lane=gamma"
+        " | closes-CLAIM=2026-10-24T09:00:00Z\n"
+        + (
+            "2026-10-24T11:45:00Z | TERMINAL | lane=alpha"
+            " | closes-CLAIM=2026-10-24T08:00:00Z\n"
+            if explicit
+            else ""
+        )
+    )
+    errors: list[str] = []
+    lanes = HANDLER._lanes(ledger, NOW - timedelta(hours=12), NOW, errors)
+    assert errors == []
+    assert [(claim.lane, claim.ticket) for claim in lanes["started"]] == [
+        ("beta", "OMN-2"),
+        ("alpha", "OMN-3"),
+    ]
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_terminal_after_window_does_not_close_claim(
+    tmp_path: Path, explicit: bool
+) -> None:
+    ledger = tmp_path / "ledger.md"
+    reference = " | closes-CLAIM=2026-10-24T08:00:00Z" if explicit else ""
+    ledger.write_text(
+        "2026-10-24T08:00:00Z | CLAIM | lane=alpha | ticket=OMN-1\n"
+        "2026-10-24T13:00:00Z | TERMINAL | lane=alpha | outcome=done"
+        f"{reference}\n"
+    )
+    errors: list[str] = []
+    lanes = HANDLER._lanes(ledger, NOW - timedelta(hours=12), NOW, errors)
+    assert errors == []
+    assert lanes["count"] == 0
+    assert [claim.ticket for claim in lanes["started"]] == ["OMN-1"]
+    at_terminal = HANDLER._lanes(
+        ledger, NOW - timedelta(hours=12), NOW + timedelta(hours=1), errors
+    )
+    assert at_terminal["started"] == ()
+
+
 def test_secret_path_and_length_fail() -> None:
     home = "/".join(["", "Users", "someone", "x"])
     token = "xoxb" + "-1234567890-abcdef"

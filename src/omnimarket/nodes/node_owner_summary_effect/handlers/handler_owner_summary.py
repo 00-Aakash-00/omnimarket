@@ -101,6 +101,16 @@ def _git(repo: Path, *args: str) -> str:
     return done.stdout
 
 
+def _closes(terminal: dict[str, str], when: datetime, claim: dict[str, str]) -> bool:
+    """True when this TERMINAL ends this CLAIM: same lane, and it names the claim or follows it."""
+    if terminal.get("lane") != claim.get("lane"):
+        return False
+    if "closes-CLAIM" in terminal:
+        return terminal["closes-CLAIM"] == claim["ts"]
+    opened = _parse(claim["ts"])
+    return opened is not None and when > opened
+
+
 class HandlerOwnerSummary:
     """Run one owner-summary command."""
 
@@ -130,6 +140,8 @@ class HandlerOwnerSummary:
             start = _parse(since)
             if start is None:
                 raise ValueError(f"--since is not an ISO instant: {since}")
+            if start >= end:
+                raise ValueError("--since must be before the window end")
             return start, end, "--since"
         floor = end - timedelta(hours=MAX_WINDOW_HOURS)
         last: datetime | None = None
@@ -347,8 +359,13 @@ class HandlerOwnerSummary:
                     text=row["text"][:TEXT_LIMIT],
                 )
             )
-        closed_claims = {r.get("closes-CLAIM") for r in rows if r["type"] == "TERMINAL"}
-        closed_lanes = {r.get("lane") for r in rows if r["type"] == "TERMINAL"}
+        terminals = [
+            (r, moment)
+            for r in rows
+            if r["type"] == "TERMINAL"
+            and (moment := _parse(r["ts"])) is not None
+            and moment <= end
+        ]
         started = [
             ModelLaneStarted(
                 ts=r["ts"], lane=r.get("lane", ""), ticket=r.get("ticket", "")
@@ -356,8 +373,7 @@ class HandlerOwnerSummary:
             for r in in_window
             if r["type"] == "CLAIM"
             and not CONTROLLER_LANE.match(r.get("lane", ""))
-            and r["ts"] not in closed_claims
-            and r.get("lane") not in closed_lanes
+            and not any(_closes(terminal, when, r) for terminal, when in terminals)
         ]
         m4 = [
             ModelM4Row(
@@ -497,10 +513,13 @@ class HandlerOwnerSummary:
         if HOME_PATH_PATTERN.search(text):
             problems.append("the draft names a home or volume path")
         corpus = facts.model_dump_json()
+        known_tickets = set(TICKET_PATTERN.findall(corpus))
         cited = _tickets(text)
         if not cited and (facts.merged_changes or facts.clone_only_commits):
             problems.append("the draft cites no ticket number")
-        problems.extend(f"{t} is not in the facts" for t in cited if t not in corpus)
+        problems.extend(
+            f"{t} is not in the facts" for t in cited if t not in known_tickets
+        )
         pairs = {(m.repo, m.number) for m in facts.merged_changes}
         pairs |= {(c.repo, c.pr) for c in facts.clone_only_commits if c.pr}
         for repo, number in REPO_PR_PATTERN.findall(text):
