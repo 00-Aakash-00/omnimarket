@@ -38,6 +38,13 @@ requirements:
       - id: "DoD2"
         statement: |-
           DoD2: through the real compaction orchestrator and barrier wait, a command built without the producer falls back source_incomplete and a command built with it installs -- falsifier: uv run pytest tests/nodes/node_claude_code_hook_adapter_effect/test_session_barrier_producer_omn21099.py -k "requires_the_produced_barrier"
+  - id: "req-pack-build-fold-once"
+    statement: |-
+      A compaction pack build folds each work-ledger row at most once per process: the ledger and work-state sources share one fold memo, keyed by row id and checked against the row text, that keeps only the rows of the latest read.
+    acceptance:
+      - id: "AC8"
+        statement: |-
+          AC8: unchanged rows are folded once across passes, a changed row is folded again, rows absent from the latest pass are dropped, a fold refusal is memoized, and the operator_rulings, open_work and orchestration_state tiers answer exactly as with separate memos while the shared memo folds each row once -- falsifier: uv run pytest tests/unit/nodes/node_context_source_ledger_effect/test_ledger_fold_memo_omn21099.py
 evidence_requirements:
   - kind: "tests"
     description: "AC1 to AC3: the client-call identity derivation tests and the step-1 wire tests."
@@ -101,3 +108,18 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_claude_code_hook_adapter_effect/contract.yaml?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -qF '{name: barrier_id, source: "@session_barrier"}'
+  - id: "dod-omn21099-ledger-fold-once"
+    description: "AC8: the shared work-ledger fold memo and three-tier parity."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_context_source_ledger_effect/test_ledger_fold_memo_omn21099.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC8"]
+  - id: "dod-omn21099-deploy-ledger-fold-memo"
+    description: "Deploy probe: read the shared work-ledger fold module at the checked-out commit from GitHub and require the fold memo class. The base has no such class and fails this probe. The command uses GitHub and the hosted runner checkout without a lab path."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/handlers/work_ledger_fold.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d | grep -E '^class WorkLedgerFoldMemo\b' > /dev/null
