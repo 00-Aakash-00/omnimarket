@@ -34,5 +34,34 @@
     "basis": "files the source runs did not record, each file's summed per-test seconds from one serial run of the CI shard's pytest flags (--store-durations, -m 'not kafka', --timeout=300) without coverage",
     "runner": "lab host h202, not a GitHub-hosted runner; the next refresh from source runs replaces these entries",
     "base_sha": "9978f18ad53d32e07d122e32d246b6e8c001d1be"
+  },
+  "supplement_2": {
+    "recorded_on": "2026-10-24",
+    "files_added": 155,
+    "basis": "files the record did not name on dev, each file's mean summed per-test seconds over the 'test-durations-shard-*' artifacts of the runs below (shard 14 failed in each run and uploaded no artifact)",
+    "runner": "GitHub-hosted ubuntu-latest, 20-way full-suite ci.yml `test` job; the next refresh from source runs replaces these entries",
+    "base_sha": "404a12a06c297680db9d74b0a7ab57330e9bf462",
+    "source_runs": [
+      {
+        "run_id": 40095433531,
+        "head_sha": "0fb340bdd54f624ec4aeb913bbfa769ce6a9fead",
+        "event": "pull_request"
+      },
+      {
+        "run_id": 40096343402,
+        "head_sha": "ce508c3c6e92af788b2a88d3e8608a2ff04df9f8",
+        "event": "pull_request"
+      },
+      {
+        "run_id": 40093304101,
+        "head_sha": "72cc8bba8861ff972ea555e318daebaadf73e6c7",
+        "event": "pull_request"
+      },
+      {
+        "run_id": 40096353220,
+        "head_sha": "82c315fea0e2f31aeb4e1cd0d433026af43fc1f0",
+        "event": "pull_request"
+      }
+    ]
   }
 }

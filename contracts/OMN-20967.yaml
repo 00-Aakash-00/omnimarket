@@ -17,6 +17,11 @@ requirements:
     acceptance:
       - id: "AC2"
         statement: "AC2: the budget compute chooses no key when every key is at its reserve floor, chooses the lowest-index key that keeps its reserve after the call's worst case, resets a key's spend at its cycle rollover, and prices claude-sonnet-5-5 from the pricing manifest -- falsifier: uv run pytest tests/unit/nodes/node_claude_review_budget_compute/test_claude_review_budget.py"
+  - id: "req-omn20967-shard-record-names-the-tree"
+    statement: "The committed shard duration record names at least 95% of the discovered test files again, so the shard plan test passes on dev and on the open pull requests that add test files."
+    acceptance:
+      - id: "AC3"
+        statement: "AC3: config/test_file_durations.json records the 155 test files dev 404a12a06 left unrecorded that the source runs measured, and test_committed_record_names_nearly_every_test_file passes -- falsifier: the test at 404a12a06 counts 162 of 3256 files (5.0%) unrecorded, and Tests (Split 14/20) fails it at 166 of 3260 on omnimarket#4343"
 evidence_requirements:
   - kind: tests
     description: The workflow scan over the real tree, three seeded placements that fail it and a clean workflow that passes it.
@@ -24,6 +29,9 @@ evidence_requirements:
   - kind: "tests"
     description: "The budget compute: the floor returns no key, fill-first, cycle rollover, Sonnet pricing arithmetic and contract-sourced allowance and reserve."
     command: "uv run pytest tests/unit/nodes/node_claude_review_budget_compute/test_claude_review_budget.py -q"
+  - kind: "tests"
+    description: "The shard plan tests over the committed record and the real tree."
+    command: "uv run pytest tests/unit/test_ci_shard_plan_omn19684.py -q --no-cov"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -45,3 +53,11 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/nodes/node_claude_review_budget_compute/test_claude_review_budget.py -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
+  - id: "dod-omn20967-shard-record-names-the-tree"
+    description: "The committed record names at least 95% of the discovered test files and the shard plan tests pass."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/test_ci_shard_plan_omn19684.py -q --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC3"]
