@@ -79,3 +79,41 @@ dod_evidence:
               result = subprocess.run([*command, str(handler)], capture_output=True, text=True)
               assert result.returncode == 0, (result.stdout, result.stderr)
           PY
+  - id: "dod-omn21372-deploy-injected-barrier-readback"
+    description: "Hosted PostgreSQL runtime probe: start a disposable loopback-only PostgreSQL 16 container, require the changed barrier source to refuse an unwired read even with a reachable database, then exercise explicitly injected read adapters against committed projection rows. The production probe must preserve sequence holes, session isolation and replay stamps. The pre-change source does not refuse missing runtime adapters. No lane services or credentials are required; this is a disposable runtime readback, not a production rollout."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: |
+          set -eu
+          export PYTHONDONTWRITEBYTECODE=1
+          export COMPOSE_PROJECT_NAME=landing-l16505-lab
+          barrier_probe=$(docker run --detach --rm --label onex.deploy-probe=OMN-21372 --env POSTGRES_HOST_AUTH_METHOD=trust --env POSTGRES_DB=import_boundary_proof --publish 127.0.0.1::5432 postgres:16-alpine)
+          trap 'docker rm --force "$barrier_probe" >/dev/null' EXIT
+          barrier_ready=0
+          for barrier_attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+            if docker exec "$barrier_probe" pg_isready --username postgres --dbname import_boundary_proof >/dev/null; then
+              barrier_ready=1
+              break
+            fi
+            sleep 0.5
+          done
+          test "$barrier_ready" = 1
+          barrier_port=$(docker port "$barrier_probe" 5432/tcp)
+          export ONEX_TEST_SESSION_BARRIER_DSN="postgresql://postgres@${barrier_port}/import_boundary_proof"
+          uv run --locked python - <<'PY'
+          from omnimarket.nodes.node_context_compaction_orchestrator.handlers.session_barrier_probe import ModelSessionBarrierReadBinding, PostgresSessionBarrierProbeSource
+          binding = ModelSessionBarrierReadBinding(
+              dsn_env="ONEX_TEST_SESSION_BARRIER_DSN",
+              lineage_relation="public.claude_hook_events",
+              content_relation="public.session_content",
+          )
+          try:
+              PostgresSessionBarrierProbeSource(binding).read("import-boundary-probe", "barrier")
+          except RuntimeError as exc:
+              assert str(exc) == "session barrier requires runtime-injected read adapters", str(exc)
+          else:
+              raise AssertionError("unwired source opened its own database connection")
+          print("Unwired barrier read refused: runtime-injected adapters required")
+          PY
+          uv run --locked pytest tests/nodes/node_context_compaction_orchestrator/test_postgres_compaction_pack_build_barrier.py -q --no-cov
