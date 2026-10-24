@@ -93,8 +93,9 @@ dod_evidence:
           git -C "$probe/omnimarket" init -q
           git -C "$probe/omnimarket" -c user.name=probe -c user.email=probe@example.invalid commit -q --allow-empty -m "feat(OMN-21090): probe exemplar (#1)"
           git -C "$probe/omnimarket" update-ref refs/remotes/origin/dev HEAD
-          printf '{"request":{"profile_name":"agent_spawn","caller_scope":{"repository":"omnimarket","lane_kind":"design-build"}},"access":{"tenant_id":"lab"}}' > "$probe/request.json"
-          OMNI_HOME="$probe" ONEX_LEDGER_PATH="$probe/ledger.md" uv run --locked onex node node_context_pack_orchestrator --input "$probe/request.json" --backend event_bus=inmemory --output receipt > "$probe/receipt.json"
+          printf '{"request":{"profile_name":"agent_spawn","caller_scope":{"repository":"omnimarket","lane_kind":"design-build"}},"access":{"tenant_id":"lab"}}' > "$probe/request.json";
+          export PATH="$(uv run --locked python -c 'import sysconfig; print(sysconfig.get_path("scripts"))'):$PATH";
+          OMNI_HOME="$probe" ONEX_LEDGER_PATH="$probe/ledger.md" onex node node_context_pack_orchestrator --input "$probe/request.json" --backend event_bus=inmemory --output receipt > "$probe/receipt.json";
           uv run --locked python - "$probe/receipt.json" <<'PY'
           import json
           import sys
