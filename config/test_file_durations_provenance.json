@@ -5,34 +5,21 @@
   "basis": "mean over the runs below of each file's summed per-test seconds",
   "source_runs": [
     {
-      "run_id": 39058366864,
-      "head_sha": "6c0c1a23c20068e0055b5dc118eaf736ee5a0cff",
+      "run_id": 40091271369,
+      "head_sha": "26a1fa7b1fb8879909516cbcfb2f888dee1b4ddf",
       "event": "pull_request",
       "attempt": 1
     },
     {
-      "run_id": 39057687691,
-      "head_sha": "12f2319c8110581e642cc6eaf46df60b3ef567d8",
-      "event": "pull_request",
-      "attempt": 1
-    },
-    {
-      "run_id": 39050930650,
-      "head_sha": "e553076ed6a6d3e07c08879f5a98978aa6a0455a",
+      "run_id": 40068924906,
+      "head_sha": "fae47107fcbe9fe9a106954d28caaa8767482f53",
       "event": "pull_request",
       "attempt": 1
     }
   ],
-  "recorded_on": "2026-10-17",
+  "recorded_on": "2026-10-24",
   "runner": "GitHub-hosted ubuntu-latest, 20-way full-suite ci.yml `test` job",
-  "file_count": 3183,
+  "file_count": 3250,
   "planner": "scripts/ci/merge_test_durations.py plan",
-  "refresh": "onex scm run-download OmniNode-ai/omnimarket --run-id <run-id> --artifact-id <id> for each 'test-durations-shard-*' artifact; unzip into one directory per run; python3 scripts/ci/merge_test_durations.py record --artifacts-dir <dir> [--artifacts-dir <dir> ...]",
-  "supplement": {
-    "recorded_on": "2026-10-19",
-    "files_added": 155,
-    "basis": "files the source runs did not record, each file's summed per-test seconds from one serial run of the CI shard's pytest flags (--store-durations, -m 'not kafka', --timeout=300) without coverage",
-    "runner": "lab host h202, not a GitHub-hosted runner; the next refresh from source runs replaces these entries",
-    "base_sha": "9978f18ad53d32e07d122e32d246b6e8c001d1be"
-  }
+  "refresh": "onex scm run-download OmniNode-ai/omnimarket --run-id <run-id> --artifact-id <id> for each 'test-durations-shard-*' artifact; unzip into one directory per run; python3 scripts/ci/merge_test_durations.py record --artifacts-dir <dir> [--artifacts-dir <dir> ...]"
 }
