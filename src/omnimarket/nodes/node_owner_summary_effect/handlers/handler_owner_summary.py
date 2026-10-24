@@ -108,6 +108,7 @@ _JARGON_SOURCE = (
         "the program that lands pull requests",
     ),
     (r"\brouting receipts?\b", ("routing receipt",), "recorded routing evidence"),
+    (r"\breceipts?\b", ("receipt",), "recorded evidence"),
     (r"\bsteering prompts?\b", ("steering prompt",), "operator corrections"),
     (r"\bticks?\b", ("tick",), "scheduled run"),
     (r"\bvoters?\b", ("voter",), "automated reviewer"),
@@ -150,9 +151,9 @@ DRAFT_RULES: tuple[str, ...] = (
     "Say a merge as its title does (a configuration or code change); a merge is not a running service, so say what is unconfirmed.",
     "Scope every figure to its row: the snapshot time, the batch, the hosts checked; never write all or every unless one row says so.",
     'Use plain_words and open_by_class_plain for any term a non-specialist would not follow; write "work runs (lanes)" and "M4 board (milestones)" once.',
-    "Cite a merged change inside the same parentheses or semicolon group as its ticket; name the friction gap in one clause; do not write first, only, fully or entire.",
+    "Cite a merged change inside the same parentheses or semicolon group as its ticket; call blocked work blocked and partial work partial on the line that cites its ticket; name the friction gap in one clause; do not write first, only, fully or entire.",
 )
-COVERAGE_SCOPE = "The check requires every ticket in tickets and every number in counts. Lanes that handed off, were skipped or have no recorded outcome are counted in counts and not listed in lanes_closed; the other closed lanes are listed, blocked and partial first."
+COVERAGE_SCOPE = f"The check requires every ticket in tickets and every number in counts. Lanes that handed off, were skipped or have no recorded outcome are counted in counts and not listed in lanes_closed; the other closed lanes are listed, blocked and partial first. The draft is limited to {MAX_WORDS} words and names a ticket's blocked or partial work as such."
 
 
 def _iso(value: datetime) -> str:
@@ -767,6 +768,31 @@ class HandlerOwnerSummary:
             problems.append(
                 "tickets not cited (M4 rows, merged changes, blocked or partial lanes): "
                 + ", ".join(missing_tickets)
+            )
+        missing_kinds: list[str] = []
+        for ticket in cov.tickets:
+            ticket_lines = [
+                line
+                for line in text.split("\n")
+                if re.search(rf"(?<!\w){re.escape(ticket)}(?!\w)", line)
+            ]
+            if not ticket_lines:
+                continue
+            kinds = [
+                kind
+                for kind in ("blocked", "partial")
+                if kind in cov.ticket_kinds[ticket].split(",")
+                and not any(
+                    re.search(rf"\b{kind}\b", line, re.IGNORECASE)
+                    for line in ticket_lines
+                )
+            ]
+            if kinds:
+                missing_kinds.append(f"{ticket} ({', '.join(kinds)})")
+        if missing_kinds:
+            problems.append(
+                "tickets whose blocked or partial work is not named as such: "
+                + ", ".join(missing_kinds)
             )
         missing_counts = [
             f"{label} {number}"

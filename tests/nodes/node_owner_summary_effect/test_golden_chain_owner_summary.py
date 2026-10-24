@@ -17,6 +17,7 @@ from omnimarket.nodes.node_owner_summary_effect.handlers.handler_owner_summary i
     CLASS_PLAIN,
     COVERAGE_SCOPE,
     DRAFT_RULES,
+    MAX_WORDS,
     PLAIN_WORDS,
     TICKET_COVERAGE_LIMIT,
 )
@@ -724,6 +725,76 @@ def test_coverage_blocked_and_partial_tickets_are_cited() -> None:
     )
 
 
+def test_coverage_blocked_and_partial_kinds_must_be_named() -> None:
+    facts = _coverage_facts()
+    facts = facts.model_copy(
+        update={
+            "lanes_closed": (
+                *facts.lanes_closed,
+                facts.lanes_closed[0].model_copy(update={"ticket": "OMN-21099"}),
+            )
+        }
+    )
+    draft = _full_draft().replace(
+        "M4 board (milestones): OMN-17292. Blocked: OMN-20174, OMN-20074. Partial: OMN-21099.",
+        "M4 board (milestones): OMN-17292.\n"
+        "Blocked: OMN-20174, OMN-20074.\nBlocked: OMN-21099.",
+    )
+    problem = (
+        "tickets whose blocked or partial work is not named as such: "
+        "OMN-21099 (partial)"
+    )
+    assert HANDLER.check_draft(draft, facts) == [problem]
+    for wording in ("BLOCKED and PARTIAL", "blocked\nOMN-21099 partial"):
+        assert (
+            HANDLER.check_draft(
+                draft.replace("Blocked: OMN-21099", f"OMN-21099 {wording}"), facts
+            )
+            == []
+        )
+    for wording in (
+        "blocked partially",
+        "blocked\npartial",
+        "blocked\nOMN-21099x partial",
+    ):
+        assert HANDLER.check_draft(
+            draft.replace("Blocked: OMN-21099", f"OMN-21099 {wording}"), facts
+        ) == [problem]
+    assert HANDLER.check_draft(
+        draft.replace("Blocked: OMN-21099", "Partial: OMN-21099"), facts
+    ) == [problem.replace("(partial)", "(blocked)")]
+    assert HANDLER.check_draft(
+        draft.replace("Blocked: OMN-21099", "OMN-21099"), facts
+    ) == [problem.replace("(partial)", "(blocked, partial)")]
+    assert HANDLER.check_draft(
+        draft.replace("Blocked: OMN-21099", "OMN-21099").replace("Blocked:", "Status:"),
+        facts,
+    ) == [
+        "tickets whose blocked or partial work is not named as such: "
+        "OMN-20174 (blocked), OMN-20074 (blocked), OMN-21099 (blocked, partial)"
+    ]
+    # The merged tickets on their own lines need no kind word.
+    assert HANDLER.check_draft(_full_draft(), _coverage_facts()) == []
+
+
+@pytest.mark.parametrize("term", ["receipt", "receipts", "RECEIPTS"])
+def test_coverage_receipts_are_shorthand(term: str) -> None:
+    draft = _full_draft().replace("The merges", f"{term}. The merges")
+    assert HANDLER.check_draft(draft, _coverage_facts()) == [
+        f'"{term.lower()}" is shorthand; write "recorded evidence"'
+    ]
+    assert PLAIN_WORDS["receipt"] == "recorded evidence"
+    assert (
+        HANDLER.check_draft(draft.replace(term, "recorded evidence"), _coverage_facts())
+        == []
+    )
+
+
+def test_coverage_scope_states_the_word_limit() -> None:
+    assert "420 words" in COVERAGE_SCOPE
+    assert f"{MAX_WORDS} words" in COVERAGE_SCOPE
+
+
 def test_coverage_counts_are_stated() -> None:
     assert HANDLER.check_draft(_full_draft().replace("93", ""), _coverage_facts()) == [
         "numbers not stated: controller worker lanes closed 93"
@@ -822,7 +893,13 @@ def test_coverage_ticket_kinds_say_partial_or_blocked() -> None:
 )
 def test_coverage_plain_language_refuses_shorthand(term: str) -> None:
     addition = "green but not armed" if term == "green" else term
-    matched = ("green", "armed") if term == "green" else (term,)
+    matched = (
+        ("green", "armed")
+        if term == "green"
+        else ("routing receipt", "receipt")
+        if term == "routing receipt"
+        else (term,)
+    )
     assert HANDLER.check_draft(_full_draft(), _coverage_facts()) == []
     assert HANDLER.check_draft(
         _full_draft().replace("The merges", f"{addition}. The merges"),
@@ -956,7 +1033,7 @@ def test_coverage_facts_command_hands_the_drafter_its_lists(tmp_path: Path) -> N
     assert facts.draft_rules == DRAFT_RULES
     assert len(DRAFT_RULES) == 7
     assert DRAFT_RULES[6] == (
-        "Cite a merged change inside the same parentheses or semicolon group as its ticket; name the friction gap in one clause; do not write first, only, fully or entire."
+        "Cite a merged change inside the same parentheses or semicolon group as its ticket; call blocked work blocked and partial work partial on the line that cites its ticket; name the friction gap in one clause; do not write first, only, fully or entire."
     )
     assert DRAFT_RULES[0] == (
         "After the greeting and the window, state the coverage headline, then give each non-dependency merged change as repo#number with its ticket; the dependency bumps get one clause with their count and no ids."
