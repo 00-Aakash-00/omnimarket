@@ -792,11 +792,11 @@ dod_evidence:
           uv run python -c 'from importlib.metadata import entry_points; from omnimarket.nodes.node_lane_queue_start_decision_compute.models.model_lane_queue_start_decision import ModelLaneQueueStartRequest as R; e=next(e for e in entry_points(group="onex.nodes") if e.name == "node_lane_queue_start_decision_compute"); e.load(); from omnimarket.nodes.node_lane_queue_start_decision_compute.handlers.handler_lane_queue_start_decision import HandlerLaneQueueStartDecision as H; r=H().handle(R.model_validate({"now": "2026-10-23T14:13:00Z", "priority_classes": ["process-fix", "other"], "entries": [{"lane": "pinned", "model": "sonnet", "priority_class": "other", "enqueued_at": "2026-10-23T11:55:00Z", "updated_at": "2026-10-23T11:55:00Z", "pin": "h200", "pin_strict": True}], "hosts": [{"name": "h200"}, {"name": "h201", "claude_slots": 4}, {"name": "h202", "claude_slots": 4}]})); assert not r.starts and r.held[0].reason_code == "pinned-host-full"'
         cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn19998-relation-inventory-current"
-    description: "The inventory tests pass at the head and fail at the merge base, whose checked-in relation inventory is stale."
+    description: "The two relation inventory freshness tests pass at the head and fail at the merge base, whose checked-in relation inventory is stale."
     source: "manual"
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q"
+        check_value: "uv run pytest tests/unit/scripts/test_application_relation_inventory.py::test_checked_in_inventory_is_source_derived_and_current tests/unit/scripts/test_application_relation_inventory.py::test_compaction_receipts_ownership_and_migration_delivery -q"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC34"]
   - id: "dod-omn19998-relation-inventory-deploy-probe"
