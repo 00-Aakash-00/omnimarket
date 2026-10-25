@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: MIT
 from pathlib import Path
 
-import ci_bus_lanes
 import pytest
 import yaml
+
+from scripts import ci_bus_lanes
 
 
 def test_private_overlay_selected(tmp_path, monkeypatch):
