@@ -37,7 +37,7 @@ dod_evidence:
   source: manual
   checks:
   - check_type: test_passes
-    check_value: uv run pytest tests/nodes/node_delegation_capability_map_compute -q --no-cov
+    check_value: uv run pytest tests/nodes/node_delegation_capability_map_compute/test_capability_map_fold.py -q --no-cov
     cwd: ${OMNI_HOME}/omnimarket
   binds_ac:
   - AC1
@@ -46,7 +46,7 @@ dod_evidence:
   source: manual
   checks:
   - check_type: test_passes
-    check_value: uv run pytest tests/nodes/node_delegation_capability_map_compute -k "underpowered_refused or absent_band_not_zero" -q --no-cov
+    check_value: uv run pytest tests/nodes/node_delegation_capability_map_compute/test_capability_map_fold.py -k "underpowered_refused or absent_band_not_zero" -q --no-cov
     cwd: ${OMNI_HOME}/omnimarket
   binds_ac:
   - AC2
@@ -55,7 +55,7 @@ dod_evidence:
   source: manual
   checks:
   - check_type: test_passes
-    check_value: uv run pytest tests/nodes/node_delegation_capability_map_compute -k identity_mismatch_inadmissible -q --no-cov
+    check_value: uv run pytest tests/nodes/node_delegation_capability_map_compute/test_capability_map_fold.py -k identity_mismatch_inadmissible -q --no-cov
     cwd: ${OMNI_HOME}/omnimarket
   binds_ac:
   - AC3
@@ -73,7 +73,7 @@ dod_evidence:
   source: manual
   checks:
   - check_type: test_passes
-    check_value: uv run pytest tests/nodes/node_delegation_capability_map_compute -k configuration_in_cell_key -q --no-cov
+    check_value: uv run pytest tests/nodes/node_delegation_capability_map_compute/test_capability_map_fold.py -k configuration_in_cell_key -q --no-cov
     cwd: ${OMNI_HOME}/omnimarket
   binds_ac:
   - AC5
@@ -82,7 +82,7 @@ dod_evidence:
   source: manual
   checks:
   - check_type: test_passes
-    check_value: uv run pytest tests/nodes/node_delegation_capability_map_compute -k "best_configuration_deterministic or no_met_no_best" -q --no-cov
+    check_value: uv run pytest tests/nodes/node_delegation_capability_map_compute/test_capability_map_fold.py -k "best_configuration_deterministic or no_met_no_best" -q --no-cov
     cwd: ${OMNI_HOME}/omnimarket
   binds_ac:
   - AC6
@@ -91,7 +91,7 @@ dod_evidence:
   source: manual
   checks:
   - check_type: test_passes
-    check_value: uv run pytest tests/unit/delegation -k no_live_configuration_search -q --no-cov
+    check_value: uv run pytest tests/unit/delegation/test_capability_map_no_live_configuration_search_omn20169.py -k no_live_configuration_search -q --no-cov
     cwd: ${OMNI_HOME}/omnimarket
   binds_ac:
   - AC7
