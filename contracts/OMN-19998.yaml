@@ -181,6 +181,11 @@ requirements:
     acceptance:
       - id: "AC33"
         statement: "AC33: node_lane_queue_start_decision_compute, on the queue the ledger recorded on 2026-10-23 (nine lanes, 8 free slots over three hosts, one host full), starts eight lanes urgent class first and holds the ninth for no free slot; holds a lane pinned to the full host as pinned-host-full while 8 slots are free elsewhere; starts an other-class lane on the pool's last free slot when the queued process-fix lane cannot use it; and reopens a relaunch window after 300 s or when the relaunch ended no-host again -- falsifier: uv run pytest tests/nodes/node_lane_queue_start_decision_compute -q fails at the merge base, where the node does not exist"
+  - id: "req-relation-inventory-current-on-dev"
+    statement: "omnimarket dev 2738f845a (#4383, OMN-21099) added db_io.db_tables to src/omnimarket/nodes/node_session_context_sources_effect/contract.yaml without regenerating docs/evidence/OMN-15423-relation-inventory.json, so test_checked_in_inventory_is_source_derived_and_current and test_compaction_receipts_ownership_and_migration_delivery fail with stale generated inventory and turn Tests (Split 19/20) red on pull requests whose shard carries them (#4384, #4385). The checked-in inventory is regenerated to list node_session_context_sources_effect as an accessor, reader and contract source of session_content and work_ledger_rows, so the inventory tests pass on dev."
+    acceptance:
+      - id: "AC34"
+        statement: "AC34: the checked-in relation inventory lists node_session_context_sources_effect as an accessor, reader and contract source of session_content and work_ledger_rows, generator.main([\"--check\"]) returns 0, and both inventory freshness tests pass -- falsifier: uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q fails at the merge base"
 evidence_requirements:
   - kind: "tests"
     description: "Every repo contract binds each criterion to repo pytest evidence."
@@ -197,6 +202,9 @@ evidence_requirements:
   - kind: "tests"
     description: "The lane queue start decision tests, built from the 2026-10-23 recorded queue."
     command: "uv run pytest tests/nodes/node_lane_queue_start_decision_compute -q"
+  - kind: "tests"
+    description: "The checked-in relation inventory matches the generator."
+    command: "uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -782,4 +790,19 @@ dod_evidence:
       - check_type: "command"
         check_value: >-
           uv run python -c 'from importlib.metadata import entry_points; from omnimarket.nodes.node_lane_queue_start_decision_compute.models.model_lane_queue_start_decision import ModelLaneQueueStartRequest as R; e=next(e for e in entry_points(group="onex.nodes") if e.name == "node_lane_queue_start_decision_compute"); e.load(); from omnimarket.nodes.node_lane_queue_start_decision_compute.handlers.handler_lane_queue_start_decision import HandlerLaneQueueStartDecision as H; r=H().handle(R.model_validate({"now": "2026-10-23T14:13:00Z", "priority_classes": ["process-fix", "other"], "entries": [{"lane": "pinned", "model": "sonnet", "priority_class": "other", "enqueued_at": "2026-10-23T11:55:00Z", "updated_at": "2026-10-23T11:55:00Z", "pin": "h200", "pin_strict": True}], "hosts": [{"name": "h200"}, {"name": "h201", "claude_slots": 4}, {"name": "h202", "claude_slots": 4}]})); assert not r.starts and r.held[0].reason_code == "pinned-host-full"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn19998-relation-inventory-current"
+    description: "The inventory tests pass at the head and fail at the merge base, whose checked-in relation inventory is stale."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC34"]
+  - id: "dod-omn19998-relation-inventory-deploy-probe"
+    description: "Hosted-runner readback runs the generator in check mode against the checked-in inventory; the merge base's stale inventory fails it."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run python scripts/generate_application_relation_inventory.py --check"
         cwd: "${OMNI_HOME}/omnimarket"
