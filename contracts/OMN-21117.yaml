@@ -1,0 +1,80 @@
+schema_version: "1.0.0"
+ticket_id: "OMN-21117"
+title: "TA.16 auto trigger: TA.9 producer prerequisites, quality still blocked"
+summary: >-
+  Export verified native summaries separately from pinned pre-boundary inputs,
+  apply the live quote-citation carry rule in pinned mode, and retain the
+  fail-closed answer scorer. The recorded lab replay still fails Q1 and cannot
+  score Q2. The original acceptance criteria below are unchanged and their
+  evidence checks remain failing; this prerequisite patch does not complete TA.16.
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: "req-omn21117-auto-trigger"
+    statement: "Auto compaction requires a passing TA.9 quality report and lab threshold installation proof."
+    acceptance:
+      - id: "AC1"
+        statement: "AC1: the PR cites TA.9's report with both quality criteria passed -- falsifier: no citation, or a failed criterion in the cited report."
+      - id: "AC2"
+        statement: "AC2: on a lab-host session driven past the auto threshold, auto compaction installs and the projection reports `installed` -- falsifier: native compaction or no `installed`."
+evidence_requirements:
+  - kind: "tests"
+    description: "Producer, native pins, carry coverage and fail-closed scorer regressions. These do not substitute for the two acceptance criteria."
+    command: "uv run pytest tests/nodes/node_context_replay_eval_compute tests/test_golden_chain_context_replay_eval_compute.py tests/nodes/node_context_compaction_manifest_compute tests/test_golden_chain_context_compaction_manifest_compute.py tests/nodes/node_session_context_sources_effect -q --no-cov"
+emergency_bypass:
+  enabled: false
+  justification: ""
+  follow_up_ticket_id: ""
+dod_evidence:
+  - id: "dod-omn21117-ac1-ta9-quality"
+    description: "Check the cited report's actual per-case Q1 and per-arm Q2 readings. Fails on the recorded run; unavailable answers cannot establish parity."
+    source: "manual"
+    binds_ac: ["AC1"]
+    checks:
+      - check_type: "command"
+        check_value: |-
+          python3 -c '
+          import json
+          from pathlib import Path
+          r = json.loads(Path("docs/audits/OMN-21117/ta9-quality-20261025.json").read_text())
+          assert len(r["runs"]) >= 2
+          for run in r["runs"]:
+              p = run["presence"]
+              assert p["cases_total"] == p["cases_passed"] == 3 and p["all_present"], p
+              assert all(c["candidate_id"] is not None and c["passed"] for c in p["cases"]), p
+          for run in r["answer_comparison"]["runs"]:
+              assert run["package_unavailable"] == run["native_unavailable"] == 0, run
+              assert run["package_matches"] >= run["native_matches"], run
+          assert r["answer_comparison"]["next_action_met"]'
+  - id: "dod-omn21117-ac2-auto-installed"
+    description: "Require actual lab auto-threshold and installed-projection evidence. The recorded run has no such evidence, so this check fails."
+    source: "manual"
+    binds_ac: ["AC2"]
+    checks:
+      - check_type: "command"
+        check_value: |-
+          python3 -c '
+          import json
+          from pathlib import Path
+          r = json.loads(Path("docs/audits/OMN-21117/ta9-quality-20261025.json").read_text())
+          fact = r["auto_installation"]
+          assert fact is not None, "No lab auto-threshold installation/projection evidence"
+          assert fact["trigger"] == "auto" and fact["host_kind"] == "lab", fact
+          assert fact["observed_tokens"] > fact["auto_threshold_tokens"], fact
+          assert fact["projection"]["state"] == "installed" and fact["projection"]["boundary_uuid"], fact'
+  - id: "dod-omn21117-deploy-hosted-fail-closed"
+    description: "Hosted behavioral probe of the shipped scorer. Fails at the merge base where three unavailable answers in each arm incorrectly establish Q2 parity. Uses only the checkout and locked dependencies, no lab service."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: |-
+          uv run --frozen --no-dev python -c '
+          from omnimarket.nodes.node_context_replay_eval_compute.handlers import HandlerAnswerComparison
+          from omnimarket.nodes.node_context_replay_eval_compute.models import ModelAnswerComparisonRequest
+          request = ModelAnswerComparisonRequest.model_validate({"runs": [{"run_id": run_id, "cases": [{"case_id": f"case-{i}", "candidate_id": f"not-built:{i}", "package_answer": "UNAVAILABLE", "native_answer": "UNAVAILABLE"} for i in range(3)]} for run_id in ("a", "b")]})
+          result = HandlerAnswerComparison().handle(request)
+          assert not result.next_action_met, result
+          assert all(run.package_unavailable == run.native_unavailable == 3 for run in result.runs), result
+          assert len(result.falsifiers) == 2 and all("unavailable" in value for value in result.falsifiers), result
+          print("unavailable answers fail closed")'
