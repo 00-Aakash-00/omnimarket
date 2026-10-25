@@ -32,6 +32,9 @@ evidence_requirements:
   - kind: "tests"
     description: "G1 port: the five nodes' direct tests pass in omnimarket."
     command: "uv run pytest tests/nodes/node_host_memory_admission_compute/test_golden_chain_host_memory_admission_compute.py tests/nodes/node_landing_worker_engine_compute/test_golden_chain_landing_worker_engine_compute.py tests/nodes/node_landing_tick_bounds_compute/test_golden_chain_landing_tick_bounds_compute.py tests/nodes/node_landing_upstream_gate_compute/test_golden_chain_landing_upstream_gate_compute.py tests/nodes/node_merge_sweep_same_head_compute/test_golden_chain_merge_sweep_same_head_compute.py -q"
+  - kind: "tests"
+    description: "Slice 3: the five placement nodes' tests pass in omnimarket."
+    command: "uv run pytest tests/nodes/node_host_capability_compute tests/nodes/node_lane_guard_admission_compute tests/nodes/node_lane_placement_recovery_effect tests/nodes/node_link_gate_compute tests/nodes/node_link_history_effect -q"
 emergency_bypass:
   enabled: false
   justification: ""
@@ -54,6 +57,20 @@ dod_evidence:
         check_value: "uv run pytest tests/test_g1_local_invocation.py -q"
       - check_type: "command"
         check_value: "uv run python -c \"from importlib.metadata import entry_points; names={e.name for e in entry_points(group='onex.nodes')}; need={'node_host_memory_admission_compute','node_landing_worker_engine_compute','node_landing_tick_bounds_compute','node_landing_upstream_gate_compute','node_merge_sweep_same_head_compute'}; missing=need-names; assert not missing, missing\""
+    binds_ac: ["AC2"]
+  - id: "dod-omn21373-ac1-slice3-placement-nodes"
+    description: "AC1 contribution only: the five placement nodes the plugin's landing placement imports have a public home in omnimarket, with their private registry-root literals read from the lab_hosts overlay. The AC1 read on the private data repository itself stays pending for the epic."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_host_capability_compute tests/nodes/node_lane_guard_admission_compute tests/nodes/node_lane_placement_recovery_effect tests/nodes/node_link_gate_compute tests/nodes/node_link_history_effect -q"
+    binds_ac: ["AC1"]
+  - id: "dod-omn21373-ac2-slice3-entry-points"
+    description: "AC2 contribution only: the five placement nodes are registered onex.nodes entry points that the plugin callers can be repointed to in the next slice. The per-host unit readback stays pending for the epic."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run python -c \"from importlib.metadata import entry_points; names={e.name for e in entry_points(group='onex.nodes')}; need={'node_host_capability_compute','node_lane_guard_admission_compute','node_lane_placement_recovery_effect','node_link_gate_compute','node_link_history_effect'}; missing=need-names; assert not missing, missing\""
     binds_ac: ["AC2"]
   - id: "dod-omn21373-deploy-g1-import"
     description: "Hosted deploy smoke, runnable on the hosted runner with no lab route, broker or database: dispatch the packaged node_host_memory_admission_compute through the in-process ONEX runtime and require a successful typed receipt whose refusals match the policy. The packaged-contract execution of all five nodes is bound to AC2 by tests/test_g1_local_invocation.py."
