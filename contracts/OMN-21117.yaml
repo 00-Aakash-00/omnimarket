@@ -1,10 +1,10 @@
 schema_version: "1.0.0"
 ticket_id: "OMN-21117"
-title: "TA.16 auto trigger: TA.9 producer prerequisites, quality still blocked"
+title: "TA.16 auto trigger: TA.9 producer prerequisites and post-recovery rerun, quality blocked"
 summary: >-
   Export verified native summaries separately from pinned pre-boundary inputs,
   apply the live quote-citation carry rule in pinned mode, and retain the
-  fail-closed answer scorer. The recorded lab replay still fails Q1 and cannot
+  fail-closed answer scorer. The post-recovery h200 replay still fails Q1 and cannot
   score Q2. The original acceptance criteria below are unchanged and their
   evidence checks remain failing; this prerequisite patch does not complete TA.16.
 is_seam_ticket: false
