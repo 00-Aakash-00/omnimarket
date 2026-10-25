@@ -5,14 +5,11 @@
 from pathlib import Path
 
 from .handlers.handler_link_gate import HandlerLinkGate
-from .models.model_link_gate import ModelLinkGateRequest, ModelLinkGateVerdict
+from .models.model_link_gate import ModelLinkGateRequest as ModelLinkGateRequest
+from .models.model_link_gate import ModelLinkGateVerdict as ModelLinkGateVerdict
 
 
-class NodeLinkGateCompute:
+class NodeLinkGateCompute(HandlerLinkGate):
+    """Declarative entry point for link gate operations."""
+
     contract_path = Path(__file__).with_name("contract.yaml")
-
-    def __init__(self) -> None:
-        self.handler = HandlerLinkGate()
-
-    def handle(self, request: ModelLinkGateRequest) -> ModelLinkGateVerdict:
-        return self.handler.handle(request)

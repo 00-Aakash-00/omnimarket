@@ -5,14 +5,9 @@
 from pathlib import Path
 
 from .handlers.handler_link_history import HandlerLinkHistory
-from .models.model_link_history import ModelLinkHistoryRequest, ModelLinkHistoryResult
 
 
-class NodeLinkHistoryEffect:
+class NodeLinkHistoryEffect(HandlerLinkHistory):
+    """Declarative entry point for link history operations."""
+
     contract_path = Path(__file__).with_name("contract.yaml")
-
-    def __init__(self) -> None:
-        self.handler = HandlerLinkHistory()
-
-    def handle(self, request: ModelLinkHistoryRequest) -> ModelLinkHistoryResult:
-        return self.handler.handle(request)

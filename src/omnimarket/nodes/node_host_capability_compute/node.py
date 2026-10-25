@@ -5,17 +5,9 @@
 from pathlib import Path
 
 from .handlers.handler_host_capability import HandlerHostCapability
-from .models.model_host_capability import (
-    ModelHostCapabilityRequest,
-    ModelHostCapabilityResult,
-)
 
 
-class NodeHostCapabilityCompute:
+class NodeHostCapabilityCompute(HandlerHostCapability):
+    """Declarative entry point for host capability operations."""
+
     contract_path = Path(__file__).with_name("contract.yaml")
-
-    def __init__(self) -> None:
-        self.handler = HandlerHostCapability()
-
-    def handle(self, request: ModelHostCapabilityRequest) -> ModelHostCapabilityResult:
-        return self.handler.handle(request)

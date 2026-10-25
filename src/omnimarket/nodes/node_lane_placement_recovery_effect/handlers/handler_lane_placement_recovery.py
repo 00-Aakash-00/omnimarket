@@ -36,6 +36,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
+from ..models.model_claude_account_limit import (
+    ModelClaudeAccountLimitRequest,
+    ModelClaudeAccountLimitResult,
+)
+from ..models.model_lane_engine_failover import (
+    ModelLaneEngineFailoverRequest,
+    ModelLaneEngineFailoverResult,
+)
+from .handler_claude_account_limit import HandlerClaudeAccountLimit
+from .handler_lane_engine_failover import HandlerLaneEngineFailover
+
 LOST_STATUS = "placement-lost"
 PLACEMENT_REFUSAL_WINDOW_S = 600.0  # the throughput tick's own interval
 LOST_GRACE_S = 180  # a dead runner's receipt is judged after this long, past the detached parent's last re-read
@@ -54,6 +65,21 @@ class HandlerLanePlacementRecovery:
 
     def __init__(self, runtime: Mapping[str, Any]) -> None:
         self.runtime = runtime
+        self.account_handler = HandlerClaudeAccountLimit(runtime)
+        self.engine_handler = HandlerLaneEngineFailover(runtime)
+
+    def handle(
+        self, request: ModelClaudeAccountLimitRequest | ModelLaneEngineFailoverRequest
+    ) -> ModelClaudeAccountLimitResult | ModelLaneEngineFailoverResult:
+        if isinstance(request, ModelLaneEngineFailoverRequest):
+            return self.engine_handler.handle(request)
+        return self.account_handler.handle(request)
+
+    def execute(self, args: Any, **kwargs: Any) -> int:
+        request = ModelLaneEngineFailoverRequest(
+            args, self.runtime["execute_once"], kwargs
+        )
+        return self.engine_handler.handle(request).exit_code
 
     # ---- the runner ----------------------------------------------------------------------------------------------------
 
