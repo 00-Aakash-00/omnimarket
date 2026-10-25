@@ -12,8 +12,6 @@ from typing import get_type_hints
 import pytest
 import yaml
 
-from omnimarket.adapters.codex.local_runtime_dispatch import _resolve_node_route
-
 pytestmark = pytest.mark.unit
 
 
@@ -30,6 +28,7 @@ def test_contract_golden_chain(tmp_path: Path) -> None:
     )
     assert contract["name"] == "node_lane_placement_recovery_effect"
     assert contract["lifecycle"] == "experimental"
+    assert "handler_routing" not in contract
     assert "transport_type" not in contract["metadata"]
     assert contract["metadata"]["related_tickets"] == ["OMN-21373"]
     assert (
@@ -39,10 +38,6 @@ def test_contract_golden_chain(tmp_path: Path) -> None:
     binding = contract["handler"]
     handler_class = getattr(
         importlib.import_module(binding["module"]), binding["class"]
-    )
-    assert (
-        contract["handler_routing"]["default_handler"]
-        == binding["module"] + ":" + binding["class"]
     )
 
     def model(ref: str) -> type:
@@ -59,24 +54,13 @@ def test_contract_golden_chain(tmp_path: Path) -> None:
     assert hints["return"] is result_class
     assert binding["class"] == "HandlerClaudeAccountLimit"
     assert "event_bus" not in contract
-    routes = {
-        item["operation"]: item for item in contract["handler_routing"]["handlers"]
-    }
-    for item in routes.values():
-        assert "topic" not in item
-        assert "terminal_topic" not in item
-    assert routes["handle"]["handler"]["name"] == binding["class"]
-    assert routes["engine-failover"]["handler"]["name"] == "HandlerLaneEngineFailover"
-    assert (
-        routes["engine-failover"]["input_model"].rpartition(".")[2]
-        == "ModelLaneEngineFailoverRequest"
+    failover_handler_class = importlib.import_module(
+        "omnimarket.nodes.node_lane_placement_recovery_effect.handlers.handler_lane_engine_failover"
+    ).HandlerLaneEngineFailover
+    assert callable(failover_handler_class.handle)
+    assert get_type_hints(failover_handler_class.handle)["request"] is model(
+        "omnimarket.nodes.node_lane_placement_recovery_effect.models.model_lane_engine_failover.ModelLaneEngineFailoverRequest"
     )
-    # In-process only: the local command resolver finds no topic to route a bus command on.
-    for name in (contract["name"], contract["name"] + ".engine-failover"):
-        with pytest.raises(ValueError, match="lacks command/terminal topics"):
-            _resolve_node_route(name)
-    operations = {item["operation"] for item in contract["handler_routing"]["handlers"]}
-    assert operations == {"handle", "engine-failover"}
     # The placement recovery operations are called in process through node.py.
     node_class = importlib.import_module(
         "omnimarket.nodes.node_lane_placement_recovery_effect.node"
