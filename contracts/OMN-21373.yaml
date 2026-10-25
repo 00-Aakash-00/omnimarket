@@ -18,9 +18,17 @@ summary: >-
   node_landing_tick_speed_effect; the ticket ids two of them write into ledger
   rows are read from deployment overlays, with a refusal naming the field when
   no overlay supplies one.
+  The cloud-session routing and placement logic (the cloud lane accounts file,
+  the consent rule, the per-account cap, slot holds, credit and rate readings,
+  the routing refusal and the cloud session text) moves into omnimarket as
+  node_cloud_session_placement_effect. Private values (hosts and their consent
+  columns, the placement directory, excluded repositories) arrive on the request
+  from the caller's overlay. This contract covers this pull request's share of
+  the epic only; the epic's criteria as a whole are not met by it.
 is_seam_ticket: false
-interface_change: false
-interfaces_touched: []
+interface_change: true
+interfaces_touched:
+  - "public_api"
 requirements:
   - id: "req-omn21373-g1-port"
     statement: >-
@@ -51,6 +59,9 @@ evidence_requirements:
   - kind: "tests"
     description: "G1 port: the five nodes' direct tests pass in omnimarket."
     command: "uv run pytest tests/nodes/node_host_memory_admission_compute/test_golden_chain_host_memory_admission_compute.py tests/nodes/node_landing_worker_engine_compute/test_golden_chain_landing_worker_engine_compute.py tests/nodes/node_landing_tick_bounds_compute/test_golden_chain_landing_tick_bounds_compute.py tests/nodes/node_landing_upstream_gate_compute/test_golden_chain_landing_upstream_gate_compute.py tests/nodes/node_merge_sweep_same_head_compute/test_golden_chain_merge_sweep_same_head_compute.py -q"
+  - kind: "tests"
+    description: "The moved node's tests pass"
+    command: "uv run pytest tests/nodes/node_cloud_session_placement_effect/test_cloud_accounts.py tests/nodes/node_cloud_session_placement_effect/test_cloud_session.py tests/nodes/node_cloud_session_placement_effect/test_handler_cloud_session_placement.py -q --no-cov"
   - kind: "tests"
     description: "G3 port: the five nodes' direct tests pass in omnimarket."
     command: "uv run pytest tests/nodes/node_landing_placement_wait_effect/test_golden_chain_landing_placement_wait.py tests/nodes/node_landing_not_started_effect/test_golden_chain_landing_not_started.py tests/nodes/node_landing_lease_claim_close_effect/test_golden_chain_landing_lease_claim_close.py tests/nodes/node_install_superset_guard_effect/test_golden_chain_install_superset_guard.py tests/nodes/node_landing_tick_speed_effect/test_golden_chain_landing_tick_speed.py -q"
@@ -144,3 +155,67 @@ dod_evidence:
           assert not (Path(sys.argv[2]) / "landing/workers/000008").exists()
           print(json.dumps({"run_id": receipt["run_id"], "rows": len(rows)}))
           ' "$probe_dir/receipt.json" "$probe_dir";
+  - id: "dod-omn21373-ac1-node-in-omnimarket"
+    description: "This pull request's share of AC1: the cloud placement logic lives in omnimarket as node_cloud_session_placement_effect and its moved tests pass (accounts file, consent, caps, pick protocol, routing refusal, session text). Fails at the merge base, which has no such node. It does not show that the private base repository holds no code."
+    source: "manual"
+    binds_ac: ["AC1"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_cloud_session_placement_effect/test_cloud_accounts.py tests/nodes/node_cloud_session_placement_effect/test_cloud_session.py tests/nodes/node_cloud_session_placement_effect/test_handler_cloud_session_placement.py -q --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn21373-ac2-node-runs-through-onex-node"
+    description: "This pull request's share of AC2: the node is registered as an onex.nodes entry point and its contract resolves the handler and models, so a caller runs the omnimarket copy through onex node. Fails at the merge base. It does not show any launchd or systemd unit moved."
+    source: "manual"
+    binds_ac: ["AC2"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_cloud_session_placement_effect/test_handler_cloud_session_placement.py -q --no-cov -k contract_dispatch"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn21373-deploy-probe"
+    description: "Deploy probe. Read the node's contract from GitHub at the checked-out commit and require its operation, with the contract test. It fails at the merge base, which has no such contract."
+    source: "manual"
+    binds_ac: ["AC2"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_cloud_session_placement_effect/test_handler_cloud_session_placement.py -q --no-cov -k contract_dispatch"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "command"
+        check_value: "bash -o pipefail -c 'gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_cloud_session_placement_effect/contract.yaml?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -F \"decide_cloud_session_placement\" > /dev/null'"
+        cwd: "${OMNI_HOME}/omnimarket"
+
+  - id: "dod-omn21373-cloud-harness-boundary"
+    description: "The harness scan over the placement node's handler files admits no direct harness invocation and refuses a planted one, in a test that exists only with this change. The full-repository scan runs in the Golden Chain suite."
+    source: "manual"
+    binds_ac: ["AC1", "AC2"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/nodes/node_cloud_session_placement_effect/test_harness_boundary.py -q --no-cov"
+      - check_type: "command"
+        check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run python -m omnimarket.nodes.node_harness_invocation_check_effect --repo-root . src/omnimarket/nodes/node_cloud_session_placement_effect/handlers/__init__.py src/omnimarket/nodes/node_cloud_session_placement_effect/handlers/cloud_accounts.py src/omnimarket/nodes/node_cloud_session_placement_effect/handlers/cloud_routing.py src/omnimarket/nodes/node_cloud_session_placement_effect/handlers/cloud_session.py src/omnimarket/nodes/node_cloud_session_placement_effect/handlers/handler_cloud_session_placement.py"
+  - id: "dod-omn21373-deploy-cloud-start-runtime"
+    description: "Hosted deploy smoke: dispatch cloud startup rendering through the packaged in-process ONEX runtime, require the delegation-owned renderer and its exact script output, and validate shell syntax. No cloud account, network, broker or database is required. This checks rendering only; no live cloud session is started."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: |
+          set -eu;
+          export PYTHONDONTWRITEBYTECODE=1;
+          probe_dir="$(mktemp -d)";
+          trap 'rm -rf "$probe_dir"' EXIT;
+          printf '%s' '{"action":"render_start_script","path_export":"export PATH=/usr/bin:$PATH","registry_root":"/registry","owner":"org_a","repo":"repo_a","landing_branch":"main","run_id":"probe","prompt_path":"/staged/prompt"}' > "$probe_dir/input.json";
+          env ONEX_LANE=cloud-start-deploy-probe uv run --locked onex node node_cloud_session_placement_effect --input "$probe_dir/input.json" --state-root "$probe_dir/state" --backend event_bus=inmemory --timeout 30 --output receipt --omnibase-path "$PWD" > "$probe_dir/receipt.json";
+          uv run --locked python -c '
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+          from omnimarket.nodes.node_llm_delegation_call_effect import cloud_start_script
+          receipt = json.loads(Path(sys.argv[1]).read_text())
+          assert receipt["status"] == "success" and receipt["exit_code"] == 0, receipt
+          assert cloud_start_script.__module__ == "omnimarket.nodes.node_llm_delegation_call_effect.handlers.handler_cloud_session_start"
+          expected = cloud_start_script("export PATH=/usr/bin:$PATH", "/registry", "org_a", "repo_a", "main", "probe", "/staged/prompt")
+          result = receipt["result"]
+          assert result["error"] is None and result["text"] == expected, result
+          subprocess.run(["bash", "-n"], input=result["text"], text=True, check=True)
+          print(json.dumps({"run_id": receipt["run_id"], "status": receipt["status"], "renderer": cloud_start_script.__module__}))
+          ' "$probe_dir/receipt.json";
