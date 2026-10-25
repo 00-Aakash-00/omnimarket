@@ -662,6 +662,7 @@ node_projection_ci_attempt_outcome = "omnimarket.nodes.node_projection_ci_attemp
 node_projection_delegation_eval = "omnimarket.nodes.node_projection_delegation_eval"
 node_projection_delegation_judged_acceptance = "omnimarket.nodes.node_projection_delegation_judged_acceptance"
 node_projection_delegation_disposition = "omnimarket.nodes.node_projection_delegation_disposition"
+node_projection_delegation_capability_map = "omnimarket.nodes.node_projection_delegation_capability_map"
 node_projection_routing_feedback = "omnimarket.nodes.node_projection_routing_feedback"
 node_projection_provider_quota = "omnimarket.nodes.node_projection_provider_quota"
 node_delegation_eval_orchestrator = "omnimarket.nodes.node_delegation_eval_orchestrator"
