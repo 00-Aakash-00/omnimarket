@@ -691,13 +691,16 @@ class TestADeclaredCleanupPolicyDecides:
         self._registry(repo, _STATE_TOPIC, _exposure_declaring(_STATE_TOPIC, "compact"))
         assert gate.scan(repo) == []
 
-    def test_compact_delete_counts_as_compaction(
+    def test_compact_delete_is_not_a_durable_source(
         self, gate: ModuleType, repo: pathlib.Path
     ) -> None:
+        """With ``compact,delete`` Kafka still discards old segments by
+        retention, so the latest row of a key can age off and the registry
+        could not be rebuilt from the topic."""
         self._registry(
             repo, _STATE_TOPIC, _exposure_declaring(_STATE_TOPIC, "compact,delete")
         )
-        assert gate.scan(repo) == []
+        assert [v.relation for v in gate.scan(repo)] == ["thing_registry_mirror"]
 
     def test_an_event_topic_declared_compact_on_a_published_event_clears_it(
         self, gate: ModuleType, repo: pathlib.Path

@@ -280,9 +280,15 @@ def _declared_cleanup_policies(
 
 def _is_compacted(topic: str, marker: str, declared: dict[str, str]) -> bool:
     """A declared cleanup policy decides; only an undeclared topic falls back
-    to its name."""
+    to its name.
+
+    The declaration must compact and must not delete: with ``compact,delete``
+    Kafka still discards old segments by retention, so the latest row of a key
+    can age off and the relation could not be rebuilt from the topic.
+    """
     if topic in declared:
-        return "compact" in {part.strip() for part in declared[topic].split(",")}
+        parts = {part.strip() for part in declared[topic].split(",")}
+        return "compact" in parts and "delete" not in parts
     return _is_compaction_class(topic, marker)
 
 
