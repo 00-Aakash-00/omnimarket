@@ -4,7 +4,7 @@
 
 Like lab work, topics come only from the node contract, and terminals name
 their command's envelope as parent. One host group and one queue worker
-serialize commands; each caller uses its own terminal consumer group.
+serialize commands; Kafka callers use independent group-free receipt listeners.
 """
 
 from __future__ import annotations
@@ -655,12 +655,28 @@ class WorkLedgerAppendCaller:
     async def start(self) -> None:
         if self._unsubscribes:
             return
-        for topic in (self._topics.success, self._topics.failure):
-            self._unsubscribes.append(
-                await _subscribe(
-                    self._bus, topic, self._terminal(topic), self._group, "latest"
-                )
-            )
+        from omnibase_infra.event_bus.event_bus_kafka import EventBusKafka
+
+        from omnimarket.nodes.node_work_ledger_append_effect.handlers.reply_consumer import (
+            subscribe_reply,
+        )
+
+        try:
+            for topic in (self._topics.success, self._topics.failure):
+                if isinstance(self._bus, EventBusKafka):
+                    unsubscribe = await subscribe_reply(
+                        self._bus.config,
+                        self._bus.resolve_bus_binding(topic).physical_topic,
+                        self._terminal(topic),
+                    )
+                else:
+                    unsubscribe = await _subscribe(
+                        self._bus, topic, self._terminal(topic), self._group, "latest"
+                    )
+                self._unsubscribes.append(unsubscribe)
+        except BaseException:
+            await self.stop()
+            raise
 
     async def stop(self) -> None:
         for unsubscribe in self._unsubscribes:
