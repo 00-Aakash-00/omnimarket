@@ -192,6 +192,7 @@ class _InMemoryHookTables:
             "cache_read_input_tokens",
             "assistant_message_count",
             "producer_seq",
+            "harness",
         )
         assert len(params) == len(columns)
         row = dict(zip(columns, params, strict=True))
@@ -1107,3 +1108,21 @@ def test_compaction_pack_build_barrier_accepts_unstamped_lineage_event() -> None
     tables = _InMemoryHookTables()
     _deliver(_writer(tables), event)
     assert tables.events[str(event["event_id"])]["producer_seq"] is None
+
+
+def test_codex_harness_projects_same_table_and_defaults_old_claude() -> None:
+    raw = json.loads((FIXTURES / "events" / "SessionStart.json").read_text())
+    raw.update(actor="codex", harness="codex", lane="codex-hooks-proof")
+    raw["lineage"]["agent_model"] = "gpt-codex-proof"
+    event = ModelClaudeHookEventWire.model_validate(raw)
+    result = HandlerProjectionClaudeHookEvents().handle(
+        ModelClaudeHookProjectionRequest(event=event)
+    )
+    assert result.event_row.harness == "codex"
+    assert result.event_row.lane == "codex-hooks-proof"
+    assert result.event_row.model == "gpt-codex-proof"
+    assert writer_module._event_params(result.event_row)[-1] == "codex"
+    assert "harness" in writer_module._INSERT_EVENT
+    raw.pop("harness")
+    raw["actor"] = "claude"
+    assert ModelClaudeHookEventWire.model_validate(raw).harness == "claude"

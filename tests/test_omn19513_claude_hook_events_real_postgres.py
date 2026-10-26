@@ -27,6 +27,7 @@ import os
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
+from uuid import UUID
 
 import asyncpg
 import pytest
@@ -52,6 +53,7 @@ _MIGRATIONS = (
     _NODE_DIR / "migrations" / "0006_add_lane_model_host_exit_code.sql",
     _NODE_DIR / "migrations" / "0007_add_guard_refusal_and_token_usage.sql",
     _NODE_DIR / "migrations" / "0008_add_producer_sequence.sql",
+    _NODE_DIR / "migrations" / "0009_add_harness.sql",
 )
 _FIXTURES = Path(__file__).resolve().parent / "fixtures" / "claude_hook_capture"
 _SCHEMA = "omn19513_claude_hook_events_write_path_test"
@@ -453,6 +455,31 @@ async def test_a_refused_call_joins_its_guard_and_a_session_total_is_readable() 
                 ).read_text("utf-8")
             )
         )
+    finally:
+        await conn.execute(f"DROP SCHEMA IF EXISTS {_SCHEMA} CASCADE")
+        await conn.close()
+
+
+@pytest.mark.integration
+async def test_codex_harness_reads_back_from_real_postgres() -> None:
+    conn = await _connect_or_skip()
+    try:
+        await _setup(conn)
+        event = json.loads((_FIXTURES / "events" / "SessionStart.json").read_text())
+        event.update(actor="codex", harness="codex", lane="codex-hooks-proof")
+        event["lineage"]["agent_model"] = "gpt-codex-proof"
+        writer = _scoped_writer(conn)
+        await writer._project(writer.db, SOURCE_TOPIC, event)
+        row = await conn.fetchrow(
+            f"SELECT harness, lane, model FROM {_SCHEMA}.claude_hook_events WHERE event_id = $1",
+            UUID(event["event_id"]),
+        )
+        assert row is not None
+        assert dict(row) == {
+            "harness": "codex",
+            "lane": "codex-hooks-proof",
+            "model": "gpt-codex-proof",
+        }
     finally:
         await conn.execute(f"DROP SCHEMA IF EXISTS {_SCHEMA} CASCADE")
         await conn.close()

@@ -20,9 +20,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import selectors
+import shlex
 import shutil
+import subprocess
 import sys
 import tempfile
+import time
 from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
@@ -68,6 +73,150 @@ def merge_registration(
                 rewritten["hooks"] = missing
                 target_groups.append(rewritten)
     return merged, tuple(added)
+
+
+def session_hook_overrides(plugin_root: Path, lane: str) -> list[str]:
+    """Render capture-only session hooks; retain all existing user hooks and notify."""
+    registration = _read_object(plugin_root / "hooks" / "codex" / "hooks.json")
+    overrides = []
+    for event, groups in registration["hooks"].items():
+        captures = []
+        for group in groups:
+            for hook in group["hooks"]:
+                # The prompt mirror owns turn allocation and already captures hook.event.
+                script_name = (
+                    "user_prompt_submit_bus_mirror.sh"
+                    if event == "UserPromptSubmit"
+                    else "claude_hook_capture.sh"
+                )
+                expected_command = (
+                    "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/"
+                    + script_name
+                    + " --actor codex"
+                )
+                if hook.get("command") != expected_command:
+                    continue
+                script = plugin_root / "hooks" / "scripts" / script_name
+                if not script.is_file():
+                    raise ValueError("the capture script is missing")
+                command = (
+                    f"ONEX_LANE={shlex.quote(lane)} CLAUDE_PLUGIN_ROOT={shlex.quote(str(plugin_root))} "
+                    f"bash {shlex.quote(str(script))} --actor codex"
+                )
+                captures.append(
+                    '{matcher=".*",hooks=[{type="command",command='
+                    + json.dumps(command)
+                    + ",timeout=10}]}"
+                )
+        if captures:
+            if not re.fullmatch(r"[A-Za-z]+", event):
+                raise ValueError("invalid hook event name")
+            overrides.append(f"hooks.{event}=[" + ",".join(captures) + "]")
+    if len(overrides) != 9:
+        raise ValueError("the native capture registration must cover nine events")
+    return overrides
+
+
+def discover_session_hook_trust(
+    codex: str, cwd: Path, overrides: list[str]
+) -> list[str]:
+    """Ask the installed CLI for exact session-definition hashes; write no user config.
+
+    Only this invocation's capture commands are trusted. No bypass flag, user hook,
+    plugin hook, or persistent config mutation is involved. A discovery error refuses
+    the lane before its first model call.
+    """
+    command = [codex, "app-server", "--listen", "stdio://"]
+    for override in overrides:
+        command.extend(("-c", override))
+    expected = set()
+    for override in overrides:
+        # TOML's command string is JSON-compatible and generated above.
+        match = re.search(r'command=("(?:[^"\\]|\\.)*")', override)
+        if match:
+            expected.add(json.loads(match.group(1)))
+    requests = [
+        {
+            "id": 1,
+            "method": "initialize",
+            "params": {"clientInfo": {"name": "onex-lane-hooks", "version": "1"}},
+        },
+        {"method": "initialized"},
+        {"id": 2, "method": "hooks/list", "params": {"cwds": [str(cwd)]}},
+    ]
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        assert process.stdin is not None
+        assert process.stdout is not None
+        process.stdin.write(
+            ("\n".join(json.dumps(req) for req in requests) + "\n").encode()
+        )
+        process.stdin.flush()
+        deadline, buffer = time.monotonic() + 20, b""
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while time.monotonic() < deadline:
+                if not selector.select(min(1, max(0, deadline - time.monotonic()))):
+                    continue
+                chunk = os.read(process.stdout.fileno(), 65536)
+                if not chunk:
+                    raise ValueError("Codex hook discovery exited before its response")
+                buffer += chunk
+                while b"\n" in buffer:
+                    line, buffer = buffer.split(b"\n", 1)
+                    response = json.loads(line)
+                    if response.get("id") != 2:
+                        continue
+                    if "error" in response:
+                        raise ValueError("Codex refused hooks/list")
+                    trust = []
+                    found_events = set()
+                    for entry in response["result"]["data"]:
+                        for hook in entry["hooks"]:
+                            key, digest = hook["key"], hook["currentHash"]
+                            if (
+                                not key.startswith("/<session-flags>/config.toml:")
+                                or hook.get("command") not in expected
+                            ):
+                                continue
+                            if not re.fullmatch(
+                                r"sha256:[0-9a-f]{64}", digest
+                            ) or not hook.get("enabled"):
+                                raise ValueError(
+                                    "Codex returned an invalid or disabled capture definition"
+                                )
+                            found_events.add(hook.get("eventName"))
+                            trust.append(
+                                "hooks.state."
+                                + json.dumps(key)
+                                + ".trusted_hash="
+                                + json.dumps(digest)
+                            )
+                    expected_events = {
+                        item.split(".", 1)[1].split("=", 1)[0] for item in overrides
+                    }
+                    expected_events = {
+                        event[0].lower() + event[1:] for event in expected_events
+                    }
+                    if len(trust) != len(overrides) or found_events != expected_events:
+                        raise ValueError(
+                            "Codex did not discover every session capture hook"
+                        )
+                    return trust
+        raise ValueError("Codex hook discovery timed out")
+    finally:
+        if process.poll() is None:
+            process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
 
 
 def _read_object(path: Path) -> dict[str, Any]:
@@ -166,7 +315,24 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser(),
     )
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--session-config", type=Path)
+    parser.add_argument("--lane")
+    parser.add_argument("--codex", default="codex")
+    parser.add_argument("--cwd", type=Path, default=Path.cwd())
     args = parser.parse_args(argv)
+    if args.session_config:
+        if not args.lane or args.apply:
+            parser.error("--session-config requires --lane and forbids --apply")
+        try:
+            overrides = session_hook_overrides(args.plugin_root, args.lane)
+            trust = discover_session_hook_trust(args.codex, args.cwd, overrides)
+            args.session_config.write_text(
+                "\n".join(overrides + trust) + "\n", encoding="utf-8"
+            )
+        except (OSError, ValueError, KeyError):
+            sys.stderr.write("Codex native hook configuration refused\n")
+            return 1
+        return 0
     result = HandlerCodexHookRegistration().handle(
         ModelCodexHookRegistrationRequest(
             plugin_root=args.plugin_root,

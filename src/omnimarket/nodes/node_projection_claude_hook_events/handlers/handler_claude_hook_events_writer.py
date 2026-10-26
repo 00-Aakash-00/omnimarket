@@ -68,12 +68,12 @@ _INSERT_EVENT = f"""
         source_topic, goal_id, parent_goal_id, lane, model, host, exit_code,
         guard, refusal_reason, input_tokens, output_tokens,
         cache_creation_input_tokens, cache_read_input_tokens,
-        assistant_message_count, producer_seq, ingested_at
+        assistant_message_count, producer_seq, harness, ingested_at
     )
     VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
         $15, $16, $17, $18::jsonb, $19, $20, $21, $22, $23, $24, $25, $26,
-        $27, $28, $29, $30, $31, $32, $33, $34, NOW()
+        $27, $28, $29, $30, $31, $32, $33, $34, $35, NOW()
     )
     ON CONFLICT (event_id) DO UPDATE SET
         producer_seq = EXCLUDED.producer_seq
@@ -185,6 +185,7 @@ def _event_params(row: ModelClaudeHookEventRow) -> tuple[Any, ...]:
         row.cache_read_input_tokens,
         row.assistant_message_count,
         row.producer_seq,
+        row.harness,
     )
 
 

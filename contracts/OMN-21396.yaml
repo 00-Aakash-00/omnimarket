@@ -45,6 +45,19 @@ requirements:
     acceptance:
       - id: "AC6"
         statement: "AC6: the Codex lane's writable roots include $HOME/.local/share/uv and no parent of it, and a lane declaring host-paths-write, host-process-read, linear-write or nested-sandbox skips the Codex rung with reason sandbox-capability while a lane declaring none of them is still placed on Codex; the roots program fits the profile on Linux only and counts a sandbox that times out as fitting."
+  - id: req-native-hook-capture
+    statement: The operator hook brief adds Codex attribution and exact per-run trust discovery; inherited engine
+      criteria remain unchanged.
+    acceptance:
+    - id: AC7
+      statement: Codex native capture uses the shared hook.event topic with harness, lane, session and model attribution.
+    - id: AC8
+      statement: The existing hook-event projection stores harness with a Claude default and validates attribution.
+    - id: AC9
+      statement: Per-run native hook registration trusts only the exact capture definitions, without persistent config
+        changes or bypass flags.
+    - id: AC10
+      statement: A live Codex lane on a lab host writes queryable harness=codex projection rows; live proof is pending.
 evidence_requirements:
   - kind: "tests"
     description: "Engine ladder, experiment row and tick line tests pass"
@@ -198,3 +211,32 @@ dod_evidence:
       - check_type: "command"
         check_value: "uv run --locked python -c 'from omnimarket.nodes.node_remote_lane_compute.handlers.handler_remote_lane_placement import HandlerRemoteLanePlacement as H; from omnimarket.nodes.node_remote_lane_compute.models import ModelRemoteLanePlacementRequest as R; r=H().handle(R.model_validate({\"engine\":\"codex\",\"readings\":[{\"name\":\"h201\",\"engines\":[\"codex\",\"claude_sonnet\"],\"lane_slots\":2,\"lane_cap\":4,\"rank_free\":10.0}],\"ladder\":{\"lane\":\"probe\",\"ceiling\":\"sonnet\",\"risk_class\":\"feature\",\"required_capabilities\":[\"nested-sandbox\"]}})); assert r.rung==\"sonnet\", r; assert [v.reason for v in r.rungs if v.engine==\"codex\"]==[\"sandbox-capability\"], r.rungs; print(\"ac6-probe ok\")'"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: dod-native-hook-projection
+    description: Codex events retain harness, lane and model in the existing table; CLI discovery trusts only exact
+      session definitions.
+    source: manual
+    checks:
+    - check_type: test_passes
+      check_value: uv run pytest tests/test_omn19513_claude_hook_events_projection.py tests/nodes/node_codex_hook_registration_effect/test_handler_codex_hook_registration.py
+        -q --no-cov
+    binds_ac:
+    - AC8
+    - AC9
+  - id: dod-native-hook-deploy-artifact
+    description: Hosted deploy artifact check for the additive harness migration. Live delivery is separately pending.
+    source: manual
+    checks:
+    - check_type: command
+      check_value: bash -o pipefail -c 'git show HEAD:src/omnimarket/nodes/node_projection_claude_hook_events/migrations/0009_add_harness.sql
+        | grep -F "ADD COLUMN IF NOT EXISTS harness"'
+    binds_ac:
+    - AC8
+  - id: dod-native-hook-live-proof-pending
+    description: AC10 remains pending. The sandbox refused nested Codex app-server startup; no live rows are claimed.
+    source: manual
+    checks:
+    - check_type: disposition
+      check_value:
+        verdict: blocked
+        reason: 'Nested Codex startup: Operation not permitted. Local PostgreSQL init also refused shared memory:
+          No space left on device.'

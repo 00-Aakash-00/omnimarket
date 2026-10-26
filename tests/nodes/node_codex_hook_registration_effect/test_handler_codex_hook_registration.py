@@ -395,3 +395,74 @@ def test_contract_declares_command_and_terminal_topics() -> None:
     assert contract["terminal_event"] == (
         "onex.evt.omnimarket.codex-hook-registration-applied.v1"
     )
+
+
+def test_session_capture_overrides_preserve_user_config_and_trust_only_exact_definitions(
+    tmp_path,
+):
+    from omnimarket.nodes.node_codex_hook_registration_effect.handlers.handler_codex_hook_registration import (
+        discover_session_hook_trust,
+        session_hook_overrides,
+    )
+
+    root = tmp_path / "plugin with spaces"
+    (root / "hooks/codex").mkdir(parents=True)
+    (root / "hooks/scripts").mkdir()
+    (root / "hooks/scripts/claude_hook_capture.sh").write_text("exit 0")
+    (root / "hooks/scripts/user_prompt_submit_bus_mirror.sh").write_text("exit 0")
+    events = [
+        "SessionStart",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "Stop",
+        "SubagentStart",
+        "SubagentStop",
+        "PermissionRequest",
+        "SessionEnd",
+    ]
+    registration = {
+        "hooks": {
+            event: [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/claude_hook_capture.sh --actor codex",
+                        }
+                    ]
+                }
+            ]
+            for event in events
+        }
+    }
+    registration["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"] = (
+        "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/user_prompt_submit_bus_mirror.sh --actor codex"
+    )
+    (root / "hooks/codex/hooks.json").write_text(json.dumps(registration))
+    overrides = session_hook_overrides(root, "lane-proof")
+    assert len(overrides) == 9
+    assert all(
+        "--actor codex" in item and "ONEX_LANE=lane-proof" in item for item in overrides
+    )
+    assert not any("notify" in item or "sandbox" in item for item in overrides)
+    fake = tmp_path / "codex"
+    fake.write_text(
+        "#!/usr/bin/env python3\n"
+        + "import sys,json,re\n"
+        + "args=sys.argv[1:]; overrides=[args[i+1] for i,v in enumerate(args) if v=='-c']\n"
+        + "hooks=[dict(key='/<session-flags>/config.toml:'+str(i),eventName=v.split('.')[1].split('=')[0][0].lower()+v.split('.')[1].split('=')[0][1:],currentHash='sha256:'+'a'*64,enabled=True,command=json.loads(re.search(r'command=(\"(?:[^\"\\\\]|\\\\.)*\")',v).group(1))) for i,v in enumerate(overrides)]\n"
+        + "for line in sys.stdin:\n"
+        + " req=json.loads(line)\n"
+        + " if req.get('id')==2: print(json.dumps(dict(id=2,result=dict(data=[dict(hooks=hooks)]))),flush=True)\n"
+    )
+    fake.chmod(0o755)
+    trust = discover_session_hook_trust(str(fake), tmp_path, overrides)
+    assert len(trust) == 9
+    assert all(
+        item.startswith('hooks.state."/<session-flags>/config.toml:') for item in trust
+    )
+    assert not (tmp_path / "config.toml").exists()
+    fake.write_text(fake.read_text().replace("'a'*64", "'z'*64"))
+    with pytest.raises(ValueError, match="invalid or disabled"):
+        discover_session_hook_trust(str(fake), tmp_path, overrides)

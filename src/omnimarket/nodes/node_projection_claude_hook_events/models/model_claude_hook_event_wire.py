@@ -251,6 +251,7 @@ class ModelClaudeHookEventWire(BaseModel):
     emitted_at: AwareDatetime
     #: OMN-19513: the producer's hook_actor_envelope.yaml declares claude, codex, unknown.
     actor: Literal["claude", "codex", "unknown"]
+    harness: Literal["claude", "codex", "unknown"] = "claude"
     claude_code_version: str | None = None
     #: OMN-17427: the hostname of the machine that emitted the event.
     host: str | None = Field(default=None, min_length=1)
@@ -282,6 +283,12 @@ class ModelClaudeHookEventWire(BaseModel):
         """
         if not isinstance(data, dict):
             return data
+        if "harness" not in data and data.get("actor") in {
+            "claude",
+            "codex",
+            "unknown",
+        }:
+            data = {**data, "harness": data["actor"]}
         return {
             k: v
             for k, v in data.items()
@@ -290,6 +297,8 @@ class ModelClaudeHookEventWire(BaseModel):
 
     @model_validator(mode="after")
     def _payload_is_declared_metadata(self) -> ModelClaudeHookEventWire:
+        if self.actor != self.harness:
+            raise ValueError("actor and harness must agree")
         undeclared = sorted(set(self.payload) - ALLOWED_PAYLOAD_KEYS)
         if undeclared:
             raise ValueError(
