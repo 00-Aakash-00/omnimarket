@@ -903,9 +903,7 @@ class HandlerProjectionDelegation:
         _stamp_terminal_trace_and_routing(row, event)
         _stamp_terminal_stop_reason(row, event.finish_reason, event.truncated)
         if event.escalation_history:
-            row["attempt_history"] = _canonical_attempt_records(
-                event.escalation_history
-            )
+            _stamp_canonical_history(row, event.escalation_history)
         # Resolve only the event's declared tenant against the registry.
         # Missing attribution is refused by terminal_write_tenant regardless
         # of enforcement or the writer's configured tenant (OMN-20651).
@@ -2281,6 +2279,16 @@ def _blank_to_none(value: object) -> str | None:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
+
+
+def _stamp_canonical_history(
+    row: dict[str, object], history: Iterable[dict[str, object]]
+) -> None:
+    records = _canonical_attempt_records(history)
+    row["attempt_history"] = records
+    _stamp_accepting_attempt(
+        row, (ModelDelegateSkillAttemptRecord.model_validate(raw) for raw in records)
+    )
 
 
 def _canonical_attempt_records(

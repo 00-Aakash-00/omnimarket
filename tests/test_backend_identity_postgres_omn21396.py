@@ -47,6 +47,12 @@ async def test_canonical_identity_survives_real_jsonb_write_and_replay(local_pos
         )
         import json
 
+        attribution = await connection.fetchrow(
+            "SELECT backend_id, host FROM delegation_events WHERE correlation_id=$1",
+            cid,
+        )
+        assert attribution["backend_id"] == "local-a"
+        assert attribution["host"] == identity["host"]
         stored = await connection.fetchval(
             "SELECT attempt_history FROM delegation_events WHERE correlation_id=$1", cid
         )

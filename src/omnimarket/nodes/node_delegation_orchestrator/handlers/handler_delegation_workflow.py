@@ -4715,7 +4715,7 @@ class HandlerDelegationWorkflow:
         )
 
         decision = workflow.routing_decision
-        updates = {}
+        updates: dict[str, object] = {}
         if attempt.backend_ref is None and decision.selected_backend_ref.strip():
             updates["backend_ref"] = decision.selected_backend_ref.strip()
         if attempt.configuration is None:
