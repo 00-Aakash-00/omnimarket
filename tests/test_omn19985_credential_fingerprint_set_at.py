@@ -114,7 +114,12 @@ def test_f3_an_existing_store_file_gains_the_columns_on_open(tmp_path: Path) -> 
 
 def test_f4_exposure_serves_the_fields_and_names_its_consumer() -> None:
     contract = yaml.safe_load((_NODE / "contract.yaml").read_text())
-    api = contract["projection_api"]
+    # OMN-21217: the node declares two exposures; this is the served one.
+    api = next(
+        exposure
+        for exposure in contract["projection_api"]["exposures"]
+        if exposure["topic"] == "onex.snapshot.projection.tenant-credentials.v1"
+    )
     assert {"fingerprint", "set_at"} <= set(api["columns"])
     # The contract's own instruction: once a per-tenant surface (the local Credentials page) renders these rows,
     # both opt-out keys are deleted, so the exposure-reader gate checks the live reader.

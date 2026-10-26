@@ -184,6 +184,18 @@ class PostgresSyncProjectionAdapter:
                     {key: self._adapt(value) for key, value in plan.parameters.items()},
                 )
                 written = cur.fetchone()
+                if written is not None and plan.postgres_models_write is not None:
+                    # OMN-21217: the key's own choices change with its route or
+                    # not at all; raising rolls both back.
+                    cur.execute(
+                        plan.postgres_models_write,
+                        {
+                            key: self._adapt(value)
+                            for key, value in plan.parameters.items()
+                        },
+                    )
+                    if cur.fetchone() is None:
+                        raise RuntimeError("credential model target is unavailable")
                 cur.execute(
                     plan.postgres_read,
                     {key: self._adapt(value) for key, value in plan.parameters.items()},

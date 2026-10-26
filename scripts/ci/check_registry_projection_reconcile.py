@@ -48,8 +48,11 @@ write`` or ``read_write``, where that relation is ALSO read by
 the owning contract must satisfy at least one of:
 
   1. it subscribes to a COMPACTION-class topic (a keyed changelog retains the
-     latest value per key indefinitely, so the relation can always be rebuilt);
-     or
+     latest value per key indefinitely, so the relation can always be rebuilt).
+     A topic whose ``topic_config.kafka_config`` declares a ``cleanup.policy``
+     in one of this repo's contracts is classed by that declaration, because
+     the topic provisioner creates the topic with it (OMN-21217); an
+     undeclared topic is classed by its name; or
   2. it carries a complete entry in
      ``scripts/ci/registry_projection_reconcile_allowlist.yaml`` naming a real,
      citable reconcile path.
@@ -185,6 +188,104 @@ def _is_compaction_class(topic: str, marker: str) -> bool:
     return any(segment in {marker, singular} for segment in segments[1:])
 
 
+# The contract sites the topic provisioner reads a topic's ``topic_config``
+# from (omnibase_infra contract_topic_extractor, OMN-13238 and OMN-15832).
+_EVENT_SECTION_KEYS = ("consumed_events", "published_events", "produced_events")
+_EVENT_BUS_SECTION_KEYS = ("subscribe_topics", "publish_topics", "dlq_topics")
+
+
+def _served_exposures(projection_api: object) -> list[dict[object, object]]:
+    """The exposures the provisioner creates: ``expose: true`` on the section
+    and ``bus_backed: true`` on the exposure, the same rule as the extractor."""
+    if not isinstance(projection_api, dict) or projection_api.get("expose") is not True:
+        return []
+    exposures = projection_api.get("exposures")
+    if exposures is None:
+        items: list[object] = [projection_api]
+    elif isinstance(exposures, list):
+        items = list(exposures)
+    else:
+        items = []
+    return [
+        item
+        for item in items
+        if isinstance(item, dict) and item.get("bus_backed") is True
+    ]
+
+
+def _topic_declarations(
+    contract: dict[str, object],
+) -> list[tuple[object, dict[object, object]]]:
+    """Every (topic name, item) of one contract that can carry a ``topic_config``.
+
+    An event section item names its topic under ``topic`` or the old-style
+    ``name``, and the provisioner applies the item's config to both; an
+    ``event_bus`` item and a served exposure name it under ``topic`` only.
+    """
+    pairs: list[tuple[object, dict[object, object]]] = []
+    for key in _EVENT_SECTION_KEYS:
+        section = contract.get(key)
+        if isinstance(section, list):
+            for item in section:
+                if isinstance(item, dict):
+                    pairs.extend((item.get(k), item) for k in ("topic", "name"))
+    event_bus = contract.get("event_bus")
+    if isinstance(event_bus, dict):
+        for key in _EVENT_BUS_SECTION_KEYS:
+            section = event_bus.get(key)
+            if isinstance(section, list):
+                pairs.extend(
+                    (item.get("topic"), item)
+                    for item in section
+                    if isinstance(item, dict)
+                )
+    pairs.extend(
+        (item.get("topic"), item)
+        for item in _served_exposures(contract.get("projection_api"))
+    )
+    return pairs
+
+
+def _declared_cleanup_policies(
+    contracts: list[tuple[str, dict[str, object]]],
+) -> dict[str, str]:
+    """topic -> the ``cleanup.policy`` this repo's contracts declare for it.
+
+    Two contracts that declare different policies for one topic leave the
+    gate unable to say which one the provisioner applied, so that is an input
+    error, not a pass for whichever was read first.
+    """
+    declared: dict[str, tuple[str, str]] = {}
+    for node, contract in contracts:
+        for topic, item in _topic_declarations(contract):
+            topic_config = item.get("topic_config")
+            if not isinstance(topic, str) or not isinstance(topic_config, dict):
+                continue
+            kafka_config = topic_config.get("kafka_config")
+            if (
+                not isinstance(kafka_config, dict)
+                or "cleanup.policy" not in kafka_config
+            ):
+                continue
+            policy = str(kafka_config["cleanup.policy"]).strip()
+            earlier = declared.setdefault(topic, (policy, node))
+            if earlier[0] != policy:
+                raise GateInputError(
+                    f"{topic} declares cleanup.policy {earlier[0]!r} in "
+                    f"{earlier[1]} and {policy!r} in {node}; the gate cannot "
+                    "tell which one the topic was created with."
+                )
+    return {topic: policy for topic, (policy, _) in declared.items()}
+
+
+def _is_compacted(topic: str, marker: str, declared: dict[str, str]) -> bool:
+    """A declared cleanup policy decides; only an undeclared topic falls back
+    to its name."""
+    if topic in declared:
+        return "compact" in {part.strip() for part in declared[topic].split(",")}
+    return _is_compaction_class(topic, marker)
+
+
 def _load_exemptions(repo_root: pathlib.Path) -> tuple[dict[str, object], ...]:
     path = repo_root / _ALLOWLIST_RELPATH
     if not path.is_file():
@@ -251,7 +352,12 @@ def _written_relations(
             if isinstance(event_bus, dict)
             else []
         )
-        topics = tuple(str(topic) for topic in raw_topics)
+        # A subscription may be a bare topic or a dict carrying its topic and
+        # topic_config; match it by the topic either way.
+        topics = tuple(
+            str(topic.get("topic")) if isinstance(topic, dict) else str(topic)
+            for topic in raw_topics
+        )
         for table in tables:
             if not isinstance(table, dict):
                 continue
@@ -470,6 +576,7 @@ def scan(
         exemptions = _load_exemptions(repo_root)
 
     contracts = _contracts(repo_root)
+    declared = _declared_cleanup_policies(contracts)
     owned = _written_relations(contracts)
     owner_of = {relation: node for relation, (node, _) in owned.items()}
     relations = set(owned)
@@ -496,7 +603,7 @@ def scan(
         node, topics = owned[relation]
         exemption = exempt_by_relation.get(relation)
 
-        if any(_is_compaction_class(topic, marker) for topic in topics):
+        if any(_is_compacted(topic, marker, declared) for topic in topics):
             continue
 
         if exemption is None:

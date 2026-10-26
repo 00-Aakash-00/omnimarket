@@ -59,6 +59,8 @@ from typing import Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict
 
 from omnimarket.projection.tenant_isolation import HOUSE_TENANT_SLUG
+from omnimarket.routing.byok_provider_backends import BYOK_MODEL_UNRESOLVED
+from omnimarket.tenant_credential_ref import is_tenant_credential_ref
 
 logger = logging.getLogger(__name__)
 
@@ -293,11 +295,74 @@ def resolve_tenant_overlay(
         backend_id=str(row["backend_id"]),
         provider=provider,
         endpoint_url=str(row["endpoint_url"]),
-        model_name=str(row["model_name"]),
+        model_name=_selected_key_model(
+            db,
+            tenant_id=tenant_id,
+            provider=provider,
+            secret_ref=secret_ref,
+            overlay_model=str(row["model_name"]),
+        ),
         secret_ref=secret_ref,
         timeout_ms=_optional_int(row.get("timeout_ms")),
         max_tokens=_optional_int(row.get("max_tokens")),
     )
+
+
+def _selected_key_model(
+    db: ProtocolTenantOverlayReader,
+    *,
+    tenant_id: str,
+    provider: str | None,
+    secret_ref: str | None,
+    overlay_model: str,
+) -> str:
+    """Bind a pooled ref to its own choices, keeping unknown keys fail closed.
+
+    No-key overlays retain their distinct credential-absent posture. A house
+    overlay with no catalogue entry retains its configured model. A tenant ref
+    that cannot prove its own choices keeps that ref and the existing no-model
+    sentinel, so the effect refuses it before transport or model discovery.
+    """
+    if secret_ref is None or provider is None:
+        return overlay_model
+    try:
+        rows = db.query(
+            TENANT_CREDENTIALS_TABLE,
+            filters={
+                "tenant_id": tenant_id,
+                "provider": provider,
+                "api_key_ref": secret_ref,
+            },
+        )
+    except Exception:
+        logger.warning(
+            "selected credential choices unreadable for tenant_id=%s",
+            tenant_id,
+            exc_info=True,
+        )
+        return (
+            BYOK_MODEL_UNRESOLVED
+            if is_tenant_credential_ref(secret_ref)
+            else overlay_model
+        )
+    if not rows:
+        return (
+            BYOK_MODEL_UNRESOLVED
+            if is_tenant_credential_ref(secret_ref)
+            else overlay_model
+        )
+    models = rows[0].get("models")
+    if (
+        isinstance(models, list)
+        and models
+        and all(
+            isinstance(model, str) and model.strip() and len(model) <= 200
+            for model in models
+        )
+        and len(set(models)) == len(models)
+    ):
+        return str(models[0])
+    return BYOK_MODEL_UNRESOLVED
 
 
 def _select_pool_secret_ref(

@@ -217,6 +217,11 @@ class InmemoryDatabaseAdapter:
                 expected_version is not None and current != expected_version
             ):
                 return False, current
+            if row.get("secret_ref") is not None and not self.query(
+                "tenant_inference_credentials",
+                {"tenant_id": row["tenant_id"], "api_key_ref": row["secret_ref"]},
+            ):
+                raise RuntimeError("credential model target is unavailable")
             self.upsert_returning(
                 "delegation_routing_tenant_overlay",
                 "tenant_id,task_type",
@@ -226,6 +231,16 @@ class InmemoryDatabaseAdapter:
                 },
                 insert_only_columns=frozenset({"created_at"}),
             )
+            if row.get("secret_ref") is not None:
+                self.upsert_returning(
+                    "tenant_inference_credentials",
+                    "api_key_ref",
+                    {
+                        "api_key_ref": row["secret_ref"],
+                        # An empty choice is an unknown one, as on SQLite.
+                        "models": list(cast(list[str], row["models"])) or None,
+                    },
+                )
             return True, 1 if current is None else current + 1
 
     def upsert(

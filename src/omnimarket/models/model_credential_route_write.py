@@ -19,3 +19,5 @@ class ModelCredentialRouteWrite:
     postgres_write: str
     sqlite_read: str
     postgres_read: str
+    sqlite_models_write: str | None = None
+    postgres_models_write: str | None = None

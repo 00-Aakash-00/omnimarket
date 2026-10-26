@@ -87,6 +87,10 @@ def test_legacy_backfill_does_not_invent_a_customer_choice(
         conn.execute(f"ALTER TABLE {TABLE} DROP COLUMN models")
         conn.execute(f"ALTER TABLE {TABLE} DROP COLUMN version")
         conn.execute(f"UPDATE {TABLE} SET model_name = ?", (name,))
+        # A pre-T5 store has not recorded the T5 upgrade steps either.
+        conn.execute(
+            "DELETE FROM omnimarket_sqlite_store_steps WHERE step LIKE 'omn21217_%'"
+        )
     upgraded = SqliteDatabaseAdapter(path).query(TABLE, {"tenant_id": "test-tenant"})[0]
     assert upgraded["models"] == expected
     assert upgraded["version"] == 1

@@ -40,6 +40,27 @@ class HandlerCredentialRouteWrite:
                 "SELECT version FROM delegation_routing_tenant_overlay "
                 "WHERE tenant_id = %(tenant_id)s AND task_type = %(task_type)s"
             ),
+            sqlite_models_write=(
+                # An empty choice is an unknown one: NULL, as a revoke-first
+                # delivery order leaves it.
+                "UPDATE tenant_inference_credentials SET models = NULLIF(:models, '[]') "
+                "WHERE tenant_id = :tenant_id AND api_key_ref = :secret_ref "
+                "AND revoked_at IS NULL RETURNING api_key_ref"
+                if row.get("secret_ref") is not None
+                else None
+            ),
+            # The same choice on Postgres, in the route write's transaction.
+            # The version rises as the asynchronous writer's does, so a state
+            # row read back afterwards never undoes this write.
+            postgres_models_write=(
+                "UPDATE tenant_inference_credentials "
+                "SET models = NULLIF(%(models)s::JSONB, '[]'::JSONB), "
+                "version = version + 1 "
+                "WHERE tenant_id = %(tenant_id)s AND api_key_ref = %(secret_ref)s "
+                "AND revoked_at IS NULL RETURNING api_key_ref"
+                if row.get("secret_ref") is not None
+                else None
+            ),
         )
 
     @staticmethod
