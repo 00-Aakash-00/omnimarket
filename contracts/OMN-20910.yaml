@@ -419,9 +419,8 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect/test_claude_review_gateway.py -q -n 0 --no-cov -k target_changes"
         cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn20910-gateway-workflow-ratchet-ac3"
-    description: "The existing workflow ratchet rejects voter hosts and ports with its known-bad positive control. The gateway capability change edits no workflow."
+    description: "Supplemental regression check: the existing workflow ratchet rejects voter hosts and ports with its known-bad positive control. AC3 remains bound by dod-omn20910-ac3-no-voter-endpoint; this gateway change introduces no new workflow behavior to control at the merge base."
     source: "manual"
-    binds_ac: ["AC3"]
     checks:
       - check_type: "test_passes"
         check_value: "uv run pytest tests/ci/test_hostile_reviewer_voters_overlay_omn20910.py -q -n 0 --no-cov"
