@@ -53,6 +53,9 @@ host tick not firing, a tick node that cannot run, a failed relaunch or fill dis
 nothing (no Agent,
 Workflow, lane skill or remote-lane runner call), is refused with the lines it read. A tick whose own ``lab-fill``
 line sent lanes into every free slot (``idle_after=0``) answers the headroom by itself.
+
+RULING 2026-10-26T11:31:48Z: Claude fills use Sonnet. Explicit Opus requirements
+are skipped with the ruling in the existing backlog report, without consuming a slot.
 """
 
 from __future__ import annotations
@@ -74,7 +77,9 @@ from pathlib import Path
 from typing import Any
 
 from omnimarket.handlers.node_overlay_reader import NodeOverlayError
+from omnimarket.handlers.rules_background_lane_models import OPUS_REFUSAL, is_opus
 from omnimarket.handlers.rules_lab_fill_tickets import plan_ticket_backlog
+from omnimarket.handlers.rules_lane_requirements import claude_required, declarations
 from omnimarket.models.lab_fill import ModelLabFillTicketFacts
 from omnimarket.nodes.node_idle_slot_fill_effect import overlay
 from omnimarket.nodes.node_idle_slot_fill_effect.models import (
@@ -86,9 +91,6 @@ from omnimarket.nodes.node_idle_slot_fill_effect.models import (
     ModelLabFillRequest,
     ModelLabFillResult,
 )
-from omnimarket.nodes.node_lane_placement_recovery_effect.handlers.handler_lane_engine_failover import (
-    claude_required,
-)
 
 RULING = "RULING 2026-10-14T21:46:25Z lane=orchestrator-bb1a (OMN-17427)"
 UMBRELLA_TICKETS = frozenset({"OMN-17427"})
@@ -96,7 +98,7 @@ TICKET_ID = re.compile(r"OMN-[0-9]+")
 TICKET_RULE = "omnimarket.handlers.rules_lab_fill_tickets.plan_ticket_backlog (omnimarket#4384, RULING 2026-10-20T10:45:21Z)"
 FACT_MAX_AGE = timedelta(hours=48)
 EXPERIMENT_RERUN_AFTER = timedelta(hours=24)
-CLAUDE_MODEL, CODEX_MODEL, EFFORT = "opus", "codex", "high"
+CLAUDE_MODEL, CODEX_MODEL, EFFORT = "sonnet", "codex", "high"
 GENERATED_KINDS = ("ticket", "readback", "experiment-design")
 DASHBOARD_RULING = "RULING 2026-10-01T10:53:36Z lane=dashboard-stayout (OMN-19969)"
 DASHBOARD_CRITERIA = frozenset({"C31", "C32"})
@@ -692,12 +694,24 @@ class HandlerIdleSlotFill:
                 )
                 continue
             pin = None
-            required = str(item.get("required_engine") or "").lower()
+            required = (
+                str(item.get("required_engine") or "").strip().lower().replace("_", "-")
+            )
+            opus_declaration = any(
+                is_opus(match[1])
+                for line in declarations(item.get("brief", ""))
+                if (
+                    match := re.fullmatch(
+                        r"Required (?:engine|model):\s*(.*?)\s*", line, re.IGNORECASE
+                    )
+                )
+            )
+            if is_opus(required) or opus_declaration:
+                skipped.append({"key": item["key"], "why": OPUS_REFUSAL})
+                continue
             pinned = required in (
                 "claude",
-                "opus",
                 "sonnet",
-                "claude-opus",
                 "claude-sonnet",
             ) or claude_required(item.get("brief", ""))
             if item["key"].startswith("repair:host-tick:"):
