@@ -64,12 +64,15 @@ dod_evidence:
       owning node subscribes to; applying a row never overwrites a newer stored
       version, never un-revokes and never republishes. On the hosted Postgres
       service a replay of the published rows into an empty schema rebuilds the
-      source registry exactly, in either delivery order.
+      source registry exactly, in either delivery order. The routing overlay
+      rows do the same on onex.evt.omnimarket.tenant-routing-overlay-state.v1,
+      both topics declare cleanup.policy compact, and the reconcile gate
+      classes a topic by that declared policy.
     source: "manual"
     binds_ac: ["AC1"]
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/test_omn21217_credential_state_topic.py tests/test_omn21217_credential_state_replay_postgres.py -q -n 0 --no-cov --junitxml=omn21217-state.xml && uv run python scripts/ci/check_integration_skips.py --junit omn21217-state.xml"
+        check_value: "uv run pytest tests/test_omn21217_credential_state_topic.py tests/test_omn21217_overlay_state_topic.py tests/test_omn21217_credential_state_replay_postgres.py tests/ci/test_omn17446_registry_projection_reconcile_gate.py -q -n 0 --no-cov --junitxml=omn21217-state.xml && uv run python scripts/ci/check_integration_skips.py --junit omn21217-state.xml"
         cwd: "${OMNI_HOME}/omnimarket"
 emergency_bypass:
   enabled: false
