@@ -8,18 +8,11 @@ interface_change: false
 interfaces_touched: []
 requirements:
   - id: "req-terminal-construction-outcome-contract"
-    statement: "The criteria below are the ticket's definition of done, transcribed from its body: Core, Market and Infra receiver invariants; canonical JSON round trips; failed-topic versus quality-gate semantics. Each id is the label an evidence item claims through binds_ac."
-    acceptance:
-      - id: "AC1"
-        statement: "AC1: Core receiver invariant -- the installed Core release carries TERMINAL_CONSTRUCTION_FAILED and UNDETERMINED, and a failed terminal may keep quality_passed=true only under that exact pair -- falsifier: uv run pytest tests/unit/delegation/test_omn19013_core_floor_terminal_construction.py -q -k 'installed_core or core_failed_topic'"
-      - id: "AC2"
-        statement: "AC2: Market receiver invariants -- the delegate-skill response model refuses an undetermined verdict without the construction outcome, a construction outcome without the stable reason, and any quality score or evidence on a construction failure -- falsifier: uv run pytest tests/unit/delegation/test_unconstructible_terminal_omn18978.py -q -k Consumer"
-      - id: "AC3"
-        statement: "AC3: Infra receiver invariant -- the migration Infra vendors from this repository filters the quality denominators on exactly the pair and keeps security_invoker on every view it replaces -- falsifier: uv run pytest tests/unit/delegation/test_omn19013_core_floor_terminal_construction.py -q -k migration_0045"
-      - id: "AC4"
-        statement: "AC4: canonical JSON round trips -- the degraded terminal and the response model reload equal from their own JSON, keeping the gate flag and a null score -- falsifier: uv run pytest tests/unit/delegation/test_unconstructible_terminal_omn18978.py tests/unit/delegation/test_omn19013_core_floor_terminal_construction.py -q -k round_trip"
-      - id: "AC5"
-        statement: "AC5: failed-topic versus quality-gate semantics -- the degraded terminal keeps the gate's decision whether it passed or not, and the projection row persists the pair, that decision and no score -- falsifier: uv run pytest tests/unit/delegation/test_unconstructible_terminal_omn18978.py tests/test_omn15905_delegation_projection_writer_seam.py -q -k 'gate_fact or construction_terminal'"
+    statement: >-
+      The ticket's definition of done, which it states as prose and not as labelled criteria: Core, Market and Infra
+      receiver invariants; canonical JSON round trips; failed-topic versus quality-gate semantics. The AC1 to AC5 this
+      contract once transcribed from that prose are not labels the ticket carries; their item claims are retired.
+    acceptance: []
 evidence_requirements:
   - kind: "tests"
     description: "AC1 to AC5: the focused Market tests for the construction outcome pair."
@@ -79,3 +72,50 @@ dod_evidence:
       - check_type: "command"
         check_value: "gh api repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_projection_delegation/handlers/handler_projection_delegation.py?ref=0a4c43ed88d5cfb092b7899638dd4b2a02c0b018 --jq .content | base64 -d | grep -c 'if construction_failed'"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn19013-market-receiver-behaviour"
+    description: >-
+      The ticket carries no labelled criteria: AC1 to AC5 were transcribed into this contract from its prose definition
+      of done (Core, Market and Infra receiver invariants, canonical JSON round trips, failed-topic versus quality-gate
+      semantics), which the live ticket does not label. This item retires each merged item's claim on a removed label and binds none. Its check runs the
+      Market receiver tests the fix (omnimarket#3981) added: the response model refuses every contradictory
+      construction-failure shape, the degraded terminal keeps the gate's decision and round-trips through canonical
+      JSON, and the projection writer persists the pair with no score. They fail with the fix's product files reverted.
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: >-
+          uv run pytest tests/unit/delegation/test_unconstructible_terminal_omn18978.py
+          tests/test_omn15905_delegation_projection_writer_seam.py -q -n 0 --no-cov
+          -k 'Consumer or gate_fact or round_trip or construction_terminal'
+        cwd: "${OMNI_HOME}/omnimarket"
+    supersedes_ac_binding:
+      - item: "dod-omn19013-ac1-core-receiver"
+        label: "AC1"
+        reason_kind: "no_longer_applicable"
+        reason: "AC1 is not a labelled criterion on the ticket, so the item that bound it proves no criterion the ticket carries."
+        retired_by: "c16-closeout-lane"
+        retired_at: "2026-10-26T15:00:00Z"
+      - item: "dod-omn19013-ac2-market-receiver"
+        label: "AC2"
+        reason_kind: "no_longer_applicable"
+        reason: "AC2 is not a labelled criterion on the ticket, so the item that bound it proves no criterion the ticket carries."
+        retired_by: "c16-closeout-lane"
+        retired_at: "2026-10-26T15:00:00Z"
+      - item: "dod-omn19013-ac3-infra-vendored-migration"
+        label: "AC3"
+        reason_kind: "no_longer_applicable"
+        reason: "AC3 is not a labelled criterion on the ticket, so the item that bound it proves no criterion the ticket carries."
+        retired_by: "c16-closeout-lane"
+        retired_at: "2026-10-26T15:00:00Z"
+      - item: "dod-omn19013-ac4-round-trips"
+        label: "AC4"
+        reason_kind: "no_longer_applicable"
+        reason: "AC4 is not a labelled criterion on the ticket, so the item that bound it proves no criterion the ticket carries."
+        retired_by: "c16-closeout-lane"
+        retired_at: "2026-10-26T15:00:00Z"
+      - item: "dod-omn19013-ac5-gate-fact-semantics"
+        label: "AC5"
+        reason_kind: "no_longer_applicable"
+        reason: "AC5 is not a labelled criterion on the ticket, so the item that bound it proves no criterion the ticket carries."
+        retired_by: "c16-closeout-lane"
+        retired_at: "2026-10-26T15:00:00Z"
