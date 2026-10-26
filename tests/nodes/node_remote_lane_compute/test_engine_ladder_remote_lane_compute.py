@@ -193,7 +193,7 @@ def test_codex_accepts_other_declared_capabilities(
     assert result.rung == "codex"
 
 
-def test_claude_failure_escalates_to_opus() -> None:
+def test_claude_failure_stops_at_policy_ceiling() -> None:
     result = place(
         ladder={
             "claude_required": True,
@@ -208,16 +208,17 @@ def test_claude_failure_escalates_to_opus() -> None:
             }
         ],
     )
-    assert (result.rung, result.engine) == ("opus", "claude_opus")
+    assert result.rung is None
+    assert result.capped == "opus->sonnet"
 
 
 def test_pinned_route_only_uses_ceiling() -> None:
     result = place(
         ladder={"pinned": True, "ceiling": "opus"},
-        readings=[{"name": "h201", "engines": ["claude_opus"], "lane_slots": 2}],
+        readings=[{"name": "h201", "engines": ["claude_sonnet"], "lane_slots": 2}],
     )
-    assert result.rung == "opus"
-    assert [v.reason for v in result.rungs[:-1]] == ["pinned-to-route"] * 4
+    assert result.rung == "sonnet"
+    assert [v.reason for v in result.rungs[:-1]] == ["pinned-to-route"] * 3
 
 
 @pytest.mark.parametrize(
@@ -308,3 +309,23 @@ def test_lane_kind_stands_in_for_an_undeclared_risk_class() -> None:
         ("code-edit", "risk-class"),
         ("glm", "risk-class"),
     ]
+
+
+@pytest.mark.parametrize("pinned", [False, True])
+def test_opus_request_is_capped_to_sonnet(pinned: bool) -> None:
+    result = place(
+        ladder={"ceiling": "opus", "claude_required": True, "pinned": pinned}
+    )
+    assert result.rung == "sonnet"
+    assert result.capped == "opus->sonnet"
+
+
+def test_failed_sonnet_never_escalates_to_opus() -> None:
+    result = place(
+        ladder={
+            "ceiling": "opus",
+            "attempts": [{"engine": "sonnet", "model": "sonnet", "outcome": "failed"}],
+        },
+        readings=[{"name": "h201", "engines": ["claude_opus"], "lane_slots": 2}],
+    )
+    assert result.rung is None

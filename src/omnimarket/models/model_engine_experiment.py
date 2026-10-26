@@ -9,7 +9,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-ENGINE_LADDER: tuple[str, ...] = ("code-edit", "glm", "codex", "sonnet", "opus")
+from omnimarket.models.model_lane_engine_policy import LANE_ENGINE_POLICY
+
+ENGINE_LADDER: tuple[str, ...] = ("code-edit", *LANE_ENGINE_POLICY.engine_order, "opus")
 CLAUDE_RUNGS = ("sonnet", "opus")
 LOW_RISK_CLASSES = ("doc", "test", "lint", "small-fix")
 ESCALATING_OUTCOMES = ("failed", "blocked-own-work", "checks-red")

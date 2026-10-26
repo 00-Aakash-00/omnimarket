@@ -187,6 +187,7 @@ class ModelRemoteLanePlacementResult(BaseModel):
     outcome: EnumRemoteLaneOutcome = EnumRemoteLaneOutcome.NO_HOST
     venv_drift: ModelRemoteLaneVenvDrift | None = None
     reconcile: ModelRemoteLaneReconcileIntent | None = None
+    capped: str | None = None
     rung: str | None = None
     rungs: tuple[ModelRemoteLaneRungVerdict, ...] = ()
     experiment: ModelEngineExperimentRow | None = None

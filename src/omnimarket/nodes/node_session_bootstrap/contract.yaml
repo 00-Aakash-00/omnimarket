@@ -24,9 +24,6 @@ descriptor:
   # registration. State files are overwritten, not appended.
   idempotent: true
   timeout_ms: 30000
-  runtime_profiles:
-    - effects
-
 inputs:
   session_id:
     type: uuid
