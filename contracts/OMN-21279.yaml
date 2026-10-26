@@ -285,3 +285,23 @@ dod_evidence:
           tests/nodes/node_lane_placement_recovery_effect/test_codex_host_limits.py
           -k "node_dispatches_typed_limit_request or existing_node_observes_engine_return"
           -q --no-cov -n 0
+  - id: dod-omn-21279-codex-limit-test-wall-clock
+    description: >-
+      The engine-return observation test ends its receipt at the current
+      wall clock, because the recovery node builds its limit request without
+      a fixed now. With the fixed 14:00Z ended_at the one-hour mark expired
+      at 15:00Z on 2026-10-26 and the test failed on dev for every pull
+      request after that. The test passes at any wall-clock time, and the
+      source keeps no fixed ended_at for that test.
+    source: generated
+    execution_scope: hosted_and_local
+    checks:
+      - check_type: test_passes
+        check_value: >-
+          env -u PYTHONPATH uv run --frozen pytest
+          tests/nodes/node_lane_placement_recovery_effect/test_codex_host_limits.py
+          -k existing_node_observes_engine_return -q --no-cov -n 0
+      - check_type: command
+        check_value: >-
+          grep -q "p = receipt(tmp_path, final=False, ended_at=ended_at)"
+          tests/nodes/node_lane_placement_recovery_effect/test_codex_host_limits.py

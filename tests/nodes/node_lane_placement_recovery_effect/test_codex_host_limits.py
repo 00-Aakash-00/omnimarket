@@ -221,7 +221,10 @@ def test_existing_node_observes_engine_return_before_any_retry(tmp_path: Path) -
         NodeLanePlacementRecoveryEffect,
     )
 
-    p = receipt(tmp_path, final=False)
+    # The node reads the wall clock, so the receipt ends now: a fixed ended_at
+    # lets the one-hour mark expire and the marker is never written.
+    ended_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    p = receipt(tmp_path, final=False, ended_at=ended_at)
     args = SimpleNamespace(
         model="codex", run_id="run", receipt=str(p), lane="lane", placement="lab"
     )
