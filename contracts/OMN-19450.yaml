@@ -86,4 +86,7 @@ dod_evidence:
           --branch dev --status success --limit 1 --json createdAt
           --jq '.[0].createdAt | fromdateiso8601 | (now - .) < 691200' | grep -qx true
         cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_delegation_fault_suite_nightly_omn19450.py -q -n 0 --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC2"]
