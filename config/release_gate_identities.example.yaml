@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+#
+# Shape of the private overlay file named by RELEASE_GATE_IDENTITIES_FILE. The
+# real file lives in the private overlay repository and is never committed here.
+# Roles must match grantor_roles in release_gate_policy.yaml.
+grantors:
+  operator: []
+  cloud_owner: []
+# Logins that agents act under (the lab bot, the PR write node, any host whose
+# CLI is signed in to a person's account). A label or approval by one of these
+# never grants, even when the login is also listed as a grantor.
+agent_logins: []

@@ -1,0 +1,83 @@
+schema_version: 1.0.0
+ticket_id: OMN-21433
+title: only the release train releases; any other release needs a person's grant on the PR
+summary: >-
+  OMN-21433 carries a release-gate task group. This change is its gate: a pure
+  compute node (node_release_gate_compute) decides from facts whether a pull
+  request, tag push, published release or dispatch is the release train's or
+  carries a grant bound to the exact head, with the check workflow, the
+  tag-protection and required-check rulesets declared as code, and the apply
+  workflow. The criteria below are this change's own, from the lane brief,
+  numbered AC8 to AC12 so they do not collide with the ticket's AC1 to AC7,
+  which belong to the plan lane and are not claimed here. The rulesets are
+  declared and tested, and nothing has applied them: the apply workflow needs an
+  App installation with repository administration write, which is unverified.
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+requirements:
+  - id: req-release-gate
+    statement: >-
+      Every release path except the release train is refused unless the pull
+      request carries a grant a lane cannot have made.
+    acceptance:
+      - id: AC8
+        statement: 'AC8: a release by the train passes -- falsifier: a train-shaped pull request whose push actor or a commit author is not the train App is refused'
+      - id: AC9
+        statement: 'AC9: a release pull request without a grant is refused -- falsifier: the same pull request with a valid label and a matching record passes'
+      - id: AC10
+        statement: 'AC10: a label from a non-allowlisted login, an agent login or an App token is refused -- falsifier: the same label from an allowlisted person passes'
+      - id: AC11
+        statement: 'AC11: a hand-pushed release tag is refused whatever grants exist, and the tag ruleset lets only the train App create a v tag -- falsifier: a train actor of type Bot passes the same tag'
+      - id: AC12
+        statement: 'AC12: release.yml and release-cut.yml cannot run any job before the gate -- falsifier: a job with no needs fails the workflow test'
+evidence_requirements:
+  - kind: tests
+    description: >-
+      The gate handler, the collector, the ruleset declarations, the apply
+      script and the workflow shape, each with a falsifier; eight mutations of
+      the handler were each killed by a test.
+    command: uv run pytest tests/nodes/node_release_gate_compute -q --no-cov
+emergency_bypass:
+  enabled: false
+  justification: ''
+  follow_up_ticket_id: ''
+dod_evidence:
+  - id: dod-omn-21433-rg1-train-passes
+    description: >-
+      AC8 and AC9: the train's release pull request passes and an agent's
+      without a grant is refused, one wrong train fact at a time.
+    source: generated
+    binds_ac: [AC8, AC9]
+    checks:
+      - check_type: test_passes
+        check_value: uv run pytest tests/nodes/node_release_gate_compute/test_release_gate.py -q --no-cov
+  - id: dod-omn-21433-rg3-grant-forgery
+    description: >-
+      AC10: a label or record from the wrong actor, a stale or consumed or
+      self-granted record, or a record bound to another head is refused.
+    source: generated
+    binds_ac: [AC10]
+    checks:
+      - check_type: test_passes
+        check_value: uv run pytest tests/nodes/node_release_gate_compute/test_release_gate.py tests/nodes/node_release_gate_compute/test_release_gate_collect.py -q --no-cov
+  - id: dod-omn-21433-rg4-rg5-enforcement
+    description: >-
+      AC11 and AC12: the tag ruleset, the required-check ruleset, the apply
+      script and the workflows that must call the gate.
+    source: generated
+    binds_ac: [AC11, AC12]
+    checks:
+      - check_type: test_passes
+        check_value: uv run pytest tests/nodes/node_release_gate_compute/test_release_gate_enforcement.py -q --no-cov
+  - id: dod-omn-21433-deploy-probe
+    description: >-
+      Deploy-scope probe: read the node's contract from the public raw GitHub
+      endpoint at this checkout's head. Fails unless it declares the release
+      gate node. The merge base has no such file, so the probe fails there.
+    source: generated
+    binds_ac: [AC8]
+    checks:
+      - check_type: command
+        check_value: >-
+          bash -o pipefail -c 'curl --fail --silent --show-error "https://raw.githubusercontent.com/OmniNode-ai/omnimarket/$(git rev-parse HEAD)/src/omnimarket/nodes/node_release_gate_compute/contract.yaml" | grep -q "^name: node_release_gate_compute$"'

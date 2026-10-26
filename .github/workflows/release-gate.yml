@@ -1,0 +1,135 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+#
+# release-gate.yml (OMN-21433)
+#
+# WHAT THIS REFUSES
+#   RULING 2026-10-26T22:21:06Z: the release train is the only release path.
+#   Every other release (a release-shaped pull request, a version tag push, a
+#   published GitHub release, a hand dispatch of a release workflow) is refused
+#   unless the pull request carries a grant an agent cannot have made.
+#
+#   The decision is node_release_gate_compute's pure handler. This workflow only
+#   gathers facts (collect.py), runs the handler and fails the job on a refusal.
+#
+# WHERE IT RUNS
+#   * pull_request_target: the required check named "Release Gate". It runs the
+#     default branch's copy of the gate, never the pull request's, so a pull
+#     request cannot edit the check that judges it. Nothing from the pull
+#     request is checked out.
+#   * push of a v tag / release published: an audit that goes red when a release
+#     event did not come from the train. It cannot stop the push; the tag
+#     ruleset in .github/rulesets/release-tags.json does that.
+#   * workflow_call: release.yml and release-cut.yml call it first, so a hand
+#     dispatch of either is refused before it publishes.
+#   * merge_group: the context must report there too; the pull request run
+#     already judged the head, so this passes through.
+#
+# FAIL CLOSED
+#   Unreadable facts exit non-zero. An unreadable grants file or a missing
+#   identity overlay only removes the means to grant, so release-shaped pull
+#   requests are refused while every other pull request is unaffected. The
+#   token mint may fall back to the read-only workflow token for the same
+#   reason: this job writes nothing.
+#
+# The identity overlay (logins by role, shape in
+# config/release_gate_identities.example.yaml) arrives as the secret
+# RELEASE_GATE_IDENTITIES_YAML, provisioned from the private overlay; no login is
+# committed to this repository.
+name: Release Gate
+
+"on":
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, labeled, unlabeled, ready_for_review]
+  merge_group:
+  push:
+    tags: ['v[0-9]*']
+  release:
+    types: [published]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  release-gate:
+    name: Release Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Merge queue passes through
+        if: github.event_name == 'merge_group'
+        run: echo "the pull request run judged this head; nothing to decide in the queue"
+
+      # The default branch, for every event: a tag or a pull request branch must
+      # not supply the code that judges it.
+      - name: Checkout the gate from the default branch
+        if: github.event_name != 'merge_group'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Install uv
+        if: github.event_name != 'merge_group'
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+
+      # Read scopes only: this job writes nothing. The two repositories are the one
+      # being judged and the grant file's repository.
+      - name: Mint a read-only app token
+        id: app-token
+        if: github.event_name != 'merge_group'
+        continue-on-error: true
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.ONEXBOT_APP_ID }}
+          private-key: ${{ secrets.ONEXBOT_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }},onex_change_control
+          permission-contents: read
+          permission-pull-requests: read
+          permission-issues: read
+          permission-metadata: read
+
+      - name: Decide
+        if: github.event_name != 'merge_group'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          IDENTITIES_YAML: ${{ secrets.RELEASE_GATE_IDENTITIES_YAML }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="${PWD}/src"
+          # The overlay arrives as a secret: logins by role, never committed. An
+          # empty secret leaves no grantor, so every grant is refused.
+          export RELEASE_GATE_IDENTITIES_FILE="${RUNNER_TEMP}/release_gate_identities.yaml"
+          printf '%s' "${IDENTITIES_YAML}" >"${RELEASE_GATE_IDENTITIES_FILE}"
+          gate() {
+            uv run --no-project --python 3.12 \
+              --with 'pydantic>=2.11,<3' --with 'pyyaml>=6,<7' python -m "$@"
+          }
+          if ! gate omnimarket.nodes.node_release_gate_collect_effect \
+              --repo "${REPO}" --event-name "${EVENT_NAME}" \
+              --event-path "${GITHUB_EVENT_PATH}" \
+              --policy config/release_gate_policy.yaml \
+              >"${RUNNER_TEMP}/request.json"; then
+            echo "::error::the release gate could not read its facts; refusing"
+            exit 1
+          fi
+          set +e
+          gate omnimarket.nodes.node_release_gate_compute \
+            <"${RUNNER_TEMP}/request.json" >"${RUNNER_TEMP}/result.json"
+          code=$?
+          set -e
+          {
+            echo "## Release gate"
+            echo ""
+            echo '```json'
+            cat "${RUNNER_TEMP}/result.json"
+            echo '```'
+          } >>"${GITHUB_STEP_SUMMARY}"
+          if [ "${code}" -ne 0 ]; then
+            echo "::error::release refused: $(cat "${RUNNER_TEMP}/result.json")"
+          fi
+          exit "${code}"

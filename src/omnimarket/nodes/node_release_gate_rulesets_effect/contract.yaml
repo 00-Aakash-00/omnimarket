@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+name: node_release_gate_rulesets_effect
+lifecycle: experimental
+node_type: EFFECT_GENERIC
+runtime_profiles: []
+contract_version:
+  major: 1
+  minor: 0
+  patch: 0
+node_version: 1.0.0
+description: >-
+  Make a repository's rulesets match the release gate declarations under
+  .github/rulesets: the tag ruleset that lets only the release train's App create
+  a v tag, and the ruleset that requires the Release Gate check. Plans by default
+  and writes only when asked; the apply workflow is the only caller that asks.
+input_model:
+  name: ModelReleaseGateRulesetsRequest
+  module: omnimarket.nodes.node_release_gate_rulesets_effect.models.model_release_gate_rulesets
+output_model:
+  name: ModelReleaseGateRulesetsResult
+  module: omnimarket.nodes.node_release_gate_rulesets_effect.models.model_release_gate_rulesets
+handler:
+  module: omnimarket.nodes.node_release_gate_rulesets_effect.handlers.handler_release_gate_rulesets
+  class: HandlerReleaseGateRulesets
+  input_model: omnimarket.nodes.node_release_gate_rulesets_effect.models.model_release_gate_rulesets.ModelReleaseGateRulesetsRequest
+  output_model: omnimarket.nodes.node_release_gate_rulesets_effect.models.model_release_gate_rulesets.ModelReleaseGateRulesetsResult
+handler_routing:
+  routing_strategy: operation_match
+  default_handler: omnimarket.nodes.node_release_gate_rulesets_effect.handlers.handler_release_gate_rulesets:HandlerReleaseGateRulesets
+  handlers:
+  - operation: handle
+    handler:
+      name: HandlerReleaseGateRulesets
+      module: omnimarket.nodes.node_release_gate_rulesets_effect.handlers.handler_release_gate_rulesets
+event_bus:
+  subscribe_topics: []
+  publish_topics: []
+runtime_dispatch:
+  external_trigger: Run by apply-release-gate-rulesets.yml after a merge that touches the declarations, or by dispatch.
+descriptor:
+  node_archetype: effect
+  purity: effectful
+  runtime_profiles: []
+  idempotent: true
+  timeout_ms: 120000
+metadata:
+  transport_type: local
+  created: '2026-10-26'
+  tags:
+  - effect
+  - release-policy
+  related_tickets:
+  - OMN-21433

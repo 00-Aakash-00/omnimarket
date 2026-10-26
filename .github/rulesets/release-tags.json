@@ -1,0 +1,23 @@
+{
+  "name": "release-tags",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/tags/v[0-9]*"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {"type": "creation"},
+    {"type": "update"},
+    {"type": "deletion"}
+  ],
+  "bypass_actors": [
+    {
+      "actor_id": "${RELEASE_TRAIN_APP_ID}",
+      "actor_type": "Integration",
+      "bypass_mode": "always"
+    }
+  ]
+}

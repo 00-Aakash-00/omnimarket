@@ -1,0 +1,23 @@
+{
+  "name": "release-gate-required-check",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["~DEFAULT_BRANCH", "refs/heads/main"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "required_status_checks": [
+          {"context": "Release Gate"}
+        ]
+      }
+    }
+  ],
+  "bypass_actors": []
+}

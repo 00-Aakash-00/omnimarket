@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+#
+# apply-release-gate-rulesets.yml (OMN-21433)
+#
+# Makes this repository's rulesets match .github/rulesets/*.json: the tag
+# ruleset that lets only the release train's App create a v tag, and the ruleset
+# that requires the "Release Gate" check on the default branch and main. The
+# declarations are the source of truth; nobody edits these rulesets by hand, and
+# a change to them is a reviewed pull request that this workflow applies after it
+# merges.
+#
+# A dispatch plans by default (writes nothing); the apply happens on a merge that
+# touches the declarations, or on a dispatch with apply set.
+#
+# The App token needs repository administration write. The installation used for
+# reads carries administration read only, and no REST call widens an
+# installation's grant, so this step fails at the mint if the installation does
+# not carry it; that is the signal to grant it through the App's owner, not a
+# reason to apply by hand.
+name: Apply release gate rulesets
+
+"on":
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Write the rulesets (default: plan only)'
+        type: boolean
+        default: false
+  push:
+    branches: [dev]
+    paths:
+      - '.github/rulesets/**'
+      - 'src/omnimarket/nodes/node_release_gate_rulesets_effect/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apply-release-gate-rulesets
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+
+      - name: Mint a ruleset-admin app token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.ONEXBOT_APP_ID }}
+          private-key: ${{ secrets.ONEXBOT_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-administration: write
+          permission-metadata: read
+
+      - name: Plan or apply
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE_TRAIN_APP_ID: ${{ secrets.ONEXBOT_OCC_APP_ID }}
+          APPLY: ${{ github.event_name == 'push' || inputs.apply }}
+        run: |
+          set -euo pipefail
+          flag=""
+          if [ "${APPLY}" = "true" ]; then flag="--apply"; fi
+          PYTHONPATH=src uv run --no-project --python 3.12 \
+            --with 'pydantic>=2.11,<3' python -m omnimarket.nodes.node_release_gate_rulesets_effect \
+            --repo "${GITHUB_REPOSITORY}" ${flag} | tee -a "${GITHUB_STEP_SUMMARY}"

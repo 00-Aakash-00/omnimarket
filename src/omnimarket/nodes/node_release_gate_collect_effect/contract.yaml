@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+name: node_release_gate_collect_effect
+lifecycle: experimental
+node_type: EFFECT_GENERIC
+runtime_profiles: []
+contract_version:
+  major: 1
+  minor: 0
+  patch: 0
+node_version: 1.0.0
+description: >-
+  Gather the facts the release gate judges for the running GitHub event: the pull
+  request, its commits, label events, the push actor of its head, and the grant
+  records from the policy's source ref. Unreadable facts exit 3 and the workflow
+  refuses. The decision itself is node_release_gate_compute.
+input_model:
+  name: ModelReleaseGateCollectRequest
+  module: omnimarket.nodes.node_release_gate_collect_effect.models.model_release_gate_collect
+output_model:
+  name: ModelReleaseGateRequest
+  module: omnimarket.models.model_release_gate
+handler:
+  module: omnimarket.nodes.node_release_gate_collect_effect.handlers.handler_release_gate_collect
+  class: HandlerReleaseGateCollect
+  input_model: omnimarket.nodes.node_release_gate_collect_effect.models.model_release_gate_collect.ModelReleaseGateCollectRequest
+  output_model: omnimarket.models.model_release_gate.ModelReleaseGateRequest
+handler_routing:
+  routing_strategy: operation_match
+  default_handler: omnimarket.nodes.node_release_gate_collect_effect.handlers.handler_release_gate_collect:HandlerReleaseGateCollect
+  handlers:
+  - operation: handle
+    handler:
+      name: HandlerReleaseGateCollect
+      module: omnimarket.nodes.node_release_gate_collect_effect.handlers.handler_release_gate_collect
+event_bus:
+  subscribe_topics: []
+  publish_topics: []
+runtime_dispatch:
+  external_trigger: Run by release-gate.yml on a pull request, tag push, published release or dispatch.
+descriptor:
+  node_archetype: effect
+  purity: effectful
+  runtime_profiles: []
+  idempotent: true
+  timeout_ms: 120000
+metadata:
+  transport_type: local
+  created: '2026-10-26'
+  tags:
+  - effect
+  - release-policy
+  related_tickets:
+  - OMN-21433

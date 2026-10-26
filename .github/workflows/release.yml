@@ -19,7 +19,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # OMN-21433: only the release train may start a release. A hand dispatch or a
+  # hand-pushed tag stops here, before anything is built or published.
+  release-gate:
+    name: Release Gate
+    uses: ./.github/workflows/release-gate.yml
+    secrets: inherit
+    permissions:
+      contents: read
+
   release:
+    needs: release-gate
     runs-on: ubuntu-latest
     permissions:
       contents: write

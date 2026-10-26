@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+#
+# Release gate policy (OMN-21433). Roles only: no person's login belongs in this
+# file. The grantor and agent logins are read from a private overlay at run time
+# (RELEASE_GATE_IDENTITIES_FILE); with no overlay the gate has no grantor and
+# refuses every grant.
+#
+# RULING 2026-10-26T22:21:06Z: the release train is the only release path; every
+# other release is refused unless it carries a grant from the operator or the
+# cloud owner.
+#
+# What counts as the train is exactly what runs today:
+#   * release-train-nightly.yml (omnibase_infra) opens "chore: release" pull
+#     requests from automation/release-<version>-omn-18595 as the
+#     onexbot-occ-writer App;
+#   * release.yml's post-release job opens automation/post-release-dev-bump-<v>;
+#   * auto-tag-on-merge.yml pushes the v tag as the same App.
+release_tag_pattern: '^v[0-9]+\.[0-9]+\.[0-9]+'
+release_title_prefixes: ['release:', 'chore: release', 'chore(release)']
+release_labels: ['release']
+release_branch_prefixes: ['release/', 'automation/release-', 'automation/post-release-dev-bump-']
+# A diff that changes the package's own version is a release whatever it is titled.
+version_files: ['pyproject.toml']
+grant_label: 'release-grant'
+grantor_roles: ['operator', 'cloud_owner']
+train_actor_logins: ['onexbot-occ-writer[bot]']
+train_branch_prefixes: ['automation/release-', 'automation/post-release-dev-bump-']
+# Grant records are read from this ref of onex_change_control, never the PR's.
+grant_source_ref: 'main'

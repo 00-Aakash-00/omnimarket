@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+name: node_release_gate_compute
+node_type: compute
+runtime_profiles: [main]
+contract_version: {major: 1, minor: 0, patch: 0}
+node_version: "1.0.0"
+description: >-
+  Allow releases by the release train and pull requests with a valid human grant.
+  Release shape, train identity and head-bound grants are evaluated from supplied facts.
+input_model: omnimarket.models.model_release_gate.ModelReleaseGateRequest
+output_model: omnimarket.models.model_release_gate.ModelReleaseGateResult
+handler:
+  module: omnimarket.handlers.handler_release_gate
+  class: HandlerReleaseGate
+  input_model: omnimarket.models.model_release_gate.ModelReleaseGateRequest
+  output_model: omnimarket.models.model_release_gate.ModelReleaseGateResult
+handler_routing:
+  routing_strategy: operation_match
+  default_handler: omnimarket.handlers.handler_release_gate:HandlerReleaseGate
+  handlers:
+    - operation: check_release_gate
+      handler:
+        name: HandlerReleaseGate
+        module: omnimarket.handlers.handler_release_gate
+descriptor:
+  node_archetype: compute
+  purity: pure
+  idempotent: true
+  timeout_ms: 1000
+terminal_event: onex.evt.omnimarket.release-gate-checked.v1
+runtime_dispatch:
+  command_topic: onex.cmd.omnimarket.release-gate-check-requested.v1
+event_bus:
+  subscribe_topics:
+    - onex.cmd.omnimarket.release-gate-check-requested.v1
+  publish_topics:
+    - onex.evt.omnimarket.release-gate-checked.v1
+externally_consumed_topics:
+  - onex.evt.omnimarket.release-gate-checked.v1
+metadata:
+  transport_type: kafka
+  related_tickets: [OMN-21433]
