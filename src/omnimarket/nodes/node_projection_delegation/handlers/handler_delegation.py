@@ -66,6 +66,7 @@ from omnimarket.nodes.node_projection_delegation.handlers.handler_delegation_tic
 )
 from omnimarket.nodes.node_projection_delegation.handlers.handler_projection_delegation import (
     ModelProjectionTaskDelegatedEvent,
+    _canonical_attempt_records,
     _canonical_result_to_task_delegated_payload,
     _deciding_rung_stop_reason,
     _is_blank,
@@ -1764,6 +1765,10 @@ class DelegationProjectionRunner(BaseProjectionRunner):
             "request_override_applied": event.request_override_applied,
             "override_within_bounds": event.override_within_bounds,
         }
+        if event.escalation_history:
+            row["attempt_history"] = _canonical_attempt_records(
+                event.escalation_history
+            )
         # Resolve only the event's declared tenant against the registry.
         # terminal_write_tenant refuses missing attribution regardless of
         # enforcement or the writer's configured tenant (OMN-20651).
