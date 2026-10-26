@@ -12,6 +12,7 @@ requirements:
       The ticket's definition of done, which it states as prose and not as labelled criteria: Core, Market and Infra
       receiver invariants; canonical JSON round trips; failed-topic versus quality-gate semantics. The AC1 to AC5 this
       contract once transcribed from that prose are not labels the ticket carries; their item claims are retired.
+      AC6 is this contract's own label for the Market receiver behaviour, not a label the ticket carries.
     acceptance: []
 evidence_requirements:
   - kind: "tests"
@@ -76,7 +77,8 @@ dod_evidence:
     description: >-
       The ticket carries no labelled criteria: AC1 to AC5 were transcribed into this contract from its prose definition
       of done (Core, Market and Infra receiver invariants, canonical JSON round trips, failed-topic versus quality-gate
-      semantics), which the live ticket does not label. This item retires each merged item's claim on a removed label and binds none. Its check runs the
+      semantics), which the live ticket does not label. This item retires each merged item's claim on a removed label and binds
+      AC6, this contract's own label for the Market receiver behaviour. Its check runs the
       Market receiver tests the fix (omnimarket#3981) added: the response model refuses every contradictory
       construction-failure shape, the degraded terminal keeps the gate's decision and round-trips through canonical
       JSON, and the projection writer persists the pair with no score. They fail with the fix's product files reverted.
@@ -88,6 +90,7 @@ dod_evidence:
           tests/test_omn15905_delegation_projection_writer_seam.py -q -n 0 --no-cov
           -k 'Consumer or gate_fact or round_trip or construction_terminal'
         cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC6"]
     supersedes_ac_binding:
       - item: "dod-omn19013-ac1-core-receiver"
         label: "AC1"
