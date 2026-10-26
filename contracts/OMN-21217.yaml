@@ -72,8 +72,33 @@ dod_evidence:
     binds_ac: ["AC1"]
     checks:
       - check_type: "test_passes"
-        check_value: "uv run pytest tests/test_omn21217_credential_state_topic.py tests/test_omn21217_overlay_state_topic.py tests/test_omn21217_credential_state_replay_postgres.py tests/ci/test_omn17446_registry_projection_reconcile_gate.py -q -n 0 --no-cov --junitxml=omn21217-state.xml && uv run python scripts/ci/check_integration_skips.py --junit omn21217-state.xml"
+        check_value: "uv run pytest tests/test_omn21217_credential_state_topic.py tests/test_omn21217_overlay_state_topic.py tests/test_omn21217_credential_state_replay_postgres.py -q -n 0 --no-cov --junitxml=omn21217-state.xml && uv run python scripts/ci/check_integration_skips.py --junit omn21217-state.xml"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn21217-gate-reads-declared-cleanup-policy"
+    description: >-
+      The registry reconcile gate classes a subscribed topic by the
+      cleanup.policy the repo's contracts declare for it: compact counts,
+      compact,delete and delete do not, an undeclared topic counts as
+      time-retained whatever its name, and conflicting declarations are an
+      input error.
+    source: "manual"
+    binds_ac: ["AC1"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_omn17446_registry_projection_reconcile_gate.py -q -n 0 --no-cov -k 'TestADeclaredCleanupPolicyDecides or undeclared_snapshot or declared_compacted'"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn21217-deploy-probe-state-topics"
+    description: >-
+      Deploy probe. GitHub serves the credentials node contract at the
+      checked-out commit with its state topics' declared cleanup.policy;
+      the probe reads it from GitHub at that commit and exits nonzero on a
+      tree without it, so it fails at the merge base. This proves source
+      identity only, not a running deployment.
+    source: "manual"
+    binds_ac: ["AC1"]
+    checks:
+      - check_type: "command"
+        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_projection_tenant_credentials/contract.yaml?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c 'cleanup.policy'"
 emergency_bypass:
   enabled: false
   justification: ""

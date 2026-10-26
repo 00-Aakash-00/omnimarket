@@ -25,6 +25,7 @@ def test_repeated_models_reach_the_hosted_intake_in_order(
             expires_at=None,
             expiry_warning=None,
             bound_host=None,
+            workspace_id=None,
         )
 
     async def bus_call(callback: object, **kwargs: object) -> object:

@@ -397,18 +397,54 @@ class TestTheWaysToBeClean:
         )
         assert gate.scan(repo) == []
 
-    def test_a_compaction_class_topic_clears_the_finding(
+    def test_an_undeclared_snapshot_topic_is_still_a_finding(
         self, gate: ModuleType, repo: pathlib.Path
     ) -> None:
-        """A keyed changelog retains the latest value per key indefinitely, so
-        the relation can always be rebuilt from it. This is option A of the
-        ticket -- available to any future registry, even though the operator
-        declined it for onex.tenant.events in particular."""
+        """A topic name proves nothing about how the topic was created: the
+        taxonomy's snapshot default is ``compact,delete`` with a 7-day
+        retention, so an undeclared snapshot source can age off (OMN-21217)."""
         _write_contract(
             repo,
             "node_projection_thing_registry",
             relation="thing_registry_mirror",
             subscribe_topics=("onex.snapshot.thing.registry.v1",),
+        )
+        _write_migration(
+            repo,
+            "node_projection_consumer",
+            "0034_convert.sql",
+            _CONVERSION_SQL,
+        )
+        assert [v.relation for v in gate.scan(repo)] == ["thing_registry_mirror"]
+
+    def test_a_declared_compacted_topic_clears_the_finding(
+        self, gate: ModuleType, repo: pathlib.Path
+    ) -> None:
+        """A keyed changelog retains the latest value per key indefinitely, so
+        the relation can always be rebuilt from it. This is option A of the
+        ticket; its cleanup policy must be declared where the provisioner
+        reads it."""
+        topic = "onex.snapshot.thing.registry.v1"
+        _write_contract(
+            repo,
+            "node_projection_thing_registry",
+            relation="thing_registry_mirror",
+            subscribe_topics=(topic,),
+            extra={
+                "projection_api": {
+                    "expose": True,
+                    "exposures": [
+                        {
+                            "topic": topic,
+                            "bus_backed": True,
+                            "table": "thing_registry_mirror",
+                            "topic_config": {
+                                "kafka_config": {"cleanup.policy": "compact"}
+                            },
+                        }
+                    ],
+                }
+            },
         )
         _write_migration(
             repo,

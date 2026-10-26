@@ -49,10 +49,10 @@ the owning contract must satisfy at least one of:
 
   1. it subscribes to a COMPACTION-class topic (a keyed changelog retains the
      latest value per key indefinitely, so the relation can always be rebuilt).
-     A topic whose ``topic_config.kafka_config`` declares a ``cleanup.policy``
-     in one of this repo's contracts is classed by that declaration, because
-     the topic provisioner creates the topic with it (OMN-21217); an
-     undeclared topic is classed by its name; or
+     A topic counts only when one of this repo's contracts declares its
+     ``topic_config.kafka_config`` ``cleanup.policy`` as compacting and not
+     deleting, because the topic provisioner creates the topic with that
+     declaration; a topic's name proves nothing (OMN-21217); or
   2. it carries a complete entry in
      ``scripts/ci/registry_projection_reconcile_allowlist.yaml`` naming a real,
      citable reconcile path.
@@ -145,49 +145,6 @@ class Violation:
         )
 
 
-def _compaction_class_marker() -> str:
-    """The topic-type segment whose cleanup policy is compaction.
-
-    Read from the ONEX topic taxonomy rather than hardcoded here, so this gate
-    cannot drift from the policy it claims to enforce. ``CLEANUP_POLICY_*`` in
-    ``omnibase_core.constants.constants_topic_taxonomy`` assigns
-    ``compact,delete`` to snapshots and plain ``delete`` to commands, events
-    and intents.
-    """
-    try:
-        from omnibase_core.constants.constants_topic_taxonomy import (
-            CLEANUP_POLICY_SNAPSHOTS,
-            TAXONOMY_TYPE_SNAPSHOTS,
-        )
-    except ImportError as exc:  # pragma: no cover - dependency is declared
-        raise GateInputError(
-            "cannot read the ONEX topic taxonomy from omnibase_core, so no "
-            "topic's cleanup policy can be established. Refusing to report a "
-            "pass on inputs the gate could not read."
-        ) from exc
-    if "compact" not in CLEANUP_POLICY_SNAPSHOTS:
-        raise GateInputError(
-            "the topic taxonomy no longer assigns a compaction policy to "
-            f"{TAXONOMY_TYPE_SNAPSHOTS!r} ({CLEANUP_POLICY_SNAPSHOTS!r}); this "
-            "gate's compaction rule must be re-derived before it can pass."
-        )
-    return str(TAXONOMY_TYPE_SNAPSHOTS)
-
-
-def _is_compaction_class(topic: str, marker: str) -> bool:
-    """True when the topic is provably a keyed changelog.
-
-    Matches both live naming families: the taxonomy's ``onex.<domain>.snapshots``
-    and the ``onex.snapshot.<...>`` form omnimarket's projection exposures use
-    (e.g. ``onex.snapshot.projection.delegation.decisions.v1``). Anything else
-    -- including a topic this repo does not declare at all -- is time-retained
-    as far as this gate is concerned.
-    """
-    segments = topic.split(".")
-    singular = marker.rstrip("s")
-    return any(segment in {marker, singular} for segment in segments[1:])
-
-
 # The contract sites the topic provisioner reads a topic's ``topic_config``
 # from (omnibase_infra contract_topic_extractor, OMN-13238 and OMN-15832).
 _EVENT_SECTION_KEYS = ("consumed_events", "published_events", "produced_events")
@@ -278,18 +235,20 @@ def _declared_cleanup_policies(
     return {topic: policy for topic, (policy, _) in declared.items()}
 
 
-def _is_compacted(topic: str, marker: str, declared: dict[str, str]) -> bool:
-    """A declared cleanup policy decides; only an undeclared topic falls back
-    to its name.
+def _is_compacted(topic: str, declared: dict[str, str]) -> bool:
+    """A topic is a compacted source only when this repo's contracts declare
+    a cleanup policy for it that compacts and does not delete.
 
-    The declaration must compact and must not delete: with ``compact,delete``
-    Kafka still discards old segments by retention, so the latest row of a key
-    can age off and the relation could not be rebuilt from the topic.
+    The name proves nothing about how the topic was created: the taxonomy's
+    snapshot default is ``compact,delete`` with a 7-day retention, and with
+    ``compact,delete`` Kafka still discards old segments by retention, so the
+    latest row of a key can age off and the relation could not be rebuilt.
     """
-    if topic in declared:
-        parts = {part.strip() for part in declared[topic].split(",")}
-        return "compact" in parts and "delete" not in parts
-    return _is_compaction_class(topic, marker)
+    policy = declared.get(topic)
+    if policy is None:
+        return False
+    parts = {part.strip() for part in policy.split(",")}
+    return "compact" in parts and "delete" not in parts
 
 
 def _load_exemptions(repo_root: pathlib.Path) -> tuple[dict[str, object], ...]:
@@ -577,7 +536,6 @@ def scan(
     the gate is probative against the real tree -- a clean result is worth
     nothing without a positive control (omni_home CLAUDE.md rule 16).
     """
-    marker = _compaction_class_marker()
     if exemptions is None:
         exemptions = _load_exemptions(repo_root)
 
@@ -609,7 +567,7 @@ def scan(
         node, topics = owned[relation]
         exemption = exempt_by_relation.get(relation)
 
-        if any(_is_compacted(topic, marker, declared) for topic in topics):
+        if any(_is_compacted(topic, declared) for topic in topics):
             continue
 
         if exemption is None:
