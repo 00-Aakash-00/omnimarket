@@ -197,7 +197,6 @@ dod_evidence:
       not a live lane deployment. Its must-fail control is the merge base with
       merged fix 015dafb91 reverted.
     source: generated
-    binds_ac: [AC3]
     checks:
       - check_type: test_passes
         check_value: >-
