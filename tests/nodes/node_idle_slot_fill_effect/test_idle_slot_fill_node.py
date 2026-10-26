@@ -89,8 +89,8 @@ def fill(**changes) -> models.ModelIdleSlotFillResult:
 def test_free_slots_are_filled_from_the_tick_lines_in_pillar_order():
     result = fill()
     assert [(s["kind"], s["key"], s["model"]) for s in result.sends] == [
-        ("process-fix", "repo-private-data#812", "opus"),
-        ("cause-red", "repo-status:omnimarket", "opus"),
+        ("process-fix", "repo-private-data#812", "sonnet"),
+        ("cause-red", "repo-status:omnimarket", "sonnet"),
     ]
     first, second = result.sends
     assert first["lane"] == "fill-pf-drive-repo-private-data-812-20261018T2130Z"
@@ -133,7 +133,7 @@ def test_a_host_tick_repair_goes_to_the_launching_host_only():
     repair, *other = result.sends
     assert repair["key"] == "repair:host-tick:minutes-watch"
     assert repair["host"] == "host-b"
-    assert repair["model"] == "opus"
+    assert repair["model"] == "sonnet"
     lines = repair["brief"].splitlines()
     parent = next(i for i, line in enumerate(lines) if line.startswith("Parent: "))
     assert lines[parent + 1] == "Required host: host-b"
@@ -145,17 +145,23 @@ def test_a_host_tick_repair_goes_to_the_launching_host_only():
         "repo-private-data#812",
         "repo-status:omnimarket",
     ]
-    assert all("host" not in s and s["model"] == "opus" for s in other)
+    assert all("host" not in s and s["model"] == "sonnet" for s in other)
     assert result.claude_free == 3
     assert result.idle_after == 0
     assert result.skipped == []
 
 
 @pytest.mark.parametrize(
-    ("slots", "free", "error"),
-    [(0, True, None), (1, False, None), (1, True, "probe failed")],
+    ("slots", "free", "error", "model"),
+    [
+        (0, True, None, "codex"),
+        (1, False, None, "sonnet"),
+        (1, True, "probe failed", "sonnet"),
+    ],
 )
-def test_a_host_tick_repair_waits_for_a_free_launching_host_slot(slots, free, error):
+def test_a_host_tick_repair_waits_for_a_free_launching_host_slot(
+    slots, free, error, model
+):
     result = fill(
         hosts=[host("host-b", slots, 2, local=True, error=error), host("host-c", 2, 0)],
         lines=[
@@ -169,7 +175,7 @@ def test_a_host_tick_repair_waits_for_a_free_launching_host_slot(slots, free, er
         "repo-private-data#812",
         "repo-status:omnimarket",
     ]
-    assert all("host" not in s and s["model"] == "opus" for s in result.sends)
+    assert all("host" not in s and s["model"] == model for s in result.sends)
     assert result.skipped == [
         {
             "key": "repair:host-tick:minutes-watch",
@@ -207,7 +213,7 @@ def test_host_tick_repairs_take_no_more_than_the_launching_host_s_and_the_pool_s
     )
     repairs = [s for s in result.sends if s["kind"] == "lab-repair"]
     assert len(repairs) == (1 if sweep == 0 else 0)
-    assert all(s["host"] == "host-b" and s["model"] == "opus" for s in repairs)
+    assert all(s["host"] == "host-b" and s["model"] == "sonnet" for s in repairs)
     assert [s["model"] for s in result.sends if s["kind"] != "lab-repair"] == [
         "codex",
         "codex",
@@ -221,7 +227,7 @@ def test_the_sweep_s_planned_lanes_take_their_slots_first():
     assert result.skipped == [{"key": "repo-status:omnimarket", "why": "no free slot"}]
 
 
-def test_codex_lanes_go_to_codex_only_hosts_after_claude_slots():
+def test_codex_lanes_go_to_codex_only_hosts_before_claude_slots():
     result = fill(
         hosts=[host("host-a", 1, 1), host("host-d", 0, 2)],
         lines=[*headroom("host-a", "host-d"), PF_LINE, RED_LINE],
@@ -235,9 +241,9 @@ def test_codex_lanes_go_to_codex_only_hosts_after_claude_slots():
         ],
     )
     assert [(s["key"], s["model"]) for s in result.sends] == [
-        ("repo-private-data#812", "opus"),
+        ("repo-private-data#812", "codex"),
         ("repo-status:omnimarket", "codex"),
-        ("exp:cache-warm", "codex"),
+        ("exp:cache-warm", "sonnet"),
     ]
     assert result.codex_only_free == 2
     assert result.idle_after == 0
@@ -1568,3 +1574,104 @@ def test_dropped_items_are_not_sent_and_recording_is_read_only_safe_and_failure_
             f[0] == "unknown" and f[1] == "lab-fill-dropped" and "not writable" in f[2]
             for f in found
         )
+
+
+def _opus_free_models(**changes):
+    return {s["model"] for s in fill(**changes).sends}
+
+
+@pytest.mark.parametrize("engine", ["opus", "claude-opus", "claude_opus", "claude"])
+def test_an_engine_note_naming_opus_or_claude_sends_sonnet_never_opus(engine):
+    # RULING 2026-10-26T11:31:48Z (OMN-21396): Sonnet is the ceiling for lanes; the lab fill sent 18 Opus lanes after it
+    result = fill(
+        hosts=[host("host-a", 2, 2)],
+        lines=[*headroom("host-a")],
+        backlog=[
+            {
+                "kind": "experiment-design",
+                "key": "exp:pinned",
+                "title": "pinned",
+                "repo": "omnimarket",
+                "required_engine": engine,
+            }
+        ],
+    )
+    (sent,) = result.sends
+    assert sent["model"] == "sonnet"
+    assert "Required engine: sonnet\n" in sent["brief"]
+    assert "opus" not in sent["brief"].lower()
+
+
+def test_no_fill_path_picks_opus_with_any_slot_mix():
+    for hosts in (
+        [host("host-a", 3, 0)],
+        [host("host-a", 0, 3)],
+        [host("host-a", 3, 3, local=True), host("host-c", 0, 2)],
+    ):
+        models = _opus_free_models(
+            hosts=hosts,
+            lines=[
+                *headroom(*(h["name"] for h in hosts)),
+                HOST_TICK,
+                PF_LINE,
+                RED_LINE,
+            ],
+        )
+        assert models
+        assert models <= {"sonnet", "codex", "glm"}
+
+
+def test_an_engine_note_in_the_brief_is_honoured_and_a_codex_note_waits_for_codex():
+    note = {
+        "kind": "experiment-design",
+        "key": "exp:codex-note",
+        "title": "codex note",
+        "repo": "omnimarket",
+        "brief": "Do the work.\nEngine: codex\n",
+    }
+    with_codex = fill(
+        hosts=[host("host-d", 0, 1)], lines=headroom("host-d"), backlog=[note]
+    )
+    assert [(s["key"], s["model"]) for s in with_codex.sends] == [
+        ("exp:codex-note", "codex")
+    ]
+    without = fill(
+        hosts=[host("host-a", 2, 0)], lines=headroom("host-a"), backlog=[note]
+    )
+    assert without.sends == []
+    assert without.skipped == [
+        {"key": "exp:codex-note", "why": "Engine: codex has no free Codex slot"}
+    ]
+
+
+def test_a_quoted_engine_note_does_not_declare_an_engine():
+    quoted = {
+        "kind": "experiment-design",
+        "key": "exp:quoted",
+        "title": "quoted",
+        "repo": "omnimarket",
+        "brief": "```\nEngine: glm\n```\n",
+    }
+    result = fill(
+        hosts=[host("host-a", 1, 0)], lines=headroom("host-a"), backlog=[quoted]
+    )
+    assert [s["model"] for s in result.sends] == ["sonnet"]
+
+
+def test_glm_takes_a_small_fix_before_sonnet_when_it_has_a_slot():
+    admission = {"claude_slots": 0, "codex_slots": 0, "glm_slots": 2}
+    glm_host = {"name": "host-g", "local": False, "admission": admission}
+    result = fill(
+        hosts=[glm_host],
+        lines=headroom("host-g"),
+        backlog=[
+            {
+                "kind": "experiment-design",
+                "key": "exp:small",
+                "title": "small",
+                "repo": "omnimarket",
+                "risk_class": "small-fix",
+            }
+        ],
+    )
+    assert [s["model"] for s in result.sends] == ["glm"]

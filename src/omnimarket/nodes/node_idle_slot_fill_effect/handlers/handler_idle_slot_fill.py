@@ -86,6 +86,7 @@ from omnimarket.nodes.node_idle_slot_fill_effect.models import (
 )
 from omnimarket.nodes.node_lane_placement_recovery_effect.handlers.handler_lane_engine_failover import (
     claude_required,
+    declarations,
 )
 
 RULING = "RULING 2026-10-14T21:46:25Z lane=orchestrator-bb1a (OMN-17427)"
@@ -94,7 +95,22 @@ TICKET_ID = re.compile(r"OMN-[0-9]+")
 TICKET_RULE = "omnimarket.handlers.rules_lab_fill_tickets.plan_ticket_backlog (omnimarket#4384, RULING 2026-10-20T10:45:21Z)"
 FACT_MAX_AGE = timedelta(hours=48)
 EXPERIMENT_RERUN_AFTER = timedelta(hours=24)
-CLAUDE_MODEL, CODEX_MODEL, EFFORT = "opus", "codex", "high"
+# RULING 2026-10-26T11:31:48Z (OMN-21396): Codex and GLM first, Sonnet the ceiling for lanes, Opus restricted: the fill never sends it.
+CLAUDE_MODEL, CODEX_MODEL, GLM_MODEL, EFFORT = "sonnet", "codex", "glm", "high"
+GLM_RISK_CLASSES = ("doc", "test", "lint", "small-fix")
+# what an item's `Engine:` note may name; every Claude name is the ceiling, Sonnet
+ENGINE_NOTES = {
+    "codex": CODEX_MODEL,
+    "glm": GLM_MODEL,
+    "claude": CLAUDE_MODEL,
+    "sonnet": CLAUDE_MODEL,
+    "opus": CLAUDE_MODEL,
+    "claude-sonnet": CLAUDE_MODEL,
+    "claude_sonnet": CLAUDE_MODEL,
+    "claude-opus": CLAUDE_MODEL,
+    "claude_opus": CLAUDE_MODEL,
+}
+_ENGINE_NOTE = re.compile(r"(?:Required )?engine:\s*(\S+)\s*", re.IGNORECASE)
 GENERATED_KINDS = ("ticket", "readback", "experiment-design")
 DASHBOARD_RULING = "RULING 2026-10-01T10:53:36Z lane=dashboard-stayout (OMN-19969)"
 DASHBOARD_CRITERIA = frozenset({"C31", "C32"})
@@ -433,6 +449,22 @@ def completed_experiments(
     return completed
 
 
+def declared_engine(item: dict[str, Any]) -> str | None:
+    """The engine an item's `Engine:` note names: the backlog item's own field, else a column-zero `Engine:` or
+    `Required engine:` line of its brief. Opus is never an answer; a Claude name means Sonnet, the ceiling."""
+    notes = [item.get("required_engine"), item.get("engine")]
+    notes += [
+        m[1]
+        for line in declarations(str(item.get("brief") or ""))
+        if (m := _ENGINE_NOTE.fullmatch(line))
+    ]
+    for note in notes:
+        engine = ENGINE_NOTES.get(str(note or "").strip().lower())
+        if engine:
+            return engine
+    return None
+
+
 def brief(
     item: dict[str, Any],
     lane: str,
@@ -446,9 +478,7 @@ def brief(
         item["kind"], "do the work the fact below names and report it."
     )
     engine = (
-        f"Required engine: {item['required_engine']}\n"
-        if item.get("required_engine")
-        else ""
+        f"Required engine: {declared}\n" if (declared := declared_engine(item)) else ""
     )
     # the runner's brief reader pins a column-zero Required host line, and keeps it when a lane-queue pin ages out
     required = (
@@ -613,14 +643,9 @@ class HandlerIdleSlotFill:
                 )
                 continue
             pin = None
-            required = str(item.get("required_engine") or "").lower()
-            pinned = required in (
-                "claude",
-                "opus",
-                "sonnet",
-                "claude-opus",
-                "claude-sonnet",
-            ) or claude_required(item.get("brief", ""))
+            declared = declared_engine(item) or (
+                CLAUDE_MODEL if claude_required(item.get("brief", "")) else None
+            )
             if item["key"].startswith("repair:host-tick:"):
                 if local_left <= 0 or claude_left <= 0:
                     skipped.append(
@@ -638,25 +663,39 @@ class HandlerIdleSlotFill:
                     continue
                 pin, local_left = local_host, local_left - 1
                 model, claude_left = CLAUDE_MODEL, claude_left - 1
-            elif pinned and claude_left <= 0:
+            elif declared == CLAUDE_MODEL:
+                if claude_left <= 0:
+                    skipped.append(
+                        {
+                            "key": item["key"],
+                            "why": "claude-required: waiting for Claude quota",
+                        }
+                    )
+                    continue
+                model, claude_left = CLAUDE_MODEL, claude_left - 1
+            elif declared == CODEX_MODEL and codex_left <= 0:
                 skipped.append(
                     {
                         "key": item["key"],
-                        "why": "claude-required: waiting for Claude quota",
+                        "why": "Engine: codex has no free Codex slot",
                     }
                 )
                 continue
+            elif declared == GLM_MODEL and glm_left <= 0:
+                skipped.append(
+                    {"key": item["key"], "why": "Engine: glm has no free GLM slot"}
+                )
+                continue
+            elif declared == CODEX_MODEL or (declared is None and codex_left > 0):
+                model, codex_left = CODEX_MODEL, codex_left - 1
+            elif declared == GLM_MODEL or (
+                declared is None
+                and glm_left > 0
+                and item.get("risk_class") in GLM_RISK_CLASSES
+            ):
+                model, glm_left = GLM_MODEL, glm_left - 1
             elif claude_left > 0:
                 model, claude_left = CLAUDE_MODEL, claude_left - 1
-            elif codex_left > 0:
-                model, codex_left = CODEX_MODEL, codex_left - 1
-            elif glm_left > 0 and item.get("risk_class") in (
-                "doc",
-                "test",
-                "lint",
-                "small-fix",
-            ):
-                model, glm_left = "glm", glm_left - 1
             else:
                 skipped.append({"key": item["key"], "why": "no free slot"})
                 continue
@@ -1767,7 +1806,7 @@ class HandlerLabFill:
         if decision.claude_free + decision.codex_only_free + decision.glm_only_free < 1:
             return ModelLabFillResult(found)
         names: list[str] = []
-        counts = {CLAUDE_MODEL: 0, CODEX_MODEL: 0, "glm": 0}
+        counts = {CLAUDE_MODEL: 0, CODEX_MODEL: 0, GLM_MODEL: 0}
         for send in decision.sends:
             if request.read_only:
                 names.append(

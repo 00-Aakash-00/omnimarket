@@ -45,6 +45,11 @@ requirements:
     acceptance:
       - id: "AC6"
         statement: "AC6: the Codex lane's writable roots include $HOME/.local/share/uv and no parent of it, and a lane declaring host-paths-write, host-process-read, linear-write or nested-sandbox skips the Codex rung with reason sandbox-capability while a lane declaring none of them is still placed on Codex; the roots program fits the profile on Linux only and counts a sandbox that times out as fitting."
+  - id: "req-omn21396-fill-engine-cap"
+    statement: "The lab fill never sends a lane on Opus, and honours an item's Engine: note."
+    acceptance:
+      - id: "AC7"
+        statement: "AC7: node_idle_slot_fill_effect chooses Codex, then GLM for doc, test, lint and small-fix risk classes, then Sonnet, honours an item's Engine: note (a Claude or Opus note means Sonnet, a Codex or GLM note waits for that engine's slot) and never sends model opus (RULING 2026-10-26T11:31:48Z) -- falsifier: a unit test that fills every slot mix and asserts no send carries opus, and a test where an Opus note sends sonnet"
 evidence_requirements:
   - kind: "tests"
     description: "Engine ladder, experiment row and tick line tests pass"
@@ -198,3 +203,11 @@ dod_evidence:
       - check_type: "command"
         check_value: "uv run --locked python -c 'from omnimarket.nodes.node_remote_lane_compute.handlers.handler_remote_lane_placement import HandlerRemoteLanePlacement as H; from omnimarket.nodes.node_remote_lane_compute.models import ModelRemoteLanePlacementRequest as R; r=H().handle(R.model_validate({\"engine\":\"codex\",\"readings\":[{\"name\":\"h201\",\"engines\":[\"codex\",\"claude_sonnet\"],\"lane_slots\":2,\"lane_cap\":4,\"rank_free\":10.0}],\"ladder\":{\"lane\":\"probe\",\"ceiling\":\"sonnet\",\"risk_class\":\"feature\",\"required_capabilities\":[\"nested-sandbox\"]}})); assert r.rung==\"sonnet\", r; assert [v.reason for v in r.rungs if v.engine==\"codex\"]==[\"sandbox-capability\"], r.rungs; print(\"ac6-probe ok\")'"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn21396-ac7-fill-never-opus"
+    description: "Failing-first unit tests over HandlerIdleSlotFill: every sent lane carries codex, glm or sonnet across the slot mixes (the fill sent 18 Opus lanes after RULING 2026-10-26T11:31:48Z because CLAUDE_MODEL was opus and Claude was chosen before Codex); a backlog item whose Engine: note names opus or claude is sent on sonnet with a sonnet Required engine line; an Engine: codex note waits when no Codex slot is free; GLM takes a small-fix item when it has the slot. Runs against the checked-out code on the hosted runner, no lab endpoint or credential."
+    source: "manual"
+    binds_ac: ["AC7"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_idle_slot_fill_effect -q --no-cov -n 0"
+        cwd: "."
