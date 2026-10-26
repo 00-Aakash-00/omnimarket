@@ -112,6 +112,11 @@ requirements:
     acceptance:
       - id: "AC39"
         statement: "AC39: with every cell present on the night checked and gaps on two older nights, check-missing exits 0 and still prints a MISSING line for each older night; a gap on the night checked exits 1; --fail-window-days 3 exits 1 on the same table; --fail-window-days 0 is refused -- falsifier: env -u PYTHONPATH uv run pytest tests/unit/delegation/rung_eval/test_check_missing_fail_window.py -q -n 0 --no-cov -p no:randomly fails at the merge base"
+  - id: "req-gateway-overlay-model-swap"
+    statement: "Gateway model and thinking mode are deployment configuration; swapping them changes the native call target without a workflow edit. The full gate resolver proof remains in the resolver repository."
+    acceptance:
+      - id: "AC2"
+        statement: "AC2: Adding or swapping a voter is an overlay-only diff, proven by a test that changes the overlay model and asserts the resolved call target changes with no workflow edit -- falsifier: pytest test over the resolver with two overlay fixtures"
 evidence_requirements:
   - kind: "tests"
     description: "The workflow reads the overlay at every roster site."
@@ -395,4 +400,41 @@ dod_evidence:
       - check_type: "command"
         check_value: |-
           env docker run --rm --user "$(id -u):$(id -g)" -v "${PWD}:/workspace:ro" -w /workspace -v "$(uv cache dir):/uv-cache" -v "$(command -v uv):/usr/local/bin/uv:ro" -e UV_LINK_MODE=copy -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0="*" -e PYTHONDONTWRITEBYTECODE=1 -e UV_PROJECT_ENVIRONMENT=/tmp/rung-eval-venv -e UV_CACHE_DIR=/uv-cache ghcr.io/astral-sh/uv@sha256:47965cdc9d53a515f68f78241161c901e70051ce428f12e791bd7fe19f6a631a uv run --frozen pytest tests/unit/delegation/rung_eval -q -n 0 -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/rung-eval-tests
+        cwd: "${OMNI_HOME}/omnimarket"
+
+  - id: "dod-omn20910-gateway-thinking-ac1"
+    description: "The gateway honours the configured native thinking protocol; adaptive-only models receive adaptive thinking at low effort for reasoning-off reviews. This covers the gateway call boundary, while the gate overlay resolver is proved in its own repository. Default disabled mode, signed calls, privacy, key order and truncation behavior retain their controls."
+    source: "manual"
+    binds_ac: ["AC1"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect/test_claude_review_gateway.py -q -n 0 --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20910-gateway-model-swap-ac2"
+    description: "Two gateway configuration fixtures change the native model target without a workflow edit; the host declares thinking mode independently of the model name. This is the gateway side of the overlay-only swap."
+    source: "manual"
+    binds_ac: ["AC2"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_claude_review_gateway_effect/test_claude_review_gateway.py -q -n 0 --no-cov -k target_changes"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20910-gateway-workflow-ratchet-ac3"
+    description: "The existing workflow ratchet rejects voter hosts and ports with its known-bad positive control. The gateway capability change edits no workflow."
+    source: "manual"
+    binds_ac: ["AC3"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_hostile_reviewer_voters_overlay_omn20910.py -q -n 0 --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20910-deploy-adaptive-gateway"
+    description: "Hosted behavioral probe of the installed request translator: no provider key, database, lab endpoint or server required. Refused by the previous translator, which lacks the thinking_mode argument."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: |-
+          uv run --frozen --no-dev python -c '
+          from omnimarket.nodes.node_claude_review_gateway_effect.handlers.handler_claude_review_gateway import translate_chat_request
+          request = translate_chat_request({"messages": [{"role": "user", "content": "fixture"}], "chat_template_kwargs": {"enable_thinking": False}}, model="claude-fixture", endpoint_url="https://provider.invalid/v1/messages", secret_ref="fixture-ref", timeout_seconds=30, thinking_mode="adaptive")
+          assert request.provider_request_options == {"thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}}
+          print("adaptive gateway uses supported low-effort request")'
         cwd: "${OMNI_HOME}/omnimarket"
