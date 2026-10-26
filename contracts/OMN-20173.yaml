@@ -58,9 +58,22 @@ dod_evidence:
         check_value: "uv run pytest tests/unit/nodes/node_llm_delegation_call_effect/test_antigravity_target.py tests/nodes/node_harness_invocation_check_effect tests/nodes/node_remote_lane_compute -q --no-cov -k 'measured_engine or harness_policy or golden or ladder or experiment'"
         cwd: "."
   - id: "dod-omn20173-deploy-probe"
-    description: "Hosted-runner deploy probe: the installed package builds the antigravity argv with the prompt after -p, accept-edits mode and no permission bypass. Needs no agy install, login or credential."
+    description: "Hosted-runner deploy probe: dispatch the packaged node_harness_invocation_check_effect through the in-process ONEX runtime over a scratch tree whose one script starts agy outside the delegation handler directory, and require a typed receipt that refuses exactly that agy site. The merge base's policy lists only codex and claude, so its receipt refuses nothing and the assertion fails. A second check builds the antigravity argv from the installed package with the prompt after -p and no permission bypass. Needs no agy install, login, credential, broker or lab route. This checks the packaged nodes at the evaluated checkout, not a production rollout."
     source: "manual"
     checks:
+      - check_type: "command"
+        check_value: |
+          set -eu;
+          export PYTHONDONTWRITEBYTECODE=1;
+          probe_dir="$(mktemp -d)";
+          trap 'rm -rf "$probe_dir"' EXIT;
+          runtime_bin="$(uv run --locked python -c 'import sys; from pathlib import Path; print(Path(sys.executable).parent)')";
+          mkdir -p "$probe_dir/repo/scripts";
+          printf '%s\n' '#!/usr/bin/env bash' 'agy -p "summarize" --output-format text' > "$probe_dir/repo/scripts/spawn_agy.sh";
+          printf '%s' "{\"repo_root\": \"$probe_dir/repo\"}" > "$probe_dir/input.json";
+          env -u PYTHONPATH ONEX_LANE=omn20173-deploy-probe "$runtime_bin/onex" node node_harness_invocation_check_effect --input "$probe_dir/input.json" --state-root "$probe_dir/state" --backend event_bus=inmemory --timeout 30 --output receipt --emit-socket "$probe_dir/no-daemon.sock" --omnibase-path "$PWD" > "$probe_dir/receipt.json" || true;
+          "$runtime_bin/python" -c 'import json, sys; r = json.load(open(sys.argv[1]))["result"]; assert r["admitted"] is False and r["exit_code"] != 0 and [s["target"] for s in r["refused"]] == ["agy"] and r["refused"][0]["path"] == "scripts/spawn_agy.sh", r; print("agy spawn refused", r["refused"])' "$probe_dir/receipt.json"
+        cwd: "."
       - check_type: "command"
         check_value: "uv run --locked python -c 'from uuid import uuid4; from omnimarket.models.delegation.model_delegation_target import ModelDelegationTargetRequest as R; from omnimarket.nodes.node_llm_delegation_call_effect.handlers.handler_delegation_target import HandlerAntigravityArguments as A; r=R(request_id=uuid4(), target=\"antigravity\", brief=\"ping\", call_site=\"lab_job\", repo=\"OmniNode-ai/omnimarket\", commit_sha=\"a\"*40); a=A().argv(r, model=\"\"); assert a[:3]==[\"agy\",\"-p\",\"ping\"] and \"--dangerously-skip-permissions\" not in a, a; print(\"agy-argv ok\")'"
         cwd: "."
