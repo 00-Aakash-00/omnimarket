@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import StrEnum, unique
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,6 +34,16 @@ class ModelSessionContentAppliedEvent(BaseModel):
     session_id: str = Field(min_length=1)
 
 
+class ModelSessionContentProjectionAppliedEvent(BaseModel):
+    """The durable writer's actual applied payload, before identity resolution."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    event_id: str = Field(min_length=1)
+    rows_upserted: int = Field(gt=0, strict=True)
+    projected: Literal[True] = True
+
+
 class ModelSessionCompactSnapshot(BaseModel):
     """Captured compact chunks and published activations read for one session."""
 
@@ -39,6 +51,16 @@ class ModelSessionCompactSnapshot(BaseModel):
 
     chunks: tuple[ModelCapturedCompactChunk, ...] = ()
     activations: tuple[ModelPublishedActivation, ...] = ()
+    newest_captured_at: datetime | None = None
+
+
+class ModelResolvedSessionCompactSnapshot(BaseModel):
+    """Session identity and content resolved from one committed projection read."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    session_id: str = Field(min_length=1)
+    snapshot: ModelSessionCompactSnapshot
 
 
 class ModelInstallConfirmTriggerResult(BaseModel):
@@ -54,6 +76,8 @@ class ModelInstallConfirmTriggerResult(BaseModel):
 __all__ = [
     "EnumInstallConfirmTriggerOutcome",
     "ModelInstallConfirmTriggerResult",
+    "ModelResolvedSessionCompactSnapshot",
     "ModelSessionCompactSnapshot",
     "ModelSessionContentAppliedEvent",
+    "ModelSessionContentProjectionAppliedEvent",
 ]

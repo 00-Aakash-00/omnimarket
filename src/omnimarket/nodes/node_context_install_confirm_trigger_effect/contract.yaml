@@ -12,9 +12,11 @@ description: >
   ProtocolSessionCompactSource after session-content rows are applied. Delegate
   assembly to HandlerContextInstallConfirmRequest. Only request_ready carries
   the install-confirm request to publish; no_compact_records and
-  all_packages_unreadable publish nothing. Database/bus adapter wiring, including
-  session identity resolution and publishing the unwrapped request, is deferred
-  to a later ticket (OMN-21115, TA.13).
+  all_packages_unreadable publish nothing. The projection source resolves event_id
+  to session_id and reads compact chunks; handle_projected publishes an unwrapped
+  request through explicit ports. Runtime assembly, the durable activation source,
+  the bus publisher and replacing this reduced session-id route with the actual
+  projection-applied entry remain pending (OMN-21115, TA.13). This is a draft.
 input_model:
   name: ModelSessionContentAppliedEvent
   module: omnimarket.models.context_install_confirm_trigger

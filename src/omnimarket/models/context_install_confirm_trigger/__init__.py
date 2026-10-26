@@ -5,13 +5,17 @@
 from omnimarket.models.context_install_confirm_trigger.model_context_install_confirm_trigger import (
     EnumInstallConfirmTriggerOutcome,
     ModelInstallConfirmTriggerResult,
+    ModelResolvedSessionCompactSnapshot,
     ModelSessionCompactSnapshot,
     ModelSessionContentAppliedEvent,
+    ModelSessionContentProjectionAppliedEvent,
 )
 
 __all__ = [
     "EnumInstallConfirmTriggerOutcome",
     "ModelInstallConfirmTriggerResult",
+    "ModelResolvedSessionCompactSnapshot",
     "ModelSessionCompactSnapshot",
     "ModelSessionContentAppliedEvent",
+    "ModelSessionContentProjectionAppliedEvent",
 ]

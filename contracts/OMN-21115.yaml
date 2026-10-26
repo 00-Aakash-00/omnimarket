@@ -2,7 +2,15 @@
 schema_version: "1.0.0"
 ticket_id: "OMN-21115"
 title: "TA.13 Receipts projection and install confirmation"
-summary: "First slice: node_context_install_confirm_compute, a pure compute node running the plan section 6 boundary algorithm over a session's captured transcript records. It selects the current boundary on the active chain, extracts each boundary's replacement run (excluding preserved messages and the records /compact appends), hashes it the way the compaction orchestrator hashes installed_messages_hash, derives one immutable installation fact per activation, and reports the per-session current context with retirements. The receipts projection fold and its effect-class writer follow in a later slice."
+summary: >-
+  TA.13 install confirmation derives immutable installation facts and per-session
+  current context from captured transcript records. This branch adds the draft
+  trigger and a projection-applied bridge: one parameterized session-content
+  snapshot resolves event_id, assembles compact chunks and includes later capture
+  timestamps, then the handler publishes only a complete unwrapped request through
+  an explicit port. The durable published-activation source, transport publisher,
+  runtime binding and live session proof remain pending. This branch is incomplete
+  and is not ready for a closure PR.
 is_seam_ticket: false
 interface_change: false
 interfaces_touched: []
@@ -80,3 +88,31 @@ dod_evidence:
           assert f.fact.value == "installed" and f.boundary_uuid == "b1", out
           assert out.current.boundary_uuid == "b1" and out.current.activation_id == a, out
           print(f.fact.value, f.boundary_uuid, f.observed_hash)'
+  - id: "dod-omn21115-projection-applied-bridge"
+    description: >-
+      The real projection SQL resolves event_id to session_id, reads only that
+      session's compact chunks, includes the newest ordinary capture timestamp,
+      and the bridge publishes an unwrapped install-confirm request. Unknown
+      events, incomplete packages, duplicate delivery and transport errors are
+      covered. This is component proof; durable activation ingestion, runtime
+      binding and live session installation are still pending.
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_context_install_confirm_trigger_effect -q -p no:randomly --no-cov"
+  - id: "dod-omn21115-deploy-container-applied-bridge"
+    description: >-
+      Hosted component probe in an ephemeral Python 3.12 container with git and
+      the frozen dev dependencies. Runs the actual projection SQL against an
+      isolated SQL database and drives the applied-event bridge through request
+      publication and installed-boundary confirmation. It fails on dev, which
+      has neither the trigger source nor its bridge. It does not claim runtime
+      wiring or a lab /compact installation.
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: >-
+          env docker run --rm --volume "$PWD:/workspace:ro" --workdir /workspace
+          --env UV_PROJECT_ENVIRONMENT=/tmp/omnimarket-venv
+          ghcr.io/astral-sh/uv:python3.12-bookworm
+          sh -c 'uv sync --frozen --group dev --quiet && uv run --no-sync pytest tests/nodes/node_context_install_confirm_trigger_effect/test_session_compact_projection_source.py -q -p no:randomly --no-cov'
