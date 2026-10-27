@@ -199,3 +199,87 @@ async def test_revision_probe_must_still_prove_completeness(
         "source_incomplete" if revision_missing else "source_not_caught_up"
     )
     assert not bus.commands
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stage", ["subscribe", "register", "publish", "wait"])
+async def test_compaction_pack_build_bus_transport_shares_the_deadline(
+    compaction_bus, monkeypatch, caplog, stage
+):
+    """A slow transport must never offer a package after the compaction deadline."""
+    from .test_compaction_pack_build_barrier import _binding, _Clock
+
+    clock = _Clock()
+    bus = compaction_bus(_pack_orchestrator(_sources()))
+    original_open = bus.consumer.open
+
+    def open_session(topic):
+        session = original_open(topic)
+        if stage == "subscribe":
+            clock.sleep(2)
+        original_register = session.register
+        original_wait = session.wait
+
+        def register(cid):
+            original_register(cid)
+            if stage == "register":
+                clock.sleep(2)
+
+        def wait(cid, timeout):
+            result = original_wait(cid, timeout)
+            if stage == "wait":
+                clock.sleep(2)
+            return result
+
+        session.register = register
+        session.wait = wait
+        return session
+
+    monkeypatch.setattr(bus.consumer, "open", open_session)
+
+    def publish(topic, payload):
+        bus.publisher(topic, payload)
+        if stage == "publish":
+            clock.sleep(2)
+
+    output = await bus.handler(
+        binding=_binding(), event_publisher=publish, monotonic=clock.monotonic
+    ).handle_async(_request())
+    assert output.events[-1].status == "native"
+    assert output.events[-1].package_id is None
+    assert output.events[0].failure_class.value == "pack_builder_unavailable"
+    assert len(output.events) == 2
+    assert len(_warnings(caplog)) == 1
+    if stage in {"subscribe", "register"}:
+        assert not bus.commands
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("identity", ["session_id", "barrier_id"])
+async def test_compaction_pack_build_bus_revision_probe_matches_request(
+    compaction_bus, caplog, identity
+):
+    """A fresh met snapshot for another session or boundary cannot authorize a build."""
+    from .test_compaction_pack_build_barrier import _probe
+    from .test_session_barrier_wait import _request as barrier_request
+    from .test_session_barrier_wait import _Source
+
+    met = _probe((1, 2, 3), (1, 2, 3))
+    foreign = met.model_copy(update={identity: "other-identity"})
+    if identity == "barrier_id":
+        foreign = foreign.model_copy(
+            update={
+                "barriers": tuple(
+                    barrier.model_copy(update={"barrier_id": foreign.barrier_id})
+                    for barrier in foreign.barriers
+                )
+            }
+        )
+    bus = compaction_bus(_pack_orchestrator(_sources()))
+    output = await bus.handler(
+        barrier_probe_source=_Source([met, foreign])
+    ).handle_async(barrier_request())
+    assert output.events[-1].status == "native"
+    assert output.events[0].failure_class.value == "build_error"
+    assert not bus.commands
+    assert len(_warnings(caplog)) == 1

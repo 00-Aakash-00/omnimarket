@@ -209,3 +209,26 @@ dod_evidence:
       - check_type: "command"
         check_value: "uv run --locked pytest tests/unit/nodes/node_context_source_ledger_effect/test_ledger_sequence_watermark.py -q -p no:randomly --no-cov -k 'complete_sequence or reached_prefix'"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn21090-ac2-compaction-transport-deadline"
+    description: >-
+      Track A contribution under TA.11b: slow transport and a mismatched fresh
+      barrier snapshot cannot authorize installation, and a valid request still
+      builds. This does not assert that every Track A child is Done; the epic
+      criterion continues to require the Linear child-state read. The existing
+      entries for AC1 through AC5 are preserved.
+    source: "manual"
+    binds_ac: ["AC2"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run --frozen pytest tests/nodes/node_context_compaction_orchestrator/test_compaction_pack_build_bus.py -q -n 0 --no-cov --refuse-skips"
+  - id: "dod-omn21090-deploy-compaction-transport-deadline"
+    description: >-
+      Hosted-runner package proof of deadline and snapshot identity enforcement
+      through the actual runtime dispatch and publication boundary, with an
+      explicit successful fixture control. It requires no live service and
+      fails at the merge base. The live recorded-session dev-bus proof remains
+      a separate unmet criterion of TA.11b.
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/nodes/node_context_compaction_orchestrator/test_compaction_pack_build_bus.py -q -n 0 --no-cov --refuse-skips -k 'transport_shares or revision_probe_matches or one_command_then_built'"

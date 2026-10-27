@@ -119,6 +119,7 @@ class HandlerContextCompactionOrchestrator:
                 topics.request_topic,
                 topics.completed_topic,
                 topics.failed_topic,
+                monotonic=monotonic,
             )
         self._deadline_s = binding.barrier_deadline_s
         self._monotonic = monotonic
@@ -167,6 +168,11 @@ class HandlerContextCompactionOrchestrator:
                 failure_class=EnumContextCompactionFailureClass.SOURCE_INCOMPLETE
             )
         probe = self._probe_source.read(request.session_id, request.barrier_id)
+        if (
+            probe.session_id != request.session_id
+            or probe.barrier_id != request.barrier_id
+        ):
+            raise ValueError("session barrier probe identity does not match request")
         if HandlerSessionStreamBarrier().handle(probe).outcome != "met":
             return ModelContextCompactionBuildOutcome(
                 failure_class=EnumContextCompactionFailureClass.SOURCE_NOT_CAUGHT_UP

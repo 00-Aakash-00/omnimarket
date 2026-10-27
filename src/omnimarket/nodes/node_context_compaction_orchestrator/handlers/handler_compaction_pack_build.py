@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from collections.abc import Callable
 from contextlib import ExitStack
 from datetime import datetime
@@ -125,6 +126,8 @@ class HandlerCompactionPackBuildBus:
         request_topic: str,
         completed_topic: str,
         failed_topic: str,
+        *,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._publisher = event_publisher
         self._consumer = event_consumer
@@ -132,6 +135,7 @@ class HandlerCompactionPackBuildBus:
         self._request_topic = request_topic
         self._completed_topic = completed_topic
         self._failed_topic = failed_topic
+        self._monotonic = monotonic
 
     def build(
         self,
@@ -140,15 +144,27 @@ class HandlerCompactionPackBuildBus:
         source_revision: str | None,
         timeout_s: float,
     ) -> ModelContextCompactionBuildOutcome:
+        deadline = self._monotonic() + timeout_s
+        unavailable = ModelContextCompactionBuildOutcome(
+            failure_class=EnumContextCompactionFailureClass.PACK_BUILDER_UNAVAILABLE
+        )
+        if timeout_s <= 0:
+            return unavailable
         command_id = uuid4()
         command = build_pack_command(request, self._access, source_revision)
         with ExitStack() as stack:
             completed = self._consumer.open(self._completed_topic)
             stack.callback(completed.close)
+            if self._monotonic() >= deadline:
+                return unavailable
             failed = self._consumer.open(self._failed_topic)
             stack.callback(failed.close)
+            if self._monotonic() >= deadline:
+                return unavailable
             completed.register(str(command_id))
             failed.register(str(command_id))
+            if self._monotonic() >= deadline:
+                return unavailable
             self._publisher(
                 self._request_topic,
                 ModelEventEnvelope[ModelContextPackCommand](
@@ -159,11 +175,12 @@ class HandlerCompactionPackBuildBus:
                 .model_dump_json()
                 .encode(),
             )
-            reply = completed.wait(str(command_id), timeout_s)
-        if reply is None:
-            return ModelContextCompactionBuildOutcome(
-                failure_class=EnumContextCompactionFailureClass.PACK_BUILDER_UNAVAILABLE
-            )
+            remaining = deadline - self._monotonic()
+            if remaining <= 0:
+                return unavailable
+            reply = completed.wait(str(command_id), remaining)
+        if reply is None or self._monotonic() >= deadline:
+            return unavailable
         if str(reply.get("correlation_id")) != str(command_id):
             raise ValueError("Pack terminal correlation_id differs from command id")
         try:

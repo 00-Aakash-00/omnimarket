@@ -8,7 +8,10 @@ description: >
   Answers a compaction command by publishing a context-pack command on the bus
   for the compaction_orchestrator profile. The command's id correlates the
   completed or failed reply, awaited within the compaction deadline with native
-  fallback. A built package is published as prepared, receives a fresh activation_id
+  fallback. Subscription, waiter registration and publication consume that same
+  deadline; a terminal received after it cannot authorize installation. The fresh
+  revision probe must match the command's session and barrier identities.
+  A built package is published as prepared, receives a fresh activation_id
   on its identity trailer, and is replied as install after the activated receipt.
   An unset tenant or unwired transport falls back pack_builder_unavailable.
   The existing barrier wait reads committed sequence stamps from both session

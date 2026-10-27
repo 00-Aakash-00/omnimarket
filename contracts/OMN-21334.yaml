@@ -13,6 +13,9 @@ summary: >-
   through the orchestrator's read-only probe: no node yet serves that read on the
   bus. AC1's live dev-bus built-package readback still requires deployment,
   source mounts, tenant configuration and a matching adapter package.
+  Transport setup, publish and terminal wait now share the compaction deadline,
+  and the final revision snapshot must match the requested session and barrier
+  before any package command is published.
 is_seam_ticket: false
 interface_change: true
 interfaces_touched: ["public_api"]
@@ -134,3 +137,29 @@ dod_evidence:
           && grep -q 'reply.get("status") == "built"' tests/integration/test_compaction_pack_build_slot_probe.py
           && grep -q 'reply.get("package_id")' tests/integration/test_compaction_pack_build_slot_probe.py
           && grep -q 'pytest.mark.kafka' tests/integration/test_compaction_pack_build_slot_probe.py
+  - id: "dod-omn21334-ac2-transport-deadline"
+    description: >-
+      AC2 regression and positive control: subscription, registration, publish
+      and a terminal returned after the deadline each produce one native
+      fallback with no install. A fresh complete snapshot for another session
+      or barrier cannot authorize a package build. The unchanged successful
+      case still returns a built package through runtime dispatch and result
+      publication. These assertions fail against the merge base.
+    source: "manual"
+    binds_ac: ["AC2"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run --frozen pytest tests/nodes/node_context_compaction_orchestrator/test_compaction_pack_build_bus.py -q -n 0 --no-cov --refuse-skips"
+  - id: "dod-omn21334-deploy-transport-deadline"
+    description: >-
+      Hosted-runner executable package probe: the real packaged compaction
+      handler and pack runtime dispatch run over an in-memory transport with
+      labelled factor and projection fixtures. Late transport and mismatched
+      snapshots cannot install a package, while the positive control builds.
+      No lab service or credential is needed. This is runtime package evidence;
+      AC1's recorded-session proof on the deployed dev bus remains outstanding.
+    source: "manual"
+    binds_ac: ["AC2"]
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/nodes/node_context_compaction_orchestrator/test_compaction_pack_build_bus.py -q -n 0 --no-cov --refuse-skips -k 'transport_shares or revision_probe_matches or one_command_then_built'"

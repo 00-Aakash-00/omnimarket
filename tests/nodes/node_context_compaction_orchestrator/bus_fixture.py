@@ -7,9 +7,11 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+from collections.abc import Callable
 from concurrent.futures import Future, TimeoutError
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
 from omnibase_core.enums.enum_node_kind import EnumNodeKind
 from omnibase_core.event_bus.event_bus_inmemory import EventBusInmemory
@@ -93,7 +95,7 @@ class MemorySession:
 
 
 class MemoryConsumer:
-    def __init__(self, bus: EventBusInmemory, loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(self, bus: Any, loop: asyncio.AbstractEventLoop) -> None:
         self.bus = bus
         self.loop = loop
         self.lock = threading.Lock()
@@ -101,6 +103,7 @@ class MemoryConsumer:
         self.opened: set[str] = set()
         self.registrations: list[tuple[str, str]] = []
         self.waits: list[tuple[str, float]] = []
+        self.group_id = "terminal-fixture-" + uuid4().hex
 
     def open(self, topic: str) -> MemorySession:
         async def subscribe() -> None:
@@ -114,9 +117,7 @@ class MemoryConsumer:
                     if future is not None and not future.done():
                         future.set_result(body)
 
-            await self.bus.subscribe(
-                topic, group_id="terminal-fixture", on_message=receive
-            )
+            await self.bus.subscribe(topic, group_id=self.group_id, on_message=receive)
             self.opened.add(topic)
 
         asyncio.run_coroutine_threadsafe(subscribe(), self.loop).result(5)
@@ -126,17 +127,28 @@ class MemoryConsumer:
 class BusHarness:
     """A loop on a worker thread also supports synchronous legacy test entrypoints."""
 
-    def __init__(self, pack: Any = None, *, silent: bool = False) -> None:
+    def __init__(
+        self,
+        pack: Any = None,
+        *,
+        silent: bool = False,
+        bus_factory: Callable[[], Any] | None = None,
+    ) -> None:
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self.loop.run_forever, daemon=True)
         self.thread.start()
         self.pack = pack
         self.silent = silent
+        self._bus_factory = bus_factory
         self.records: list[tuple[str, dict[str, Any]]] = []
         asyncio.run_coroutine_threadsafe(self._start(), self.loop).result(10)
 
     async def _start(self) -> None:
-        self.bus = EventBusInmemory(environment="local", group="compaction-fixture")
+        self.bus = (
+            self._bus_factory()
+            if self._bus_factory is not None
+            else EventBusInmemory(environment="local", group="compaction-fixture")
+        )
         await self.bus.start()
         self.topics = load_compaction_pack_topics()
         self.consumer = MemoryConsumer(self.bus, self.loop)
@@ -201,16 +213,23 @@ class BusHarness:
             if callback is not None:
                 await boundary(message)
 
-        for topic in (
-            self.topics.request_topic,
-            self.topics.completed_topic,
-            self.topics.failed_topic,
-        ):
-            await self.bus.subscribe(
-                topic, group_id="record-fixture", on_message=record
-            )
-        await self.bus.subscribe(
-            self.topics.request_topic, group_id="pack-fixture", on_message=answer
+        group = uuid4().hex
+        await asyncio.gather(
+            *(
+                self.bus.subscribe(
+                    topic, group_id="record-fixture-" + group, on_message=record
+                )
+                for topic in (
+                    self.topics.request_topic,
+                    self.topics.completed_topic,
+                    self.topics.failed_topic,
+                )
+            ),
+            self.bus.subscribe(
+                self.topics.request_topic,
+                group_id="pack-fixture-" + group,
+                on_message=answer,
+            ),
         )
 
     def handler(self, **kwargs: Any) -> HandlerContextCompactionOrchestrator:
