@@ -513,6 +513,10 @@ SOFT_ALLOWLIST: frozenset[str] = frozenset(
 EXPECTED_EXTERNAL_CONTEXTS: tuple[str, ...] = (
     # OMN-20073 S6: repo-owned evidence gates PR admission without OCC contexts.
     "repo-evidence / dod-verify",
+    # OMN-21433 (release-gate.yml): refuses every release that did not come from the
+    # release train. One job named "Release Gate" on pull_request_target and
+    # merge_group; registered so it is enforced rather than a check that cannot fail.
+    "Release Gate",
     # OMN-18434: git-env-scrub.yml, standalone and unconditional on
     # pull_request, so it carries no paths filter and is always present. A test
     # that shells out to git inherits GIT_DIR from the hook running it and
@@ -1819,6 +1823,12 @@ EXTERNAL_CONTEXT_PRODUCERS: dict[str, ExternalContextProducer] = {
             ("pull_request", "merge_group"),
             (),
             ("delegation-health-check / Delegation Health Check",),
+        ),
+        (
+            "release-gate.yml",
+            ("pull_request_target", "merge_group", "workflow_call"),
+            (),
+            ("Release Gate",),
         ),
         (
             "dep-provenance-gate.yml",

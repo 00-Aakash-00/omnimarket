@@ -17,11 +17,13 @@
 #     default branch's copy of the gate, never the pull request's, so a pull
 #     request cannot edit the check that judges it. Nothing from the pull
 #     request is checked out.
-#   * push of a v tag / release published: an audit that goes red when a release
-#     event did not come from the train. It cannot stop the push; the tag
-#     ruleset in .github/rulesets/release-tags.json does that.
 #   * workflow_call: release.yml and release-cut.yml call it first, so a hand
-#     dispatch of either is refused before it publishes.
+#     dispatch of either is refused before it publishes; release-audit.yml calls
+#     it on a v tag push or a published release, an audit that goes red when a
+#     release event did not come from the train. It cannot stop the push; the tag
+#     ruleset in .github/rulesets/release-tags.json does that. The tag and
+#     release triggers live there, not here, so this file's check reports on
+#     pull requests and the queue only and is registered as one context.
 #   * merge_group: the context must report there too; the pull request run
 #     already judged the head, so this passes through.
 #
@@ -42,10 +44,6 @@ name: Release Gate
   pull_request_target:
     types: [opened, reopened, synchronize, edited, labeled, unlabeled, ready_for_review]
   merge_group:
-  push:
-    tags: ['v[0-9]*']
-  release:
-    types: [published]
   workflow_call:
 
 permissions:

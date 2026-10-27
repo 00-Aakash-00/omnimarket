@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+#
+# release-audit.yml (OMN-21433)
+#
+# Runs the release gate (release-gate.yml) on a v tag push or a published
+# release: an audit that goes red when a release event did not come from the
+# release train. It cannot stop the push; the tag ruleset in
+# .github/rulesets/release-tags.json does that. The gate is a separate file so
+# the "Release Gate" context reports on pull requests and the queue only.
+name: Release Audit
+
+"on":
+  push:
+    tags: ['v[0-9]*']
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    uses: ./.github/workflows/release-gate.yml
+    secrets: inherit

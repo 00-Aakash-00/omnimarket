@@ -126,7 +126,14 @@ def test_gate_workflow_judges_with_the_default_branch_never_the_pr_head() -> Non
     triggers = workflow[True] if True in workflow else workflow["on"]
     assert "pull_request_target" in triggers
     assert "pull_request" not in triggers
-    assert {"push", "release", "workflow_call", "merge_group"} <= set(triggers)
+    assert {"workflow_call", "merge_group"} <= set(triggers)
+    # The tag push and published release audit lives in release-audit.yml, which
+    # calls this gate, so this file reports one context on pull requests and the queue.
+    assert not {"push", "release"} & set(triggers)
+    audit = _workflow("release-audit.yml")
+    audit_triggers = audit[True] if True in audit else audit["on"]
+    assert {"push", "release"} <= set(audit_triggers)
+    assert audit["jobs"]["audit"]["uses"] == "./.github/workflows/release-gate.yml"
     assert "github.event.repository.default_branch" in text
     assert "pull_request.head" not in text
     # A fallback to the workflow token on the write path is the OMN-18273 defect;
