@@ -43,6 +43,7 @@ from omnimarket.models.model_engine_experiment import (
     RUNG_HOST_ENGINE,
     ModelEngineExperimentRow,
 )
+from omnimarket.models.model_lane_engine_policy import LANE_ENGINE_POLICY
 
 from ..models import (
     CODEX_ENGINE,
@@ -213,8 +214,22 @@ class HandlerRemoteLanePlacement:
     ) -> ModelRemoteLanePlacementResult:
         ladder = request.ladder
         if ladder is None:
+            if "opus" in request.engine:
+                return self._place(
+                    request.model_copy(update={"engine": "claude_sonnet"})
+                ).model_copy(update={"capped": "opus->sonnet"})
             return self._place(request)
-        last_result = ModelRemoteLanePlacementResult(host=None, engine=request.engine)
+        capped = (
+            "opus->sonnet"
+            if LANE_ENGINE_POLICY.cap(ladder.ceiling) != ladder.ceiling
+            else None
+        )
+        ladder = ladder.model_copy(
+            update={"ceiling": LANE_ENGINE_POLICY.cap(ladder.ceiling)}
+        )
+        last_result = ModelRemoteLanePlacementResult(
+            host=None, engine=request.engine, capped=capped
+        )
         start = 0
         if ladder.attempts:
             last = ladder.attempts[-1]
@@ -245,6 +260,7 @@ class HandlerRemoteLanePlacement:
                 rungs.append(ModelRemoteLaneRungVerdict(engine=rung, reason="chosen"))
                 return result.model_copy(
                     update={
+                        "capped": capped,
                         "rung": rung,
                         "engine": RUNG_HOST_ENGINE[rung],
                         "rungs": tuple(rungs),
@@ -260,6 +276,7 @@ class HandlerRemoteLanePlacement:
         return last_result.model_copy(
             update={
                 "host": None,
+                "capped": capped,
                 "rung": None,
                 "engine": request.engine,
                 "rungs": tuple(rungs),

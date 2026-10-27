@@ -117,6 +117,37 @@ def session_hook_overrides(plugin_root: Path, lane: str) -> list[str]:
     return overrides
 
 
+def trust_from_hooks_list(
+    response: dict[str, Any], expected: set[str], overrides: list[str]
+) -> list[str]:
+    """Trust lines for exactly the session capture definitions a ``hooks/list`` response names."""
+    trust = []
+    found_events = set()
+    for entry in response["result"]["data"]:
+        for hook in entry["hooks"]:
+            key, digest = hook["key"], hook["currentHash"]
+            if (
+                not key.startswith("/<session-flags>/config.toml:")
+                or hook.get("command") not in expected
+            ):
+                continue
+            if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest) or not hook.get(
+                "enabled"
+            ):
+                raise ValueError(
+                    "Codex returned an invalid or disabled capture definition"
+                )
+            found_events.add(hook.get("eventName"))
+            trust.append(
+                "hooks.state." + json.dumps(key) + ".trusted_hash=" + json.dumps(digest)
+            )
+    expected_events = {item.split(".", 1)[1].split("=", 1)[0] for item in overrides}
+    expected_events = {event[0].lower() + event[1:] for event in expected_events}
+    if len(trust) != len(overrides) or found_events != expected_events:
+        raise ValueError("Codex did not discover every session capture hook")
+    return trust
+
+
 def discover_session_hook_trust(
     codex: str, cwd: Path, overrides: list[str]
 ) -> list[str]:
@@ -174,40 +205,7 @@ def discover_session_hook_trust(
                         continue
                     if "error" in response:
                         raise ValueError("Codex refused hooks/list")
-                    trust = []
-                    found_events = set()
-                    for entry in response["result"]["data"]:
-                        for hook in entry["hooks"]:
-                            key, digest = hook["key"], hook["currentHash"]
-                            if (
-                                not key.startswith("/<session-flags>/config.toml:")
-                                or hook.get("command") not in expected
-                            ):
-                                continue
-                            if not re.fullmatch(
-                                r"sha256:[0-9a-f]{64}", digest
-                            ) or not hook.get("enabled"):
-                                raise ValueError(
-                                    "Codex returned an invalid or disabled capture definition"
-                                )
-                            found_events.add(hook.get("eventName"))
-                            trust.append(
-                                "hooks.state."
-                                + json.dumps(key)
-                                + ".trusted_hash="
-                                + json.dumps(digest)
-                            )
-                    expected_events = {
-                        item.split(".", 1)[1].split("=", 1)[0] for item in overrides
-                    }
-                    expected_events = {
-                        event[0].lower() + event[1:] for event in expected_events
-                    }
-                    if len(trust) != len(overrides) or found_events != expected_events:
-                        raise ValueError(
-                            "Codex did not discover every session capture hook"
-                        )
-                    return trust
+                    return trust_from_hooks_list(response, expected, overrides)
         raise ValueError("Codex hook discovery timed out")
     finally:
         if process.poll() is None:

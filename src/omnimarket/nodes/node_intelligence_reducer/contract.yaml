@@ -56,24 +56,6 @@ output_model:
   description: >-
     Reducer output containing success status, state transition details, typed intents (ModelReducerIntent),
     and typed metadata (ModelReducerMetadata). All fields use strong typing without dict[str, Any].
-handler_routing:
-  routing_strategy: payload_type_match
-  handlers:
-    - handler:
-        name: handle_pattern_lifecycle_process
-        module: omnimarket.nodes.node_intelligence_reducer.handlers.handler_process
-      description: "FSM transition handler for PATTERN_LIFECYCLE events (OMN-11907)"
-    - handler:
-        name: PatternLifecycleTransitionResult
-        module: omnimarket.nodes.node_intelligence_reducer.handlers.handler_pattern_lifecycle
-      description: "Pattern lifecycle transition result and routing (OMN-11907)"
-# FSM Handler Binding (OMN-13735)
-# =================================
-# Declares the typed binding between contract FSM transitions and the handler
-# module that implements them. The check-fsm-handler-drift validator (omnibase_core)
-# reads this section and mechanically verifies that VALID_TRANSITIONS and
-# GUARD_CONDITIONS in the handler exactly mirror the state_machine.transitions
-# filtered to the declared state_filter. Zero allowlist entries; all drift blocks.
 fsm_handler_binding:
   - fsm_type: "PATTERN_LIFECYCLE"
     handler_module: "omnimarket.nodes.node_intelligence_reducer.handlers.handler_pattern_lifecycle"

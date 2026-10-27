@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import json
+import re
+import sys
 from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
@@ -401,8 +403,8 @@ def test_session_capture_overrides_preserve_user_config_and_trust_only_exact_def
     tmp_path,
 ):
     from omnimarket.nodes.node_codex_hook_registration_effect.handlers.handler_codex_hook_registration import (
-        discover_session_hook_trust,
         session_hook_overrides,
+        trust_from_hooks_list,
     )
 
     root = tmp_path / "plugin with spaces"
@@ -446,23 +448,70 @@ def test_session_capture_overrides_preserve_user_config_and_trust_only_exact_def
         "--actor codex" in item and "ONEX_LANE=lane-proof" in item for item in overrides
     )
     assert not any("notify" in item or "sandbox" in item for item in overrides)
-    fake = tmp_path / "codex"
-    fake.write_text(
-        "#!/usr/bin/env python3\n"
-        + "import sys,json,re\n"
-        + "args=sys.argv[1:]; overrides=[args[i+1] for i,v in enumerate(args) if v=='-c']\n"
-        + "hooks=[dict(key='/<session-flags>/config.toml:'+str(i),eventName=v.split('.')[1].split('=')[0][0].lower()+v.split('.')[1].split('=')[0][1:],currentHash='sha256:'+'a'*64,enabled=True,command=json.loads(re.search(r'command=(\"(?:[^\"\\\\]|\\\\.)*\")',v).group(1))) for i,v in enumerate(overrides)]\n"
-        + "for line in sys.stdin:\n"
-        + " req=json.loads(line)\n"
-        + " if req.get('id')==2: print(json.dumps(dict(id=2,result=dict(data=[dict(hooks=hooks)]))),flush=True)\n"
-    )
-    fake.chmod(0o755)
-    trust = discover_session_hook_trust(str(fake), tmp_path, overrides)
+    commands = {
+        json.loads(re.search(r'command=("(?:[^"\\]|\\.)*")', item).group(1))
+        for item in overrides
+    }
+
+    def listed(digest: str) -> dict[str, Any]:
+        hooks = [
+            {
+                "key": f"/<session-flags>/config.toml:{index}",
+                "eventName": item.split(".")[1].split("=")[0][0].lower()
+                + item.split(".")[1].split("=")[0][1:],
+                "currentHash": digest,
+                "enabled": True,
+                "command": json.loads(
+                    re.search(r'command=("(?:[^"\\]|\\.)*")', item).group(1)
+                ),
+            }
+            for index, item in enumerate(overrides)
+        ]
+        return {"id": 2, "result": {"data": [{"hooks": hooks}]}}
+
+    trust = trust_from_hooks_list(listed("sha256:" + "a" * 64), commands, overrides)
     assert len(trust) == 9
     assert all(
         item.startswith('hooks.state."/<session-flags>/config.toml:') for item in trust
     )
     assert not (tmp_path / "config.toml").exists()
-    fake.write_text(fake.read_text().replace("'a'*64", "'z'*64"))
     with pytest.raises(ValueError, match="invalid or disabled"):
-        discover_session_hook_trust(str(fake), tmp_path, overrides)
+        trust_from_hooks_list(listed("sha256:" + "z" * 64), commands, overrides)
+
+
+def test_session_hook_discovery_exchanges_native_protocol_and_exact_hashes(tmp_path):
+    from omnimarket.nodes.node_codex_hook_registration_effect.handlers.handler_codex_hook_registration import (
+        discover_session_hook_trust,
+    )
+
+    fake = tmp_path / "codex-fixture"
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        + "import json, sys, tomllib\n"
+        + "args=sys.argv[1:]\n"
+        + "overrides=[args[i+1] for i, arg in enumerate(args) if arg == '-c']\n"
+        + "hooks=[]\n"
+        + "for i, value in enumerate(overrides):\n"
+        + "    event, groups=next(iter(tomllib.loads(value)['hooks'].items()))\n"
+        + "    hooks.append(dict(key='/<session-flags>/config.toml:'+str(i), "
+        + "eventName=event[0].lower()+event[1:], currentHash='sha256:'+'a'*64, "
+        + "enabled=True, command=groups[0]['hooks'][0]['command']))\n"
+        + "methods=[]\n"
+        + "for line in sys.stdin:\n"
+        + "    req=json.loads(line); methods.append(req['method'])\n"
+        + "    if req.get('id') == 1: print(json.dumps(dict(id=1,result={})),flush=True)\n"
+        + "    if req.get('id') == 2:\n"
+        + "        assert methods == ['initialize','initialized','hooks/list']\n"
+        + "        print(json.dumps(dict(id=2,result=dict(data=[dict(hooks=hooks)]))),flush=True)\n"
+    )
+    fake.chmod(0o755)
+    overrides = [
+        'hooks.SessionStart=[{hooks=[{type="command",command="capture --actor codex",timeout=10}]}]'
+    ]
+    trust = discover_session_hook_trust(str(fake), tmp_path, overrides)
+    assert trust == [
+        'hooks.state."/<session-flags>/config.toml:0".trusted_hash="sha256:'
+        + "a" * 64
+        + '"'
+    ]
+    assert not (tmp_path / "config.toml").exists()

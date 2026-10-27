@@ -21,6 +21,12 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from omnimarket.handlers.handler_measured_selection_contract import (
+    CONTRACT_PATH,
+    load_measured_selection_contract,
+    read_selection_contract,
+    routing_contract_candidates,
+)
 from omnimarket.models.delegation.model_measured_selection import (
     ModelMeasuredSelectionContract,
     ModelPricedModel,
@@ -32,15 +38,11 @@ from omnimarket.models.delegation.wire.model_measured_selection_decided_event im
     ModelMeasuredSelectionRequest,
 )
 from omnimarket.nodes.node_measured_model_selection_compute.handlers.handler_measured_model_selection import (
-    CONTRACT_PATH,
     HandlerMeasuredModelSelection,
     MeasuredSelectionContractError,
     MeasureMissingError,
     candidates_from_routing_tiers,
-    load_measured_selection_contract,
-    read_selection_contract,
     recorded_runs_from_rows,
-    routing_contract_candidates,
     select_by_measure,
 )
 from omnimarket.routing.routing_tiers_path import resolve_routing_tiers_path
@@ -267,6 +269,7 @@ def test_ac3_the_decided_event_carries_the_measures_and_round_trips() -> None:
         for hours in (1, 2, 3)
     )
     request = ModelMeasuredSelectionRequest(
+        contract=load_measured_selection_contract(),
         correlation_id=uuid4(),
         task_type="code_generation",
         candidates=candidates,

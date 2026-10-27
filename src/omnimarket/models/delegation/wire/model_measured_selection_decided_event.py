@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from omnimarket.models.delegation.model_measured_selection import (
     ModelMeasuredSelection,
+    ModelMeasuredSelectionContract,
     ModelPricedModel,
     ModelRecordedRun,
     ModelSelectionCandidate,
@@ -22,6 +23,7 @@ class ModelMeasuredSelectionRequest(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    contract: ModelMeasuredSelectionContract
     correlation_id: UUID
     task_type: str = Field(min_length=1)
     #: The routing contract's candidates, each with its measure sources.
