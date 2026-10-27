@@ -14,58 +14,27 @@ interfaces_touched: []
 context:
   lane_scope: deleg-gate-falsepass-1440
   parent_epic_complete: false
-  epic_criteria_evidence: Not supplied by this gate-only lane. Pending items intentionally bind no AC;
-    they must not create false completion evidence.
-requirements:
-- id: req-epic-ac1
-  statement: Six rungs, at least four real tasks each, every bundle committed as a fixture carrying its
-    exact fed text, so a rerun is byte-reproducible.
-  acceptance:
+  epic_criteria_evidence: Not supplied by this gate-only lane. The epic criteria below are retained
+    verbatim as unproven context and are not declared as acceptance, so no binding is fabricated.
+  epic_criteria_unproven:
   - id: AC1
-    statement: AC1. Six rungs, at least four real tasks each, every bundle committed as a fixture carrying
-      its exact fed text, so a rerun is byte-reproducible.
-- id: req-epic-ac2
-  statement: Every scorer is mechanical where the rung states it is; the rubric parts are a fixed checklist,
-    not a judgement call.
-  acceptance:
+    statement: "AC1. Six rungs, at least four real tasks each, every bundle committed as a fixture carrying its exact fed text, so a rerun is byte-reproducible."
   - id: AC2
-    statement: AC2. Every scorer is mechanical where the rung states it is; the rubric parts are a fixed
-      checklist, not a judgement call.
-- id: req-epic-ac3
-  statement: R4 scoring executes the produced test against the real function AND against a mutated copy;
-    a test that passes both is scored as not discriminating.
-  acceptance:
+    statement: "AC2. Every scorer is mechanical where the rung states it is; the rubric parts are a fixed checklist, not a judgement call."
   - id: AC3
-    statement: AC3. R4 scoring executes the produced test against the real function AND against a mutated
-      copy; a test that passes both is scored as not discriminating.
-- id: req-epic-ac4
-  statement: R6 scoring applies the patch and runs the focused test off the launching host, or focused-only,
-    never a broad local suite.
-  acceptance:
+    statement: "AC3. R4 scoring executes the produced test against the real function AND against a mutated copy; a test that passes both is scored as not discriminating."
   - id: AC4
-    statement: AC4. R6 scoring applies the patch and runs the focused test off the launching host, or
-      focused-only, never a broad local suite.
-- id: req-epic-ac5
-  statement: Every run records delegation id, tier, backend, model, tokens, cost, wall time, quality-gate
-    score, leak fraction, and the mechanical result.
-  acceptance:
+    statement: "AC4. R6 scoring applies the patch and runs the focused test off the launching host, or focused-only, never a broad local suite."
   - id: AC5
-    statement: AC5. Every run records delegation id, tier, backend, model, tokens, cost, wall time, quality-gate
-      score, leak fraction, and the mechanical result.
-- id: req-epic-ac6
-  statement: The report states both thresholds explicitly and recommends what real work to route where
-    today.
-  acceptance:
+    statement: "AC5. Every run records delegation id, tier, backend, model, tokens, cost, wall time, quality-gate score, leak fraction, and the mechanical result."
   - id: AC6
-    statement: AC6. The report states both thresholds explicitly and recommends what real work to route
-      where today.
-- id: req-epic-ac7
-  statement: 'The execution-surface proposal names the safety rails: read-only by default, allowlisted
-    commands, a worktree per task, no credential access, the lab only.'
-  acceptance:
+    statement: "AC6. The report states both thresholds explicitly and recommends what real work to route where today."
   - id: AC7
-    statement: 'AC7. The execution-surface proposal names the safety rails: read-only by default, allowlisted
-      commands, a worktree per task, no credential access, the lab only.'
+    statement: "AC7. The execution-surface proposal names the safety rails: read-only by default, allowlisted commands, a worktree per task, no credential access, the lab only."
+requirements:
+- id: req-gate-required-input-content
+  statement: The delegation quality gate rejects an answer that omits explicit input content obligations
+    (the destructive-read regression and the supplied CI step and upstream run values).
 evidence_requirements:
 - kind: tests
   description: Gate-only replay and correct-answer controls; not epic completion proof.
@@ -76,69 +45,6 @@ emergency_bypass:
   justification: ''
   follow_up_ticket_id: ''
 dod_evidence:
-- id: dod-omn18300-epic-ac1-unproven
-  description: AC1 is outside this gate-only lane. No completion proof is claimed; the original criterion
-    is retained verbatim.
-  source: linear
-  linear_dod_text: AC1. Six rungs, at least four real tasks each, every bundle committed as a fixture
-    carrying its exact fed text, so a rerun is byte-reproducible.
-  status: pending
-  binds_ac: []
-  checks: []
-- id: dod-omn18300-epic-ac2-unproven
-  description: AC2 is outside this gate-only lane. No completion proof is claimed; the original criterion
-    is retained verbatim.
-  source: linear
-  linear_dod_text: AC2. Every scorer is mechanical where the rung states it is; the rubric parts are a
-    fixed checklist, not a judgement call.
-  status: pending
-  binds_ac: []
-  checks: []
-- id: dod-omn18300-epic-ac3-unproven
-  description: AC3 is outside this gate-only lane. No completion proof is claimed; the original criterion
-    is retained verbatim.
-  source: linear
-  linear_dod_text: AC3. R4 scoring executes the produced test against the real function AND against a
-    mutated copy; a test that passes both is scored as not discriminating.
-  status: pending
-  binds_ac: []
-  checks: []
-- id: dod-omn18300-epic-ac4-unproven
-  description: AC4 is outside this gate-only lane. No completion proof is claimed; the original criterion
-    is retained verbatim.
-  source: linear
-  linear_dod_text: AC4. R6 scoring applies the patch and runs the focused test off the launching host,
-    or focused-only, never a broad local suite.
-  status: pending
-  binds_ac: []
-  checks: []
-- id: dod-omn18300-epic-ac5-unproven
-  description: AC5 is outside this gate-only lane. No completion proof is claimed; the original criterion
-    is retained verbatim.
-  source: linear
-  linear_dod_text: AC5. Every run records delegation id, tier, backend, model, tokens, cost, wall time,
-    quality-gate score, leak fraction, and the mechanical result.
-  status: pending
-  binds_ac: []
-  checks: []
-- id: dod-omn18300-epic-ac6-unproven
-  description: AC6 is outside this gate-only lane. No completion proof is claimed; the original criterion
-    is retained verbatim.
-  source: linear
-  linear_dod_text: AC6. The report states both thresholds explicitly and recommends what real work to
-    route where today.
-  status: pending
-  binds_ac: []
-  checks: []
-- id: dod-omn18300-epic-ac7-unproven
-  description: AC7 is outside this gate-only lane. No completion proof is claimed; the original criterion
-    is retained verbatim.
-  source: linear
-  linear_dod_text: 'AC7. The execution-surface proposal names the safety rails: read-only by default,
-    allowlisted commands, a worktree per task, no credential access, the lab only.'
-  status: pending
-  binds_ac: []
-  checks: []
 - id: dod-omn18300-gate-replays
   description: 'Gate-only evidence: the equivalent seeded destructive-read miss and CI missing fields
     are refused. Both tests failed before the patch because passed was True. These do not bind or prove
