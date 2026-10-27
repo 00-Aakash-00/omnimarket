@@ -898,3 +898,12 @@ dod_evidence:
     check_value: uv run --frozen pytest tests/nodes/test_work_contract_bindings.py
       -q --no-cov
     cwd: ${OMNI_HOME}/omnimarket
+- id: dod-omn21452-repin-uv-lock-pins
+  description: 'Re-pin: every work contract pinning uv.lock carries the sha256 of the
+    repo uv.lock -- falsifier: uv run pytest tests/nodes/test_work_contract_lock_pins.py
+    -q, red at the merge base where the pins are stale'
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/nodes/test_work_contract_lock_pins.py -q --no-cov
+    cwd: ${OMNI_HOME}/omnimarket
