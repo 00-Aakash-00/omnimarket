@@ -4082,3 +4082,11 @@ dod_evidence:
           uv build --wheel --out-dir "$probe_dir"
           uv run --no-project --with "$probe_dir"/*.whl python "$PWD/tests/ci/probe_ruling_drift_artifact.py"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn17427-evidence-binding-reads-uv-run-flags"
+    description: "The repo evidence binding check reads through value-less uv flags such as --frozen between uv run and pytest, as the verifier already treats them, so the merged OMN-21090 and OMN-21334 compaction items that run uv run --frozen pytest bind their criteria. At the merge base the binding test fails on those two merged items and the flag cases are refused."
+    source: "manual"
+    binds_ac: ["AC23"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/ci/test_repo_evidence_caller_workflow.py -q -n 0 --no-cov -k reads_through_uv_run_flags"
+        cwd: "${OMNI_HOME}/omnimarket"

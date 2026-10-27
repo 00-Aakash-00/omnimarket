@@ -60,6 +60,9 @@ def test_caller_workflow_shape() -> None:
 
 
 _ENV_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
+# uv's value-less flags that may sit between `uv run` and `pytest` without
+# changing which test runs. The verifier executes the command as typed.
+_UV_RUN_FLAGS = frozenset({"--frozen", "--locked", "--offline", "--no-sync"})
 
 
 def _pytest_argv(check_value: str) -> list[str]:
@@ -67,14 +70,21 @@ def _pytest_argv(check_value: str) -> list[str]:
 
     `env PYTHONDONTWRITEBYTECODE=1 uv run pytest ...` runs the same test as
     `uv run pytest ...`; the verifier accepts both (omnimarket#4317), so the
-    binding check does too. Anything else returns an empty list.
+    binding check does too. Value-less uv flags such as `--frozen` between
+    `uv run` and `pytest` are read through the same way (OMN-17427). Anything
+    else returns an empty list.
     """
     tokens = shlex.split(check_value)
     if tokens[:1] == ["env"]:
         tokens = tokens[1:]
         while tokens and _ENV_ASSIGNMENT.fullmatch(tokens[0]):
             tokens = tokens[1:]
-    return tokens if tokens[:3] == ["uv", "run", "pytest"] else []
+    if tokens[:2] != ["uv", "run"]:
+        return []
+    rest = tokens[2:]
+    while rest and rest[0] in _UV_RUN_FLAGS:
+        rest = rest[1:]
+    return ["uv", "run", *rest] if rest[:1] == ["pytest"] else []
 
 
 def contract_binds_violations(name: str, contract: dict[str, Any]) -> list[str]:
@@ -245,6 +255,43 @@ def test_contract_binds_reads_through_an_env_prefix(
         "dod_evidence": [
             {
                 "id": "dod-env-prefixed-test",
+                "binds_ac": ["AC1"],
+                "checks": [{"check_type": "test_passes", "check_value": check_value}],
+            },
+        ],
+    }
+    violations = contract_binds_violations("OMN-0.yaml", contract)
+    assert (violations == []) is bound
+
+
+@pytest.mark.parametrize(
+    ("check_value", "bound"),
+    [
+        ("uv run --frozen pytest tests/ci/test_repo_evidence_caller_workflow.py", True),
+        (
+            "uv run --frozen --no-sync pytest tests/ci/test_repo_evidence_caller_workflow.py -q",
+            True,
+        ),
+        (
+            "env A=1 uv run --frozen pytest tests/ci/test_repo_evidence_caller_workflow.py",
+            True,
+        ),
+        ("uv run --frozen pytest tests/ci/no_such_test_file.py", False),
+        (
+            "uv run --frozen python -m pytest tests/ci/test_repo_evidence_caller_workflow.py",
+            False,
+        ),
+    ],
+)
+def test_contract_binds_reads_through_uv_run_flags(
+    check_value: str, bound: bool
+) -> None:
+    """`uv run --frozen pytest <file>` runs the same pytest as `uv run pytest <file>`."""
+    contract = {
+        "requirements": [{"acceptance": [{"id": "AC1"}]}],
+        "dod_evidence": [
+            {
+                "id": "dod-uv-flag-test",
                 "binds_ac": ["AC1"],
                 "checks": [{"check_type": "test_passes", "check_value": check_value}],
             },
