@@ -71,8 +71,9 @@ def modelled_run_savings_columns(row: Mapping[str, object]) -> dict[str, object]
         tokens_in=None if unrecorded_tokens else tokens_in,
         tokens_out=None if unrecorded_tokens else tokens_out,
         spend_usd=None if raw_spend is None else Decimal(str(raw_spend)),
-        # OMN-21264: a run handed back to its caller saved nothing.
-        returned_to_caller=row.get("terminal_failure_cause") == "returned_to_caller",
+        terminal_failure_cause=str(row["terminal_failure_cause"])
+        if row.get("terminal_failure_cause")
+        else None,
     )
     selection = sqlite_metering_summary.resolve_metering_baseline_model()
     baseline = baseline_pricing.resolve_baseline(selection.model)

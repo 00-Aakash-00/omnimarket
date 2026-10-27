@@ -123,7 +123,7 @@ class HandlerMeteringSummary:
                 bucket.tokens_in += tokens_in
                 bucket.tokens_out += tokens_out
 
-            if record.returned_to_caller:
+            if record.terminal_failure_cause == "returned_to_caller":
                 # OMN-21264: no answer was accepted, so the run saved nothing.
                 # Its recorded spend still counts, and its counterfactual is
                 # that spend, so the headline subtraction books exactly zero.
@@ -155,8 +155,17 @@ class HandlerMeteringSummary:
             bucket.spend += spend
 
             if baseline is not None:
-                run_counterfactual = counterfactual_cost_usd(
-                    baseline=baseline, tokens_in=tokens_in, tokens_out=tokens_out
+                # A failed answer replaces no baseline work. Keep the measured
+                # attempt spend, with a matching counterfactual so it contributes
+                # zero savings to the day, model and individual run alike.
+                run_counterfactual = (
+                    spend
+                    if record.terminal_failure_cause
+                    else counterfactual_cost_usd(
+                        baseline=baseline,
+                        tokens_in=tokens_in,
+                        tokens_out=tokens_out,
+                    )
                 )
                 counterfactual_total += run_counterfactual
                 saving = run_counterfactual - spend

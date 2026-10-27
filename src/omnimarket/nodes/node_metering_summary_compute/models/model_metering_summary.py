@@ -72,9 +72,11 @@ class ModelCounterfactualBaseline(BaseModel):
     """The pinned "what would this have cost instead" price, with provenance.
 
     Every field is provenance. ``counterfactual_usd`` on the summary always
-    equals ``price_in_per_1k * tokens_in/1000 + price_out_per_1k *
-    tokens_out/1000`` over the measured rows, so a reader can recompute the
-    headline from the printed baseline without access to the database.
+    prices accepted measured runs at ``price_in_per_1k * tokens_in/1000 +
+    price_out_per_1k * tokens_out/1000``. Failed runs contribute their measured
+    spend as counterfactual too, yielding zero savings because no accepted work
+    replaced the baseline. A reader can reproduce the headline from the prices,
+    usage, spend and terminal outcome.
 
     Prices are read from the canonical pricing manifest by the caller and
     passed in. Nothing in this package hardcodes a price.
@@ -155,12 +157,12 @@ class ModelMeteringRecord(BaseModel):
             "reconciliation only; the baseline behind it is not on the record."
         ),
     )
-    returned_to_caller: bool = Field(
-        default=False,
+    terminal_failure_cause: str | None = Field(
+        default=None,
         description=(
-            "OMN-21264: every model the developer chose failed and the session "
-            "did the task. Such a run saved nothing, which is a measurement: it "
-            "counts as measured with zero savings, never as unknown."
+            "The stored terminal failure, when present. Failed work saved "
+            "nothing; its measured spend and usage still count. A run explicitly "
+            "returned_to_caller is measured as zero savings even without usage."
         ),
     )
 
@@ -176,7 +178,7 @@ class ModelMeteringRecord(BaseModel):
     @property
     def measurement(self) -> EnumMeteringMeasurement:
         """This run's measurement class — the AC3 unknown/zero distinction."""
-        if self.returned_to_caller:
+        if self.terminal_failure_cause == "returned_to_caller":
             return EnumMeteringMeasurement.MEASURED
         if not self.has_tokens:
             return EnumMeteringMeasurement.UNKNOWN_TOKENS

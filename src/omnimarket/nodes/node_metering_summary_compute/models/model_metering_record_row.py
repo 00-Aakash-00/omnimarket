@@ -35,7 +35,6 @@ METERING_COLUMNS = (
 #: OMN-21264: read where the store has it. A local store written before the
 #: column existed holds no run handed back to its caller.
 METERING_CAUSE_COLUMN = "terminal_failure_cause"
-RETURNED_TO_CALLER = "returned_to_caller"
 
 
 def normalise_occurred_at(raw: object) -> datetime | None:
@@ -104,14 +103,13 @@ def metering_record_from_row(row: Mapping[str, Any]) -> ModelMeteringRecord | No
         tokens_out=None if unrecorded_tokens else tokens_out,
         spend_usd=_to_decimal(row["cost_usd"]),
         recorded_savings_usd=_to_decimal(row["cost_savings_usd"]),
-        returned_to_caller=row.get(METERING_CAUSE_COLUMN) == RETURNED_TO_CALLER,
+        terminal_failure_cause=row.get(METERING_CAUSE_COLUMN),
     )
 
 
 __all__ = [
     "METERING_CAUSE_COLUMN",
     "METERING_COLUMNS",
-    "RETURNED_TO_CALLER",
     "metering_record_from_row",
     "normalise_occurred_at",
 ]

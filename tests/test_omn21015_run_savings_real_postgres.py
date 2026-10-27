@@ -92,6 +92,27 @@ def integration_postgres_dsn(
         ),
         ({"cost_usd": 0.014}, Decimal("0.000"), "measured"),
         ({"tokens_input": 0, "tokens_output": 0}, None, "unknown_tokens"),
+        (
+            {"terminal_failure_cause": "timeout", "quality_gate_passed": False},
+            Decimal("0"),
+            "measured",
+        ),
+        (
+            {
+                "terminal_failure_cause": "quality_gate_refused",
+                "quality_gate_passed": False,
+            },
+            Decimal("0"),
+            "measured",
+        ),
+        (
+            {
+                "terminal_failure_cause": "runtime_shutdown",
+                "quality_gate_passed": False,
+            },
+            Decimal("0"),
+            "measured",
+        ),
     ],
 )
 async def test_deployed_writer_persists_and_republishes_canonical_run_savings(
