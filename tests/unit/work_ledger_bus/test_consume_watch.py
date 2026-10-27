@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from itertools import pairwise
@@ -34,8 +35,13 @@ from omnimarket.handlers.work_ledger_consume.consume_watch import (
 from omnimarket.lab_work.bus import _bytes
 from omnimarket.nodes.node_work_ledger_append_effect import (
     EnumWorkLedgerAppendStatus,
+    HandlerWorkLedgerAppendEffect,
     ModelWorkLedgerAppendReceipt,
     ModelWorkLedgerAppendRequest,
+)
+from omnimarket.nodes.node_work_ledger_append_effect.protocols import (
+    LocalLedgerAppendCommand,
+    LocalLedgerFile,
 )
 from omnimarket.work_ledger_bus.bus import WorkLedgerAppendHost
 
@@ -216,6 +222,77 @@ def test_writer_resumes_appending_after_coordinator_and_session_errors(
             _, third, value = _command(host)
             await bus.publish(topic, None, value)
             assert handler.calls == [first, second, third]
+        finally:
+            await host.stop()
+
+    asyncio.run(scenario())
+
+
+def test_dropped_consumer_resubscribes_and_appends_post_drop_rows(
+    tmp_path: Path,
+) -> None:
+    """Five lost sessions recover through the real handler and configured append command."""
+
+    async def scenario() -> None:
+        ledger = tmp_path / "ledger.md"
+        ledger.write_text("# Test ledger\n", encoding="utf-8")
+        runner = LocalLedgerAppendCommand(
+            [
+                sys.executable,
+                "-c",
+                "import pathlib, sys; "
+                "path = pathlib.Path(sys.argv[1]); "
+                "assert sys.argv[2] == '--append'; "
+                "path.open('a').write(sys.argv[3] + '\\n')",
+                str(ledger),
+            ]
+        )
+        handler = HandlerWorkLedgerAppendEffect(
+            runner, LocalLedgerFile(ledger), "ledger", writer_principals=["developer"]
+        )
+        bus = _BrokerBus()
+        host = WorkLedgerAppendHost(
+            cast(Any, bus), handler, writer_principals=["developer"]
+        )
+        clock = _Clock()
+        watch = ConsumeWatch(
+            host,
+            readiness_probe(bus, lambda: host.serving_topics),
+            POLICY,
+            host_name="h201",
+            state_dir=tmp_path,
+            clock=clock,
+        )
+        await host.start()
+        worker = host._task
+        try:
+            await watch.tick()  # establish the healthy assignments before the drop
+            for episode in range(5):
+                before = ledger.read_bytes()
+                bus.expire_session()
+                topic, request_id, value = _command(host)
+                await bus.publish(topic, None, value)
+                assert ledger.read_bytes() == before
+
+                for _ in range(POLICY.unhealthy_probes_before_degraded):
+                    await watch.tick()
+                assert ledger.read_bytes() == before
+                bus.coordinator_up = True
+                clock.now += POLICY.backoff_initial_seconds
+                await watch.tick()
+                await host.drain()
+
+                rows = ledger.read_text().splitlines()[1:]
+                assert len(rows) == episode + 1
+                assert sum(f"req={request_id}" in row for row in rows) == 1
+                assert " | principal=developer | " in rows[-1]
+                assert host._task is worker
+                assert set(bus.live) == set(host.serving_topics)
+                # Redelivery after recovery still returns the original line without appending.
+                await bus.publish(topic, None, value)
+                assert ledger.read_text().splitlines()[1:] == rows
+                await watch.tick()
+                assert not watch.degraded
         finally:
             await host.stop()
 
