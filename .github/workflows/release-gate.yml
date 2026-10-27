@@ -28,9 +28,9 @@
 # FAIL CLOSED
 #   Unreadable facts exit non-zero. An unreadable grants file or a missing
 #   identity overlay only removes the means to grant, so release-shaped pull
-#   requests are refused while every other pull request is unaffected. The
-#   token mint may fall back to the read-only workflow token for the same
-#   reason: this job writes nothing.
+#   requests are refused while every other pull request is unaffected. With no
+#   app key in scope the job reads with the workflow token for the same reason:
+#   this job writes nothing. A mint that runs and fails fails the job.
 #
 # The identity overlay (logins by role, shape in
 # config/release_gate_identities.example.yaml) arrives as the secret
@@ -56,6 +56,8 @@ jobs:
     name: Release Gate
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      HAS_APP_KEY: ${{ secrets.ONEXBOT_APP_PRIVATE_KEY != '' }}
     steps:
       - name: Merge queue passes through
         if: github.event_name == 'merge_group'
@@ -75,11 +77,12 @@ jobs:
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
 
       # Read scopes only: this job writes nothing. The two repositories are the one
-      # being judged and the grant file's repository.
+      # being judged and the grant file's repository. Without the app key (a run
+      # that gets no repository secrets) the Decide step reads with the workflow
+      # token and refuses any release-shaped request on an unreadable grant.
       - name: Mint a read-only app token
         id: app-token
-        if: github.event_name != 'merge_group'
-        continue-on-error: true  # advisory-ok: OMN-21433 a failed read-only mint falls back to github.token and the Decide step refuses on any unreadable fact
+        if: github.event_name != 'merge_group' && env.HAS_APP_KEY == 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.ONEXBOT_APP_ID }}
