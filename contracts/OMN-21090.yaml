@@ -209,3 +209,19 @@ dod_evidence:
       - check_type: "command"
         check_value: "uv run --locked pytest tests/unit/nodes/node_context_source_ledger_effect/test_ledger_sequence_watermark.py -q -p no:randomly --no-cov -k 'complete_sequence or reached_prefix'"
         cwd: "${OMNI_HOME}/omnimarket"
+
+  - id: "dod-omn21090-ac4-pinned-ledger-source"
+    description: "Track C TC.4 repository contribution: pinned ledger reads are confined to their explicit manifest root and provenance labels require both linking cells. This does not assert every Track C child is Done; epic completion remains a Linear state audit."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run --frozen pytest tests/unit/nodes/node_context_source_ledger_effect/test_ledger_pinned_root.py tests/unit/nodes/node_context_source_ledger_effect/test_ledger_provenance.py -q -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC4"]
+  - id: "dod-omn21090-deploy-pinned-ledger-dispatch"
+    description: "Hosted-runner TC.4 probe: packaged typed dispatch preserves the D1 correction and refuses missing files, manifest escapes and unauthorized tenants on both local bus bindings. No services or credentials are used; the test fails at the merge base."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/test_golden_chain_context_source_ledger_pinned.py -q -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
