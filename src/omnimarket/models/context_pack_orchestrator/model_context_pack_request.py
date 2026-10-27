@@ -15,6 +15,9 @@ from omnibase_core.models.context.model_context_caller_scope import (
 )
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from omnimarket.models.context_pack.model_context_assembly_identity import (
+    ModelContextAssemblyIdentity,
+)
 from omnimarket.models.context_pack_orchestrator.enum_context_pack_mode import (
     EnumContextPackMode,
 )
@@ -48,6 +51,7 @@ class ModelContextPackRequest(BaseModel):
     manifest_case: str | None = Field(default=None, min_length=1)
     tier_revisions: dict[EnumContextFactor, str] = Field(default_factory=dict)
     cited_refs: tuple[str, ...] = ()
+    assembly_identity: ModelContextAssemblyIdentity | None = None
 
     @model_validator(mode="after")
     def _pinned_names_its_case(self) -> ModelContextPackRequest:

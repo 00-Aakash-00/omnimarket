@@ -72,6 +72,22 @@ def test_fixture_source_is_a_protocol_context_tier_source() -> None:
     )
 
 
+@pytest.mark.parametrize("field", ["corpus_version", "ruleset_hash", "tokenizer_id"])
+def test_assembly_input_identity_reaches_real_orchestrator(field: str) -> None:
+    identity = {
+        "corpus_version": "corpus-1",
+        "ruleset_hash": "rules-1",
+        "tokenizer_id": "tokenizer-1",
+    }
+    before = orchestrator().handle(command(assembly_identity=identity))
+    identity[field] += "-changed"
+    after = orchestrator().handle(command(assembly_identity=identity))
+    assert before.status is EnumContextPackOrchestratorStatus.OK, before.errors
+    assert after.status is EnumContextPackOrchestratorStatus.OK, after.errors
+    assert before.assembly_hash != after.assembly_hash
+    assert before.candidate_id != after.candidate_id
+
+
 def test_compaction_fixture_builds_with_four_required_factors() -> None:
     built = orchestrator().handle(command())
     assert built.status is EnumContextPackOrchestratorStatus.OK, built.errors

@@ -50,6 +50,7 @@ class ModelContextProfile(BaseModel):
     excluded_factors: tuple[EnumContextFactor, ...] = Field(default_factory=tuple)
     factor_precedence: tuple[EnumContextFactor, ...] = Field(default_factory=tuple)
     token_budget: int = Field(default=16000, gt=0)
+    item_level_exemplars: bool = False
     token_estimation_method: str = Field(default="heuristic_chars", min_length=1)
     tokenizer_source: str = Field(default="heuristic", min_length=1)
     tokenizer_version: str = Field(default="1.0.0", min_length=1)

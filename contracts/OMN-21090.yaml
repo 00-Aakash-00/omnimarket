@@ -273,3 +273,21 @@ dod_evidence:
       - check_type: "command"
         check_value: "uv run --frozen pytest tests/nodes/node_exemplar_registry_reconcile_compute/test_sampled_revocation.py -q -n 0 -p no:randomly --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
+  - id: dod-omn21090-tc2-whole-items
+    description: 'Track C repository contribution from TC.2: whole exemplars, input-version assembly identity, authority fidelity and two-binding parity.
+      This does not attest that every epic child is Done; epic completion remains a Linear API check.'
+    source: manual
+    checks:
+    - check_type: test_passes
+      check_value: uv run --frozen pytest tests/nodes/node_context_pack_builder_compute/test_item_admission_and_fidelity.py -q -n 0 --no-cov
+      cwd: ${OMNI_HOME}/omnimarket
+    binds_ac:
+    - AC4
+  - id: dod-omn21090-deploy-whole-item-probe
+    description: 'Hosted-runner probe: typed dispatch and the in-memory bus execute identical whole-item admission and fidelity cases, including no-room failures.
+      No services, lab host or credentials are needed.'
+    source: manual
+    checks:
+    - check_type: command
+      check_value: uv run --frozen pytest tests/nodes/node_context_pack_builder_compute/test_item_admission_and_fidelity.py -q -n 0 --no-cov -k same_item_admission
+      cwd: ${OMNI_HOME}/omnimarket

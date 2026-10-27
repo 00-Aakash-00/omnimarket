@@ -14,6 +14,10 @@ from omnibase_core.models.pack.model_context_chunk import ModelContextChunk
 from omnibase_core.models.pack.model_context_pack import ModelContextPack
 from omnibase_core.utils.util_context_pack import compute_chunk_id
 
+from omnimarket.handlers.handler_context_pack_assembly import (
+    compute_context_assembly_hash,
+)
+from omnimarket.handlers.handler_context_pack_fidelity import check_authority_fidelity
 from omnimarket.pack.model_context_pack_artifact import (
     ModelContextPackArtifact,
 )
@@ -222,22 +226,70 @@ class HandlerContextPackBuilder:
 
         used = required_total
         admitted: list[ModelContextPackArtifact] = []
-        excluded: list[ModelContextPackBudgetExclusion] = []
-        for artifact in kept_artifacts:
+        excluded_artifacts: set[ModelContextPackArtifact] = set()
+        admission_order = kept_artifacts
+        if request.profile.item_level_exemplars:
+            # Rank the whole exemplar items for admission, then restore the
+            # source precedence using their identities, never their text.
+            exemplars = sorted(
+                (a for a in kept_artifacts if a.factor is EnumContextFactor.EXEMPLAR),
+                key=lambda a: (
+                    -(
+                        a.effectiveness_score
+                        if a.effectiveness_score is not None
+                        else 0.0
+                    ),
+                    -(a.confidence if a.confidence is not None else 0.0),
+                    a.source_artifact_hash,
+                ),
+            )
+            ranked_exemplars = iter(exemplars)
+            admission_order = tuple(
+                next(ranked_exemplars) if a.factor is EnumContextFactor.EXEMPLAR else a
+                for a in kept_artifacts
+            )
+        for artifact in admission_order:
             if artifact.factor in required_factors:
                 admitted.append(artifact)
             elif used + artifact.token_estimate <= request.profile.token_budget:
                 admitted.append(artifact)
                 used += artifact.token_estimate
             else:
-                excluded.append(
-                    ModelContextPackBudgetExclusion(
-                        factor=artifact.factor,
-                        source_artifact_hash=artifact.source_artifact_hash,
-                        token_estimate=artifact.token_estimate,
-                    )
-                )
+                excluded_artifacts.add(artifact)
 
+        excluded = [
+            ModelContextPackBudgetExclusion(
+                factor=artifact.factor,
+                source_artifact_hash=artifact.source_artifact_hash,
+                token_estimate=artifact.token_estimate,
+            )
+            for artifact in kept_artifacts
+            if artifact in excluded_artifacts
+        ]
+
+        omitted_exemplar_count = sum(
+            exclusion.factor is EnumContextFactor.EXEMPLAR for exclusion in excluded
+        )
+        if request.profile.item_level_exemplars and not any(
+            a.factor is EnumContextFactor.EXEMPLAR for a in admitted
+        ):
+            return ModelContextPackBuilderResult(
+                status=EnumContextPackBuilderStatus.FAILED,
+                failure_class=EnumContextPackFailure.TOKEN_BUDGET_EXCEEDED,
+                failure_reason="FIRST_EXEMPLAR_EXCEEDS_BUDGET",
+                errors=(
+                    "FIRST_EXEMPLAR_EXCEEDS_BUDGET: no whole exemplar fits after reserving authority",
+                ),
+                omitted_exemplar_count=omitted_exemplar_count,
+                excluded_by_budget=tuple(reversed(excluded)),
+                dropped_duplicates=dropped_duplicates,
+            )
+        admitted_ids = {(a.factor, a.source_artifact_hash) for a in admitted}
+        admitted = [
+            a
+            for a in kept_artifacts
+            if (a.factor, a.source_artifact_hash) in admitted_ids
+        ]
         chunks = _chunks(tuple(admitted), request.profile)
         duplicate_ids = _duplicate_chunk_ids(chunks)
         if duplicate_ids:
@@ -256,6 +308,17 @@ class HandlerContextPackBuilder:
             generated_at=request.generated_at,
             profile_version=request.profile.profile_version,
         )
+        fidelity = check_authority_fidelity(
+            kept_artifacts, context_pack, request.profile.required_factors
+        )
+        if not fidelity.passed:
+            return ModelContextPackBuilderResult(
+                status=EnumContextPackBuilderStatus.FAILED,
+                failure_class=EnumContextPackFailure.ARTIFACT_HASH_MISMATCH,
+                failure_reason="AUTHORITY_FIDELITY_FAILED",
+                errors=fidelity.violations,
+                fidelity=fidelity,
+            )
         pack_hash = _hash_json(context_pack.model_dump(mode="json"))
         return ModelContextPackBuilderResult(
             status=EnumContextPackBuilderStatus.OK,
@@ -263,6 +326,11 @@ class HandlerContextPackBuilder:
             pack_hash=pack_hash,
             dropped_duplicates=dropped_duplicates,
             excluded_by_budget=tuple(reversed(excluded)),
+            omitted_exemplar_count=omitted_exemplar_count,
+            assembly_hash=compute_context_assembly_hash(
+                context_pack, request.assembly_identity
+            ),
+            fidelity=fidelity,
         )
 
 

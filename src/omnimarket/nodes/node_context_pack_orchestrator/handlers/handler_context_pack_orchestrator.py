@@ -50,7 +50,6 @@ from omnibase_core.models.context.model_context_source_request import (
 from omnibase_core.models.context.model_context_source_result import (
     ModelContextSourceResult,
 )
-from omnibase_core.models.pack.model_context_pack import ModelContextPack
 from omnibase_core.utils.util_context_pack import compute_chunk_id
 
 from omnimarket.models.context_pack.model_context_task_kind_rule import (
@@ -133,10 +132,6 @@ _IMPLEMENTATION_MODULES = (
     / "handler_context_task_kind_rules.py",
 )
 _CANDIDATE_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "onex:context-pack-candidate/1")
-# Model-dependent factors stay out of the assembly hash (plan section 6, v6).
-_NON_DETERMINISTIC = frozenset(
-    {EnumContextFactor.TRANSCRIPT_EXTRACTS, EnumContextFactor.TAIL_SUMMARY}
-)
 _PROVENANCE = {
     EnumContextFactor.TAIL_SUMMARY: EnumContextPackProvenance.GENERATED,
 }
@@ -541,6 +536,11 @@ class HandlerContextPackOrchestrator:
                             ]
                         ),
                         "implementation_identity": implementation_identity,
+                        "assembly_identity": request.assembly_identity.model_dump(
+                            mode="json"
+                        )
+                        if request.assembly_identity
+                        else None,
                     }
                 ),
             )
@@ -570,6 +570,7 @@ class HandlerContextPackOrchestrator:
                 generated_at=generated_at,
                 profile=profile,
                 artifacts=artifacts,
+                assembly_identity=request.assembly_identity,
             )
         )
         if (
@@ -586,7 +587,13 @@ class HandlerContextPackOrchestrator:
                 tiers=tuple(tiers),
             )
         pack = built.context_pack
-        assembly_hash = _assembly_hash(pack)
+        assembly_hash = built.assembly_hash
+        if assembly_hash is None:
+            return _failed(
+                request,
+                EnumContextPackFailure.ARTIFACT_HASH_MISMATCH,
+                "builder returned no assembly hash",
+            )
 
         refs = self._chunk_refs(entries_by_factor)
         unrecorded = entries_by_factor.get(
@@ -808,17 +815,6 @@ def _unique_by_ref(
             seen.add(key)
             unique.append(entry)
     return tuple(unique)
-
-
-def _assembly_hash(pack: ModelContextPack) -> str:
-    """The pack hash over the deterministic factors only (plan section 6, v6)."""
-    dumped = pack.model_dump(mode="json")
-    dumped["chunks"] = [
-        chunk.model_dump(mode="json")
-        for chunk in pack.chunks
-        if chunk.factor not in _NON_DETERMINISTIC
-    ]
-    return _sha256(dumped)
 
 
 __all__ = [

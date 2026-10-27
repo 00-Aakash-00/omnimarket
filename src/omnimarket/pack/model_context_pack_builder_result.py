@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Literal
 
 from omnibase_core.enums.enum_context_factor import EnumContextFactor
 from omnibase_core.enums.enum_context_pack_failure import EnumContextPackFailure
 from omnibase_core.models.pack.model_context_pack import ModelContextPack
 from pydantic import BaseModel, ConfigDict, Field
+
+from omnimarket.models.context_pack.model_context_pack_fidelity_verdict import (
+    ModelContextPackFidelityVerdict,
+)
 
 
 class EnumContextPackBuilderStatus(StrEnum):
@@ -52,6 +57,12 @@ class ModelContextPackBuilderResult(BaseModel):
     warnings: tuple[str, ...] = Field(default_factory=tuple)
     dropped_duplicates: tuple[ModelContextPackDroppedDuplicate, ...] = ()
     excluded_by_budget: tuple[ModelContextPackBudgetExclusion, ...] = ()
+    omitted_exemplar_count: int = Field(default=0, ge=0)
+    assembly_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    fidelity: ModelContextPackFidelityVerdict | None = None
+    failure_reason: (
+        Literal["FIRST_EXEMPLAR_EXCEEDS_BUDGET", "AUTHORITY_FIDELITY_FAILED"] | None
+    ) = None
 
 
 __all__ = [

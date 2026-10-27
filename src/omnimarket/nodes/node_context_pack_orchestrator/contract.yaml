@@ -34,7 +34,9 @@ description: >
   newest, whole entries only; operator_words_unrecorded is carried whole, and a
   cited entry that does not fit fails TOKEN_BUDGET_EXCEEDED. Each tier is read
   at its own revision when the request names one in tier_revisions. Returns candidate_id, assembly_hash,
-  final_pack_hash, body_hash and stable_prefix_hash. The result carries package
+  final_pack_hash, body_hash and stable_prefix_hash. It binds the caller's
+  assembly_identity (corpus_version, ruleset_hash and tokenizer_id) into both
+  candidate_id and assembly_hash. The result carries package
   text, so it is published only on the restricted omniintelligence command
   family declared under event_bus, never on an event topic.
 

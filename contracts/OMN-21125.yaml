@@ -1,126 +1,272 @@
----
-schema_version: "1.0.0"
-ticket_id: "OMN-21125"
-title: "Context selection policy: POLICY_SCOPE_RULE, rule_ref invariant, validated model ranking"
-summary: >-
-  The selection-policy half of plan task TC.2. node_context_selection_policy_compute stamps a candidate admitted by a profile-declared rule POLICY_SCOPE_RULE with a rule_ref and a null score; ModelFactorSelection requires rule_ref and a null score for POLICY_SCOPE_RULE and refuses rule_ref on every other reason; a model ranking of optional candidate ids is accepted only as a subset of the eligible optional ids, otherwise ignored and counted in selection_rejected; optional candidates fill by rank, then precedence order is restored; the selection is identical under every permutation of the candidate input. The builder half: node_context_pack_builder_compute dedups artifacts by a sha256 of normalised content, keeps the higher-authority copy and lists each removed artifact in dropped_duplicates; optional artifacts that do not fit the budget are skipped, scanning continues, and the skipped ones are listed in excluded_by_budget in reverse precedence; required artifacts over budget still fail TOKEN_BUDGET_EXCEEDED and the error names them; node_context_roi_runner still reports budget_fail for an arm that does not fit.
+schema_version: 1.0.0
+ticket_id: OMN-21125
+title: 'Context selection policy: POLICY_SCOPE_RULE, rule_ref invariant, validated model ranking'
+summary: 'Context selection and builder extensions: normalized content deduplication, authority reservation, whole-item
+  exemplar admission by measured score and confidence, explicit omissions, caller-supplied token counts, assembly
+  identity over corpus/rules/tokenizer, and fidelity checks against actual builder output. Item mode is opt-in through
+  the resolved profile and requires ranked artifacts and explicit assembly identity. No live profile is promoted.'
 is_seam_ticket: false
 interface_change: false
 interfaces_touched: []
 requirements:
-  - id: "req-selection-scope-rule"
-    statement: "The context selection policy admits profile-declared rule candidates with a typed rule reference and validates a model ranking of optional candidates."
-    acceptance:
-      - id: "AC1"
-        statement: "AC1: a candidate admitted by a profile-declared rule is stamped POLICY_SCOPE_RULE, required or optional; a candidate with no rule, no score and no cohort is still rejected as hidden authority -- falsifier: uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py -q -k 'stamped_policy_scope_rule or still_hidden_authority'"
-      - id: "AC2"
-        statement: "AC2: ModelFactorSelection constructs for POLICY_SCOPE_RULE with a rule_ref and a null score, and fails for POLICY_SCOPE_RULE without rule_ref, for POLICY_SCOPE_RULE with a score, and for any other reason carrying a rule_ref; FALLBACK_NO_SCORE behaviour is unchanged -- falsifier: uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py -q -k 'scope_rule_selection or rule_ref_on_any or fallback_no_score_unchanged'"
-      - id: "AC3"
-        statement: "AC3: a model ranking naming an id outside the eligible optional set is ignored, the deterministic order is used, and the result counts selection_rejected -- falsifier: uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py -q -k 'fills_by_rank or outside_id or required_id or never_drops'"
-      - id: "AC4"
-        statement: "AC4: the selection is identical under every permutation of the candidate input order -- falsifier: uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py -q -k every_input_permutation"
-  - id: "req-builder-dedup-and-budget"
-    statement: "The context-pack builder dedups artifacts by normalised content and excludes optional artifacts that do not fit the budget, listing both."
-    acceptance:
-      - id: "AC5"
-        statement: "AC5 (ticket AC2): a required artifact never appears in excluded_by_budget; optional artifacts that do not fit are listed there in reverse precedence and the pack builds; a required set over budget still fails TOKEN_BUDGET_EXCEEDED and names its items -- falsifier: uv run pytest tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py -q -n 0 -k TestOptionalExclusionByBudget"
-      - id: "AC6"
-        statement: "AC6 (ticket AC3 and AC13): two artifacts with equal normalised content yield one chunk and one dropped_duplicates entry, and when the two copies differ in tier the higher-authority copy is kept -- falsifier: uv run pytest tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py -q -n 0 -k TestContentDedup"
-      - id: "AC7"
-        statement: "AC7 (ticket AC1): node_context_roi_runner still reports budget_fail for an arm whose factors do not fit, and its tests pass unchanged -- falsifier: uv run pytest tests/nodes/node_context_roi_runner/test_context_roi_runner_emits_runtime_observed_rows.py tests/nodes/node_context_roi_runner/test_dispatch_envelope_unwrap.py tests/nodes/node_context_roi_runner/test_extract_row_envelope_unwrap.py tests/nodes/node_context_roi_runner/test_failed_terminal_routing.py tests/nodes/node_context_roi_runner/test_golden_chain_context_roi_runner.py tests/nodes/node_context_roi_runner/test_handle_async_non_blocking.py tests/nodes/node_context_roi_runner/test_handler_context_roi_runner.py tests/nodes/node_context_roi_runner/test_register_before_publish.py tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py -q -k 'roi_runner or context_roi'"
+- id: req-context-builder-and-selection
+  statement: Implement the TC.2 builder and selection-policy criteria with caller-owned inputs.
+  acceptance:
+  - id: AC1
+    statement: 'AC1: `node_context_roi_runner`''s golden output is unchanged -- falsifier: a golden diff.'
+  - id: AC2
+    statement: 'AC2: a required artifact never appears in `excluded_by_budget`; optional artifacts that do not fit
+      are listed there in reverse precedence and the pack builds; a required set over budget still fails `TOKEN_BUDGET_EXCEEDED`
+      -- falsifier: a fixture with a required artifact excluded, an optional one dropped without a listing, or a
+      truncated required artifact.'
+  - id: AC3
+    statement: 'AC3: two artifacts with equal content sha256 yield one chunk and one `dropped_duplicates` entry
+      -- falsifier: two chunks, or no entry.'
+  - id: AC4
+    statement: 'AC4: a candidate admitted by a profile-declared rule is stamped `POLICY_SCOPE_RULE`, required or
+      optional; a candidate with no rule, no score and no cohort is still rejected as hidden authority -- falsifier:
+      either reversed.'
+  - id: AC5
+    statement: 'AC5: constructing the real `ModelFactorSelection` succeeds for `POLICY_SCOPE_RULE` with a `rule_ref`
+      and a null score, and fails for `POLICY_SCOPE_RULE` without `rule_ref`, for `POLICY_SCOPE_RULE` with a score,
+      and for any other reason carrying a `rule_ref`; `FALLBACK_NO_SCORE` behaviour is unchanged -- falsifier: any
+      of those constructions reversed, or an existing selection-result test changed.'
+  - id: AC6
+    statement: 'AC6: a model ranking naming an id outside the eligible optional set is ignored, the deterministic
+      order is used, and the result counts `selection_rejected` -- falsifier: an outside id admitted, or no count.'
+  - id: AC7
+    statement: 'AC7: the selection is identical under every permutation of the candidate input order -- falsifier:
+      two permutations that differ.'
+  - id: AC8
+    statement: 'AC8: the mandatory and authority items are reserved first; when they alone exceed the budget the
+      build fails `TOKEN_BUDGET_EXCEEDED` (the port list''s `OVER_BUDGET`) and the result names those items; no
+      required item is ever truncated, shortened or silently dropped -- falsifier: a fixture whose required items
+      exceed the budget that builds, fails without naming them, or returns a required item cut by characters.'
+  - id: AC9
+    statement: 'AC9: a non-fitting optional item is skipped and scanning continues, so a smaller optional item behind
+      it is admitted; every dropped item is listed with its id and reason -- falsifier: a fixture with a large optional
+      item ahead of smaller ones that fit, where a smaller one is not admitted, or a drop without a listed reason.'
+  - id: AC10
+    statement: 'AC10: the kept items are returned in precedence order restored by item id, including when two items
+      carry identical text -- falsifier: a fixture with duplicate text where the restored order differs from the
+      input order, or a part lost in the restore.'
+  - id: AC11
+    statement: 'AC11: token counts are supplied by the caller and the result names the estimator; the budgeter holds
+      no estimator of its own -- falsifier: a result without the estimator name, or a count produced by dividing
+      characters by four inside the node.'
+  - id: AC12
+    statement: 'AC12: in item-level mode, exemplars are admitted whole in score order; at least one is admitted
+      if any fits, otherwise the result is `FIRST_EXEMPLAR_EXCEEDS_BUDGET`; the omitted count is a result field
+      -- falsifier: a fixture where the first exemplar is dropped and a header-only package builds, or a result
+      without the omitted count.'
+  - id: AC13
+    statement: 'AC13: content dedup compares a sha256 of normalised content, reports each removed item, and when
+      two duplicates differ in tier keeps the higher-authority copy -- falsifier: a fixture where the lower-authority
+      copy survives, or a removal not reported.'
+  - id: AC14
+    statement: 'AC14: `assembly_hash` changes when the corpus version, the ruleset hash or the tokenizer id changes,
+      and each of the three is in the hashed material -- falsifier: a changed value with an unchanged hash.'
+  - id: AC15
+    statement: 'AC15: the fidelity checker (AP-E4) runs against the real builder output and fails a fixture in which
+      an authority item is not a verbatim substring of its original -- falsifier: a truncated authority item that
+      passes.'
 evidence_requirements:
-  - kind: "tests"
-    description: "Selection-policy extensions for OMN-21125."
-    command: "uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py tests/nodes/node_context_selection_policy_compute/test_handler_context_selection_policy.py tests/test_golden_chain_context_selection_policy.py -q -n 0"
-  - kind: "tests"
-    description: "Context-pack builder dedup and budget exclusion for OMN-21125."
-    command: "uv run pytest tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py tests/nodes/node_context_pack_builder_compute/test_guidance_section_parser.py tests/nodes/node_context_pack_builder_compute/test_handler_context_pack_builder.py tests/nodes/node_context_roi_runner/test_context_roi_runner_emits_runtime_observed_rows.py tests/nodes/node_context_roi_runner/test_dispatch_envelope_unwrap.py tests/nodes/node_context_roi_runner/test_extract_row_envelope_unwrap.py tests/nodes/node_context_roi_runner/test_failed_terminal_routing.py tests/nodes/node_context_roi_runner/test_golden_chain_context_roi_runner.py tests/nodes/node_context_roi_runner/test_handle_async_non_blocking.py tests/nodes/node_context_roi_runner/test_handler_context_roi_runner.py tests/nodes/node_context_roi_runner/test_register_before_publish.py -q"
+- kind: tests
+  description: Selection-policy extensions for OMN-21125.
+  command: uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py
+    tests/nodes/node_context_selection_policy_compute/test_handler_context_selection_policy.py tests/test_golden_chain_context_selection_policy.py
+    -q -n 0
+- kind: tests
+  description: Context-pack builder dedup and budget exclusion for OMN-21125.
+  command: uv run pytest tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py
+    tests/nodes/node_context_pack_builder_compute/test_guidance_section_parser.py tests/nodes/node_context_pack_builder_compute/test_handler_context_pack_builder.py
+    tests/nodes/node_context_roi_runner/test_context_roi_runner_emits_runtime_observed_rows.py tests/nodes/node_context_roi_runner/test_dispatch_envelope_unwrap.py
+    tests/nodes/node_context_roi_runner/test_extract_row_envelope_unwrap.py tests/nodes/node_context_roi_runner/test_failed_terminal_routing.py
+    tests/nodes/node_context_roi_runner/test_golden_chain_context_roi_runner.py tests/nodes/node_context_roi_runner/test_handle_async_non_blocking.py
+    tests/nodes/node_context_roi_runner/test_handler_context_roi_runner.py tests/nodes/node_context_roi_runner/test_register_before_publish.py
+    -q
+- kind: tests
+  description: TC.2 whole items, identity and fidelity through two bindings.
+  command: uv run --frozen pytest tests/nodes/node_context_pack_builder_compute/test_item_admission_and_fidelity.py
+    -q -n 0 --no-cov
 emergency_bypass:
   enabled: false
-  justification: ""
-  follow_up_ticket_id: ""
+  justification: ''
+  follow_up_ticket_id: ''
 dod_evidence:
-  - id: "dod-omn21125-ac1-scope-rule-stamp"
-    description: "A rule-admitted candidate, required or optional, is stamped POLICY_SCOPE_RULE with its rule_ref and a null score; a candidate with no rule, score or cohort still raises the hidden-authority error."
-    source: "manual"
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py -q -n 0 -k 'stamped_policy_scope_rule or still_hidden_authority'"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC1"]
-  - id: "dod-omn21125-ac2-rule-ref-invariant"
-    description: "ModelFactorSelection accepts POLICY_SCOPE_RULE with rule_ref and a null score and refuses the three reversed constructions; FALLBACK_NO_SCORE still refuses a score and still constructs with a null score."
-    source: "manual"
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py -q -n 0 -k 'scope_rule_selection or rule_ref_on_any or fallback_no_score_unchanged'"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC2"]
-  - id: "dod-omn21125-ac3-model-ranking"
-    description: "A ranking naming an id outside the eligible optional set, or a required id, is ignored, the deterministic order fills the optional slots, and selection_rejected is 1 with the offending ids; a valid ranking fills by rank and the output is restored to precedence order; a required candidate is never dropped."
-    source: "manual"
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py -q -n 0 -k 'fills_by_rank or outside_id or required_id or never_drops'"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC3"]
-  - id: "dod-omn21125-ac4-permutation"
-    description: "Every one of the 720 permutations of a six-candidate pool with tied scores, a duplicate source id, a fallback and a scope-rule candidate yields the same serialized result."
-    source: "manual"
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py -q -n 0 -k every_input_permutation"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC4"]
-  - id: "dod-omn21125-deploy-probe"
-    description: "Deploy probe: the selection result model read from GitHub at the checked-out commit declares the POLICY_SCOPE_RULE rule_ref invariant. A head without it fails the probe."
-    source: "manual"
-    checks:
-      - check_type: "command"
-        check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_context_selection_policy_compute/models/model_selection_result.py?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c 'POLICY_SCOPE_RULE selection requires a rule_ref'"
-        cwd: "${OMNI_HOME}/omnimarket"
-  - id: "dod-omn21125-ac5-budget-exclusion"
-    description: "Optional artifacts that do not fit are skipped with scanning continuing and are listed in reverse precedence; required artifacts are never excluded; a required set over budget fails TOKEN_BUDGET_EXCEEDED naming its items. The tests fail at the merge base, whose builder fails any over-budget input."
-    source: "manual"
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py -q -n 0 -k TestOptionalExclusionByBudget"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC5"]
-  - id: "dod-omn21125-ac6-content-dedup"
-    description: "Equal normalised content yields one chunk and one dropped_duplicates entry; the required copy survives an optional copy placed ahead of it in precedence; a dropped duplicate is not charged to the budget. The tests fail at the merge base, whose builder refuses duplicates."
-    source: "manual"
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py -q -n 0 -k TestContentDedup"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC6"]
-  - id: "dod-omn21125-ac7-roi-runner-unchanged"
-    description: "The ROI runner's tests pass and an arm that does not fit is still budget_fail."
-    source: "manual"
-    checks:
-      - check_type: "test_passes"
-        check_value: "uv run pytest tests/nodes/node_context_roi_runner/test_context_roi_runner_emits_runtime_observed_rows.py tests/nodes/node_context_roi_runner/test_dispatch_envelope_unwrap.py tests/nodes/node_context_roi_runner/test_extract_row_envelope_unwrap.py tests/nodes/node_context_roi_runner/test_failed_terminal_routing.py tests/nodes/node_context_roi_runner/test_golden_chain_context_roi_runner.py tests/nodes/node_context_roi_runner/test_handle_async_non_blocking.py tests/nodes/node_context_roi_runner/test_handler_context_roi_runner.py tests/nodes/node_context_roi_runner/test_register_before_publish.py tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py -q -k 'roi_runner or context_roi'"
-        cwd: "${OMNI_HOME}/omnimarket"
-    binds_ac: ["AC7"]
-  - id: "dod-omn21125-deploy-probe-builder"
-    description: "Deploy probe. The checkout's own environment builds a pack with a duplicate and an optional artifact over budget and asserts one dropped duplicate and one budget exclusion. It fails at the merge base, whose builder refuses both inputs. The hosted runner can run it inside the check budget; no lab route is required."
-    source: "manual"
-    checks:
-      - check_type: "command"
-        check_value: |-
-          uv run --frozen python -c '
-          from omnibase_core.enums.enum_context_factor import EnumContextFactor as F
-          from omnibase_core.enums.enum_context_pack_provenance import EnumContextPackProvenance as P
-          from omnimarket.nodes.node_context_pack_builder_compute.handlers.handler_context_pack_builder import HandlerContextPackBuilder
-          from omnimarket.pack.model_context_pack_artifact import ModelContextPackArtifact as A
-          from omnimarket.pack.model_context_pack_builder_request import ModelContextPackBuilderRequest as R
-          from omnimarket.pack.model_context_profile import ModelContextProfile as Pr
-          def a(f, c, t, h):
-              return A(factor=f, content=c, token_estimate=t, provenance=P.GENERATED, source_artifact_hash=h, source_contract_hash="c")
-          prof = Pr(model_id="m", required_factors=(F.GOLDEN_CHAIN,), optional_factors=(F.EXEMPLAR,), factor_precedence=(F.GOLDEN_CHAIN, F.EXEMPLAR), token_budget=100, profile_version="v")
-          r = HandlerContextPackBuilder().handle(R(contract_hash="c", generated_at="2026-10-26T07:00:00Z", profile=prof, artifacts=(a(F.GOLDEN_CHAIN, "x", 60, "g1"), a(F.GOLDEN_CHAIN, "x", 60, "g2"), a(F.EXEMPLAR, "y", 50, "e1"))))
-          assert r.status.value == "ok", r.errors
-          assert [d.source_artifact_hash for d in r.dropped_duplicates] == ["g2"], r.dropped_duplicates
-          assert [e.source_artifact_hash for e in r.excluded_by_budget] == ["e1"], r.excluded_by_budget
-          print("dedup and budget exclusion present")'
+- id: dod-omn21125-ac1-scope-rule-stamp
+  description: A rule-admitted candidate, required or optional, is stamped POLICY_SCOPE_RULE with its rule_ref and
+    a null score; a candidate with no rule, score or cohort still raises the hidden-authority error.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py
+      -q -n 0 -k 'stamped_policy_scope_rule or still_hidden_authority'
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC4
+- id: dod-omn21125-ac2-rule-ref-invariant
+  description: ModelFactorSelection accepts POLICY_SCOPE_RULE with rule_ref and a null score and refuses the three
+    reversed constructions; FALLBACK_NO_SCORE still refuses a score and still constructs with a null score.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py
+      -q -n 0 -k 'scope_rule_selection or rule_ref_on_any or fallback_no_score_unchanged'
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC5
+- id: dod-omn21125-ac3-model-ranking
+  description: A ranking naming an id outside the eligible optional set, or a required id, is ignored, the deterministic
+    order fills the optional slots, and selection_rejected is 1 with the offending ids; a valid ranking fills by
+    rank and the output is restored to precedence order; a required candidate is never dropped.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py
+      -q -n 0 -k 'fills_by_rank or outside_id or required_id or never_drops'
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC6
+- id: dod-omn21125-ac4-permutation
+  description: Every one of the 720 permutations of a six-candidate pool with tied scores, a duplicate source id,
+    a fallback and a scope-rule candidate yields the same serialized result.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/nodes/node_context_selection_policy_compute/test_scope_rule_and_model_ranking.py
+      -q -n 0 -k every_input_permutation
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC7
+- id: dod-omn21125-deploy-probe
+  description: 'Deploy probe: the selection result model read from GitHub at the checked-out commit declares the
+    POLICY_SCOPE_RULE rule_ref invariant. A head without it fails the probe.'
+  source: manual
+  checks:
+  - check_type: command
+    check_value: gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_context_selection_policy_compute/models/model_selection_result.py?ref=$(git
+      rev-parse HEAD)" --jq .content | base64 -d | grep -c 'POLICY_SCOPE_RULE selection requires a rule_ref'
+    cwd: ${OMNI_HOME}/omnimarket
+- id: dod-omn21125-ac5-budget-exclusion
+  description: Optional artifacts that do not fit are skipped with scanning continuing and are listed in reverse
+    precedence; required artifacts are never excluded; a required set over budget fails TOKEN_BUDGET_EXCEEDED naming
+    its items. The tests fail at the merge base, whose builder fails any over-budget input.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py
+      -q -n 0 -k TestOptionalExclusionByBudget
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC2
+  - AC8
+  - AC9
+- id: dod-omn21125-ac6-content-dedup
+  description: Equal normalised content yields one chunk and one dropped_duplicates entry; the required copy survives
+    an optional copy placed ahead of it in precedence; a dropped duplicate is not charged to the budget. The tests
+    fail at the merge base, whose builder refuses duplicates.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py
+      -q -n 0 -k TestContentDedup
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC3
+  - AC13
+- id: dod-omn21125-ac7-roi-runner-unchanged
+  description: The ROI runner's tests pass and an arm that does not fit is still budget_fail.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/nodes/node_context_roi_runner/test_context_roi_runner_emits_runtime_observed_rows.py
+      tests/nodes/node_context_roi_runner/test_dispatch_envelope_unwrap.py tests/nodes/node_context_roi_runner/test_extract_row_envelope_unwrap.py
+      tests/nodes/node_context_roi_runner/test_failed_terminal_routing.py tests/nodes/node_context_roi_runner/test_golden_chain_context_roi_runner.py
+      tests/nodes/node_context_roi_runner/test_handle_async_non_blocking.py tests/nodes/node_context_roi_runner/test_handler_context_roi_runner.py
+      tests/nodes/node_context_roi_runner/test_register_before_publish.py tests/nodes/node_context_pack_builder_compute/test_builder_dedup_and_budget_omn21125.py
+      -q -k 'roi_runner or context_roi'
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC1
+- id: dod-omn21125-deploy-probe-builder
+  description: Deploy probe. The checkout's own environment builds a pack with a duplicate and an optional artifact
+    over budget and asserts one dropped duplicate and one budget exclusion. It fails at the merge base, whose builder
+    refuses both inputs. The hosted runner can run it inside the check budget; no lab route is required.
+  source: manual
+  checks:
+  - check_type: command
+    check_value: "uv run --frozen python -c '\nfrom omnibase_core.enums.enum_context_factor import EnumContextFactor\
+      \ as F\nfrom omnibase_core.enums.enum_context_pack_provenance import EnumContextPackProvenance as P\nfrom\
+      \ omnimarket.nodes.node_context_pack_builder_compute.handlers.handler_context_pack_builder import HandlerContextPackBuilder\n\
+      from omnimarket.pack.model_context_pack_artifact import ModelContextPackArtifact as A\nfrom omnimarket.pack.model_context_pack_builder_request\
+      \ import ModelContextPackBuilderRequest as R\nfrom omnimarket.pack.model_context_profile import ModelContextProfile\
+      \ as Pr\ndef a(f, c, t, h):\n    return A(factor=f, content=c, token_estimate=t, provenance=P.GENERATED, source_artifact_hash=h,\
+      \ source_contract_hash=\"c\")\nprof = Pr(model_id=\"m\", required_factors=(F.GOLDEN_CHAIN,), optional_factors=(F.EXEMPLAR,),\
+      \ factor_precedence=(F.GOLDEN_CHAIN, F.EXEMPLAR), token_budget=100, profile_version=\"v\")\nr = HandlerContextPackBuilder().handle(R(contract_hash=\"\
+      c\", generated_at=\"2026-10-26T07:00:00Z\", profile=prof, artifacts=(a(F.GOLDEN_CHAIN, \"x\", 60, \"g1\"),\
+      \ a(F.GOLDEN_CHAIN, \"x\", 60, \"g2\"), a(F.EXEMPLAR, \"y\", 50, \"e1\"))))\nassert r.status.value == \"ok\"\
+      , r.errors\nassert [d.source_artifact_hash for d in r.dropped_duplicates] == [\"g2\"], r.dropped_duplicates\n\
+      assert [e.source_artifact_hash for e in r.excluded_by_budget] == [\"e1\"], r.excluded_by_budget\nprint(\"\
+      dedup and budget exclusion present\")'"
+- id: dod-omn21125-item-precedence
+  description: Kept items are restored by factor and source identity after score admission.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run --frozen pytest tests/nodes/node_context_pack_builder_compute/test_item_admission_and_fidelity.py
+      -q -n 0 --no-cov -k restores_precedence
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC10
+- id: dod-omn21125-caller-token-counts
+  description: The result retains caller token counts and the named estimator; the builder has no estimator.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run --frozen pytest tests/nodes/node_context_pack_builder_compute/test_item_admission_and_fidelity.py
+      -q -n 0 --no-cov -k skips_large_items
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC11
+- id: dod-omn21125-whole-exemplars
+  description: Whole exemplars fill in score order, scanning past oversized items; no fitting exemplar returns the
+    explicit failure and omission count.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run --frozen pytest tests/nodes/node_context_pack_builder_compute/test_item_admission_and_fidelity.py
+      -q -n 0 --no-cov -k 'item_admission or item_mode'
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC12
+- id: dod-omn21125-assembly-identity
+  description: Changing any one of corpus version, ruleset hash or tokenizer id changes the full digest.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run --frozen pytest tests/nodes/node_context_pack_builder_compute/test_item_admission_and_fidelity.py
+      -q -n 0 --no-cov -k each_assembly_identity
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC14
+- id: dod-omn21125-authority-fidelity
+  description: The fidelity checker runs on actual builder output and refuses a truncated, rewritten or missing
+    authority item.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run --frozen pytest tests/nodes/node_context_pack_builder_compute/test_item_admission_and_fidelity.py
+      -q -n 0 --no-cov -k fidelity
+    cwd: ${OMNI_HOME}/omnimarket
+  binds_ac:
+  - AC15
+- id: dod-omn21125-deploy-whole-item-probe
+  description: 'Hosted-runner probe: typed dispatch and the in-memory bus execute identical whole-item admission
+    and fidelity cases, including no-room failures. No services, lab host or credentials are needed.'
+  source: manual
+  checks:
+  - check_type: command
+    check_value: uv run --frozen pytest tests/nodes/node_context_pack_builder_compute/test_item_admission_and_fidelity.py
+      -q -n 0 --no-cov -k same_item_admission
+    cwd: ${OMNI_HOME}/omnimarket

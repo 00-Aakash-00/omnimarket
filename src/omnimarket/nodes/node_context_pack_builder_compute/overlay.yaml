@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+# Caller input overlay. Apply to the resolved profile before dispatch; no live
+# profile is promoted here. Enabling item mode requires caller-ranked artifacts
+# and an explicit corpus_version, ruleset_hash and tokenizer_id in the request.
+node: node_context_pack_builder_compute
+profile:
+  item_level_exemplars: false

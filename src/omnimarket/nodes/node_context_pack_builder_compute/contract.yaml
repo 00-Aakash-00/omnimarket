@@ -43,6 +43,23 @@ inputs:
   artifacts:
     type: array
     required: false
+    description: >
+      Whole items with caller-supplied token counts. Item-level exemplars require
+      finite effectiveness_score and confidence; source_artifact_hash is their stable id.
+  assembly_identity:
+    type: object
+    required: false
+    nullable: true
+    description: >
+      Caller-pinned corpus_version, ruleset_hash and tokenizer_id. Required by
+      item-level mode; all three are included in the full assembly digest.
+
+assembly_policy:
+  item_level_profile_field: item_level_exemplars
+  item_level_default: false
+  ranking: [effectiveness_score_desc, confidence_desc, source_artifact_hash_asc]
+  authority_fidelity: exact_whole_item
+  identity_fields: [corpus_version, ruleset_hash, tokenizer_id]
 
 outputs:
   status:
@@ -70,6 +87,21 @@ outputs:
   excluded_by_budget:
     type: array
     description: Optional artifacts left out because they did not fit the token budget, lowest precedence first (OMN-21125).
+  omitted_exemplar_count:
+    type: int
+    description: Whole non-fitting exemplars, excluding reported content duplicates.
+  assembly_hash:
+    type: str
+    nullable: true
+    description: Full sha256 over deterministic pack content and assembly_identity.
+  fidelity:
+    type: object
+    nullable: true
+    description: Authority fidelity violations checked against the actual packed chunks.
+  failure_reason:
+    type: str
+    nullable: true
+    enum: [FIRST_EXEMPLAR_EXCEEDS_BUDGET, AUTHORITY_FIDELITY_FAILED]
 
 terminal_event: onex.evt.omnimarket.context-pack-build-completed.v1
 

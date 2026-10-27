@@ -28,6 +28,8 @@ class ModelContextPackArtifact(BaseModel):
     source_contract_hash: str = Field(min_length=1)
     source_run_id: str | None = None
     source_priority: int = Field(default=100, ge=0)
+    effectiveness_score: float | None = Field(default=None, allow_inf_nan=False)
+    confidence: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
 
     # Section-parser provenance — populated when content was split from a
     # guidance file by GuidanceSectionParser; None for all other artifact types.
