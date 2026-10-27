@@ -72,10 +72,7 @@ def read_shadow_prompts(
     """
     if limit < 1:
         raise ValueError(f"limit must be at least 1, got {limit}")
-    connection = sqlite3.connect(  # no-contract-check: read-only evidence store
-        f"file:{store_path}?mode=ro",
-        uri=True,
-    )
+    connection = sqlite3.connect(f"file:{store_path}?mode=ro", uri=True)
     try:
         rows = connection.execute(
             "select correlation_id, task_type, prompt_text, response_text "
@@ -117,17 +114,21 @@ def _outcome(
     return sample_outcome_from_score(score, bar)
 
 
-def preflight_shadow_comparison(
+def run_shadow_comparison(
     comparison_id: str,
     prompts: Sequence[ModelShadowPrompt],
+    *,
+    rung_a: ShadowRung,
+    rung_b: ShadowRung,
     method: ModelComparisonMethod,
-) -> ModelComparisonResult | None:
-    """Validate pairing and refuse inadequate power before any model I/O."""
-    seen: set[str] = set()
-    for prompt in prompts:
-        if prompt.correlation_id in seen:
-            raise ValueError(f"duplicate case_id {prompt.correlation_id!r}")
-        seen.add(prompt.correlation_id)
+    grader: ShadowGrader = grade_like_the_local_path,
+) -> ModelComparisonResult:
+    """Refuse an undersized sample before answering or grading any prompt.
+
+    Refused prompts have no answers and are reported as INCOMPLETE in both
+    arms. A sufficiently sized sample is answered on both rungs, graded with
+    ``grader``, and compared.
+    """
     power_n = required_comparison_size(
         margin=method.margin, confidence=method.confidence, power=method.power
     )
@@ -144,27 +145,6 @@ def preflight_shadow_comparison(
             ],
             method,
         )
-    return None
-
-
-def run_shadow_comparison(
-    comparison_id: str,
-    prompts: Sequence[ModelShadowPrompt],
-    *,
-    rung_a: ShadowRung,
-    rung_b: ShadowRung,
-    method: ModelComparisonMethod,
-    grader: ShadowGrader = grade_like_the_local_path,
-) -> ModelComparisonResult:
-    """Refuse an undersized sample before answering or grading any prompt.
-
-    Refused prompts have no answers and are reported as INCOMPLETE in both
-    arms. A sufficiently sized sample is answered on both rungs, graded with
-    ``grader``, and compared.
-    """
-    refused = preflight_shadow_comparison(comparison_id, prompts, method)
-    if refused is not None:
-        return refused
     pairs = [
         ModelComparisonPair(
             case_id=prompt.correlation_id,
