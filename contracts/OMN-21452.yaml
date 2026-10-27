@@ -79,6 +79,15 @@ requirements:
       and passes on the known repair, and an attempt that edits the evaluator files
       is failed -- falsifier: uv run pytest tests/nodes/test_work_contract_checks.py
       -q -k controls_and_evaluator_immutability'
+- id: req-model-work-ac7
+  statement: 'AC7: every work contract that pins uv.lock carries the sha256 of the
+    repo uv.lock -- falsifier: uv run pytest tests/nodes/test_work_contract_lock_pins.py
+    -q, red at the merge base where the pins are stale'
+  acceptance:
+  - id: AC7
+    statement: 'AC7: every work contract that pins uv.lock carries the sha256 of the
+      repo uv.lock -- falsifier: uv run pytest tests/nodes/test_work_contract_lock_pins.py
+      -q, red at the merge base where the pins are stale'
 evidence_requirements:
 - kind: tests
   description: Focused model work acceptance controls
@@ -903,6 +912,8 @@ dod_evidence:
     repo uv.lock -- falsifier: uv run pytest tests/nodes/test_work_contract_lock_pins.py
     -q, red at the merge base where the pins are stale'
   source: manual
+  binds_ac:
+  - AC7
   checks:
   - check_type: test_passes
     check_value: uv run pytest tests/nodes/test_work_contract_lock_pins.py -q --no-cov
