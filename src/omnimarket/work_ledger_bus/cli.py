@@ -42,6 +42,12 @@ from omnimarket.handlers.bus_binding.select import (
     default_state_dir,
     open_bound_bus,
     positional_opener,
+    replay_outbox,
+)
+from omnimarket.handlers.work_ledger_consume.consume_watch import (
+    ConsumeWatch,
+    load_consume_watch_policy,
+    readiness_probe,
 )
 from omnimarket.lab_work.bus import _bytes, _subscribe
 from omnimarket.lab_work.cli import _with_bus_options
@@ -201,6 +207,15 @@ def serve_command(
                 operator_principal=operator_principal,
             )
             await host.start()
+            # OMN-20275: retake the subscriptions when the broker drops the group; degraded and alarmed.
+            watch = ConsumeWatch(
+                host,
+                readiness_probe(opened, lambda: host.serving_topics),
+                load_consume_watch_policy(),
+                host_name=host_name,
+                state_dir=default_state_dir(),
+            )
+            watch.start()
             # OMN-20905 (RULING 2026-10-10T22:40:43Z): the operator capture runs beside the
             # append host, off the same bus, through the same append runner.
             capture = (
@@ -219,6 +234,7 @@ def serve_command(
             try:
                 await stop.wait()
             finally:
+                await watch.stop()
                 if capture is not None:
                     await capture.stop()
                 await host.stop()
@@ -322,7 +338,8 @@ def append_command(
             )
             try:
                 if bound.decision.binding is EnumBusBinding.DURABLE:
-                    replay = await outbox.drain(
+                    replay = await replay_outbox(
+                        bound,
                         state_dir,
                         lambda queued: caller.append(queued, timeout_s=timeout_s),
                     )
