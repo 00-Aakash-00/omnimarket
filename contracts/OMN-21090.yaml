@@ -288,3 +288,19 @@ dod_evidence:
       - check_type: "command"
         check_value: "uv run --frozen pytest tests/nodes/node_exemplar_registry_reconcile_compute/test_sampled_revocation.py -q -n 0 -p no:randomly --no-cov"
         cwd: "${OMNI_HOME}/omnimarket"
+
+  - id: "dod-omn21090-routing-overlay-boundary"
+    description: "Repository gate repair only: the generation base contract forbids model choices, its explicit overlay supplies every canonical routing field, and missing or conflicting authority fails closed. This does not establish that any epic child track is Done; AC1 through AC5 still require their specified Linear API reads."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/validation/test_generation_routing_overlay.py tests/test_routing_authority_gate.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1", "AC2", "AC3", "AC4", "AC5"]
+  - id: "dod-omn21090-deploy-routing-overlay-probe"
+    description: "Hosted runner checks the packaged generation handler reads the declared model from its packaged overlay and both enforcing gates pass. No services, inference calls, or credentials are required."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/validation/test_generation_routing_overlay.py tests/test_routing_authority_gate.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
