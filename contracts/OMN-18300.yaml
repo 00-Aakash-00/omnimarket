@@ -1,0 +1,196 @@
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+---
+schema_version: 1.0.0
+ticket_id: OMN-18300
+title: Measure and route delegation by task complexity
+summary: 'Lane scope: reject the F07-05 destructive-read miss and F08-02 CI field omissions using contract-declared
+  input content obligations. This patch does not complete the parent epic or prove C14. Original epic
+  criteria are retained below and explicitly unproven; gate regression checks make no claim to satisfy
+  them.'
+is_seam_ticket: false
+interface_change: false
+interfaces_touched: []
+context:
+  lane_scope: deleg-gate-falsepass-1440
+  parent_epic_complete: false
+  epic_criteria_evidence: Not supplied by this gate-only lane. Pending items intentionally bind no AC;
+    they must not create false completion evidence.
+requirements:
+- id: req-epic-ac1
+  statement: Six rungs, at least four real tasks each, every bundle committed as a fixture carrying its
+    exact fed text, so a rerun is byte-reproducible.
+  acceptance:
+  - id: AC1
+    statement: AC1. Six rungs, at least four real tasks each, every bundle committed as a fixture carrying
+      its exact fed text, so a rerun is byte-reproducible.
+- id: req-epic-ac2
+  statement: Every scorer is mechanical where the rung states it is; the rubric parts are a fixed checklist,
+    not a judgement call.
+  acceptance:
+  - id: AC2
+    statement: AC2. Every scorer is mechanical where the rung states it is; the rubric parts are a fixed
+      checklist, not a judgement call.
+- id: req-epic-ac3
+  statement: R4 scoring executes the produced test against the real function AND against a mutated copy;
+    a test that passes both is scored as not discriminating.
+  acceptance:
+  - id: AC3
+    statement: AC3. R4 scoring executes the produced test against the real function AND against a mutated
+      copy; a test that passes both is scored as not discriminating.
+- id: req-epic-ac4
+  statement: R6 scoring applies the patch and runs the focused test off the launching host, or focused-only,
+    never a broad local suite.
+  acceptance:
+  - id: AC4
+    statement: AC4. R6 scoring applies the patch and runs the focused test off the launching host, or
+      focused-only, never a broad local suite.
+- id: req-epic-ac5
+  statement: Every run records delegation id, tier, backend, model, tokens, cost, wall time, quality-gate
+    score, leak fraction, and the mechanical result.
+  acceptance:
+  - id: AC5
+    statement: AC5. Every run records delegation id, tier, backend, model, tokens, cost, wall time, quality-gate
+      score, leak fraction, and the mechanical result.
+- id: req-epic-ac6
+  statement: The report states both thresholds explicitly and recommends what real work to route where
+    today.
+  acceptance:
+  - id: AC6
+    statement: AC6. The report states both thresholds explicitly and recommends what real work to route
+      where today.
+- id: req-epic-ac7
+  statement: 'The execution-surface proposal names the safety rails: read-only by default, allowlisted
+    commands, a worktree per task, no credential access, the lab only.'
+  acceptance:
+  - id: AC7
+    statement: 'AC7. The execution-surface proposal names the safety rails: read-only by default, allowlisted
+      commands, a worktree per task, no credential access, the lab only.'
+evidence_requirements:
+- kind: tests
+  description: Gate-only replay and correct-answer controls; not epic completion proof.
+  command: uv run pytest tests/unit/delegation/test_quality_gate_required_content_omn18300.py -q -n 0
+    -p no:randomly --no-cov
+emergency_bypass:
+  enabled: false
+  justification: ''
+  follow_up_ticket_id: ''
+dod_evidence:
+- id: dod-omn18300-epic-ac1-unproven
+  description: AC1 is outside this gate-only lane. No completion proof is claimed; the original criterion
+    is retained verbatim.
+  source: linear
+  linear_dod_text: AC1. Six rungs, at least four real tasks each, every bundle committed as a fixture
+    carrying its exact fed text, so a rerun is byte-reproducible.
+  status: pending
+  binds_ac: []
+  checks: []
+- id: dod-omn18300-epic-ac2-unproven
+  description: AC2 is outside this gate-only lane. No completion proof is claimed; the original criterion
+    is retained verbatim.
+  source: linear
+  linear_dod_text: AC2. Every scorer is mechanical where the rung states it is; the rubric parts are a
+    fixed checklist, not a judgement call.
+  status: pending
+  binds_ac: []
+  checks: []
+- id: dod-omn18300-epic-ac3-unproven
+  description: AC3 is outside this gate-only lane. No completion proof is claimed; the original criterion
+    is retained verbatim.
+  source: linear
+  linear_dod_text: AC3. R4 scoring executes the produced test against the real function AND against a
+    mutated copy; a test that passes both is scored as not discriminating.
+  status: pending
+  binds_ac: []
+  checks: []
+- id: dod-omn18300-epic-ac4-unproven
+  description: AC4 is outside this gate-only lane. No completion proof is claimed; the original criterion
+    is retained verbatim.
+  source: linear
+  linear_dod_text: AC4. R6 scoring applies the patch and runs the focused test off the launching host,
+    or focused-only, never a broad local suite.
+  status: pending
+  binds_ac: []
+  checks: []
+- id: dod-omn18300-epic-ac5-unproven
+  description: AC5 is outside this gate-only lane. No completion proof is claimed; the original criterion
+    is retained verbatim.
+  source: linear
+  linear_dod_text: AC5. Every run records delegation id, tier, backend, model, tokens, cost, wall time,
+    quality-gate score, leak fraction, and the mechanical result.
+  status: pending
+  binds_ac: []
+  checks: []
+- id: dod-omn18300-epic-ac6-unproven
+  description: AC6 is outside this gate-only lane. No completion proof is claimed; the original criterion
+    is retained verbatim.
+  source: linear
+  linear_dod_text: AC6. The report states both thresholds explicitly and recommends what real work to
+    route where today.
+  status: pending
+  binds_ac: []
+  checks: []
+- id: dod-omn18300-epic-ac7-unproven
+  description: AC7 is outside this gate-only lane. No completion proof is claimed; the original criterion
+    is retained verbatim.
+  source: linear
+  linear_dod_text: 'AC7. The execution-surface proposal names the safety rails: read-only by default,
+    allowlisted commands, a worktree per task, no credential access, the lab only.'
+  status: pending
+  binds_ac: []
+  checks: []
+- id: dod-omn18300-gate-replays
+  description: 'Gate-only evidence: the equivalent seeded destructive-read miss and CI missing fields
+    are refused. Both tests failed before the patch because passed was True. These do not bind or prove
+    the parent epic criteria.'
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/unit/delegation/test_quality_gate_required_content_omn18300.py -q
+      -n 0 -p no:randomly --no-cov
+    cwd: .
+- id: dod-omn18300-gate-regressions
+  description: Existing quality gate, calibration, score, inventory and response-contract tests remain
+    passing; no right-answer refusal is observed in this corpus. Does not prove universal semantic correctness.
+  source: manual
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/unit/delegation/test_quality_gate*.py tests/unit/delegation/test_handler_quality_gate*.py
+      tests/unit/delegation/test_unpassable_criterion_omn19005.py tests/unit/nodes/node_delegation_quality_gate_reducer
+      tests/integration/node_delegation_quality_gate_reducer tests/test_omn19320_check_register.py -q
+      -n 0 -p no:randomly --no-cov
+    cwd: .
+- id: dod-omn18300-deploy-content-floor
+  description: 'Hosted-runner-accessible behavioral deploy check: exercise the gate from the installed
+    checkout with an explicit input field and require an omission refusal. Fails at the merge base where
+    required_input_content is unsupported. This verifies shipped package behavior, not activation of a
+    running service.'
+  source: manual
+  checks:
+  - check_type: command
+    check_value: 'uv run --locked python - <<''PY''
+
+      from uuid import uuid4
+
+      from omnimarket.nodes.node_delegation_quality_gate_reducer.handlers.handler_quality_gate import
+      delta
+
+      from omnimarket.nodes.node_delegation_quality_gate_reducer.models.model_quality_gate_input import
+      ModelQualityGateInput
+
+      source = "Diagnose this CI failure. Name the failing step and upstream run ID.\nFailing step: Validate
+      metadata\nUpstream run ID: 19482736105\n"
+
+      result = delta(ModelQualityGateInput(correlation_id=uuid4(), task_type="reasoning", llm_response_content="First,
+      metadata.yaml omits a dependency. Then declare it and validate again.", dod_deterministic=("response_non_empty",
+      "required_input_content"), dod_heuristic=("semantic_adequacy",)), grounding_source=source)
+
+      assert not result.passed and result.fallback_recommended, result
+
+      assert any("required_input_content missing" in reason and "ci_failing_step" in reason and "ci_upstream_run_id"
+      in reason for reason in result.failure_reasons), result.failure_reasons
+
+      print("installed gate refuses missing supplied CI fields")
+
+      PY'
+    cwd: .
