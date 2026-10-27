@@ -182,6 +182,7 @@ def test_the_expected_jobs_exist(workflow: dict[str, Any]) -> None:
     assert set(workflow["jobs"]) == {
         "decide",
         "release",
+        "release-gate",
         "reopen-dev",
         "sync-main",
     }

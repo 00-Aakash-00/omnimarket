@@ -73,8 +73,6 @@ jobs:
     name: Release Gate
     uses: ./.github/workflows/release-gate.yml
     secrets: inherit
-    permissions:
-      contents: read
 
   # ---------------------------------------------------------------------------
   # Decide — is dev's current version ahead of the latest published tag? Unit
