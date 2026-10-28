@@ -50,6 +50,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 from uuid import NAMESPACE_DNS, UUID, uuid5
+from weakref import ReferenceType, ref
 
 import yaml
 from omnibase_core.models.delegation.wire import EnumTierCostType
@@ -723,6 +724,13 @@ _DEFAULT_TASK_CLASS_CONTRACT_PATH = TASK_CLASS_CONTRACT_PACKAGED_DEFAULT_PATH
 # Module-level config singletons — loaded once on first call.
 # Tests can override by replacing these variables before calling delta().
 _config: ModelDelegationConfig | None = None
+# A placed ladder depends on both the tiers file and the Bifrost bindings.
+# Keep provenance with each loaded object, including one temporarily replaced
+# by an injected config, so restoring it cannot restore stale placements.
+_config_sources: dict[
+    int,
+    tuple[ReferenceType[ModelDelegationConfig], tuple[Path, Path | None, Path | None]],
+] = {}
 # OMN-19215 AC4: the spread groups of the placements _get_config applied, bound
 # to the exact config object they were derived from. A config installed any
 # other way (a test assigning ``_config``) has no recorded groups and routes
@@ -736,13 +744,23 @@ _config_spread_weights: tuple[ModelDelegationConfig, dict[str, float]] | None = 
 
 def _get_config() -> ModelDelegationConfig:
     global _config, _config_spread_peers, _config_spread_weights
+    config_path = resolve_routing_tiers_path()
+    binding = resolve_bifrost_path_binding()
+    source = (config_path, binding.contract_path, binding.overlay_path)
+    recorded = _config_sources.get(id(_config))
+    if (
+        _config is not None
+        and recorded is not None
+        and recorded[0]() is _config
+        and recorded[1] != source
+    ):
+        _config = None
     if _config is None:
         # OMN-16200: an unbound DELEGATION_ROUTING_TIERS_PATH resolves to the
         # packaged tiers file with a logged bootstrap_default provenance line
         # (resolve_routing_tiers_path), so a clean install routes on the ladder
         # it ships. A bound key is read verbatim, and a bound-but-unreadable
         # path still refuses below, naming the key and the path (OMN-15628).
-        config_path = resolve_routing_tiers_path()
         try:
             yaml_text = config_path.read_text()
         except OSError as exc:
@@ -769,6 +787,15 @@ def _get_config() -> ModelDelegationConfig:
         placed = _load_placed_backends()
         _config = apply_backend_placements(
             parse_delegation_config_yaml(yaml_text), placed
+        )
+        config_id = id(_config)
+
+        def forget_source(_: ReferenceType[ModelDelegationConfig]) -> None:
+            _config_sources.pop(config_id, None)
+
+        _config_sources[config_id] = (
+            ref(_config, forget_source),
+            source,
         )
         _config_spread_peers = (_config, spread_groups(placed))
         _config_spread_weights = (_config, spread_weights(placed))
