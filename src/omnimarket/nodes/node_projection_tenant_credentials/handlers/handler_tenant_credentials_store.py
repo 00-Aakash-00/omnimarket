@@ -32,6 +32,7 @@ from typing import Any, Protocol, cast
 
 from omnimarket.nodes.node_projection_tenant_credentials.handlers.handler_credential_route_write import (
     HandlerCredentialRouteWrite,
+    HandlerCredentialRowWrite,
 )
 from omnimarket.projection.protocol_database import (
     ProtocolProjectionAttestedWrite,
@@ -39,6 +40,9 @@ from omnimarket.projection.protocol_database import (
 )
 from omnimarket.protocols.protocol_credential_route_write import (
     ProtocolCredentialRouteWrite,
+)
+from omnimarket.protocols.protocol_credential_row_write import (
+    ProtocolCredentialRowWrite,
 )
 from omnimarket.routing.byok_provider_backends import (
     BYOK_MODEL_UNRESOLVED,
@@ -145,14 +149,20 @@ def apply_credential_registered(
     for column in _REGISTERED_OPTIONAL_COLUMNS:
         if data.get(column) is not None:
             row[column] = str(data[column])
-    db.upsert_returning(
-        CREDENTIALS_TABLE,
-        "api_key_ref",
-        row,
-        tenant=tenant,
-        insert_only_columns=frozenset({"created_at"}),
-        sql_expression_columns={"created_at": _NOW},
-    )
+    if isinstance(db, ProtocolCredentialRowWrite):
+        # OMN-21217: a register over a stored row (a tombstone included) raises
+        # its version by one in the same statement, as the runner's ON CONFLICT
+        # does, so concurrent writers never lose an increment.
+        db.write_credential_row(HandlerCredentialRowWrite.registered(row))
+    else:
+        db.upsert_returning(
+            CREDENTIALS_TABLE,
+            "api_key_ref",
+            row,
+            tenant=tenant,
+            insert_only_columns=frozenset({"created_at"}),
+            sql_expression_columns={"created_at": _NOW},
+        )
     _apply_routing_overlay(
         db,
         tenant_id=tenant,
@@ -243,18 +253,29 @@ def apply_credential_revoked(data: dict[str, Any], db: ProtocolCredentialStore) 
         return True
     ref = str(api_key_ref)
     tenant = str(tenant_id)
-    catalogued = db.query(CREDENTIALS_TABLE, {"api_key_ref": ref})
-    if not catalogued or catalogued[0].get("revoked_at") is None:
-        db.upsert_returning(
-            CREDENTIALS_TABLE,
-            "api_key_ref",
-            {"api_key_ref": ref, "tenant_id": tenant, "name": None, "provider": None},
-            tenant=tenant,
-            insert_only_columns=frozenset(
-                {"tenant_id", "name", "provider", "created_at"}
-            ),
-            sql_expression_columns={"created_at": _NOW, "revoked_at": _NOW},
-        )
+    if isinstance(db, ProtocolCredentialRowWrite):
+        # OMN-21217: one statement, as the runner's: tombstone an unknown key,
+        # else keep the earliest revoked_at; the version rises in SQL on every
+        # revoke over a stored row, a repeated one included.
+        db.write_credential_row(HandlerCredentialRowWrite.revoked(ref, tenant))
+    else:
+        catalogued = db.query(CREDENTIALS_TABLE, {"api_key_ref": ref})
+        if not catalogued or catalogued[0].get("revoked_at") is None:
+            db.upsert_returning(
+                CREDENTIALS_TABLE,
+                "api_key_ref",
+                {
+                    "api_key_ref": ref,
+                    "tenant_id": tenant,
+                    "name": None,
+                    "provider": None,
+                },
+                tenant=tenant,
+                insert_only_columns=frozenset(
+                    {"tenant_id", "name", "provider", "created_at"}
+                ),
+                sql_expression_columns={"created_at": _NOW, "revoked_at": _NOW},
+            )
     for route in db.query(OVERLAY_TABLE, {"tenant_id": tenant, "secret_ref": ref}):
         # Schema versions are integers; generic projection rows erase that type.
         if isinstance(db, ProtocolCredentialRouteWrite):

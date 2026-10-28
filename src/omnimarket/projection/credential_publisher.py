@@ -910,19 +910,24 @@ async def register_inference_credential(
         CredentialStoreUnavailableError: store configured but unauthenticated.
         CredentialStoreWriteRejectedError: the store declined the write.
     """
-    if not request.models:
-        raise CredentialKeyRefusedError(
-            request.provider, "not_chosen", model_not_chosen_message(request.provider)
-        )
     plan, detected_model = await _resolve_registration_plan(request, plan_detector)
-    for choice in request.models:
-        await _resolve_registration_model(
-            request.model_copy(update={"model": choice}),
-            plan,
-            detected_model,
-            model_discoverer,
+    model: str | None
+    if request.models:
+        for choice in request.models:
+            await _resolve_registration_model(
+                request.model_copy(update={"model": choice}),
+                plan,
+                detected_model,
+                model_discoverer,
+            )
+        model = request.models[0]
+    else:
+        # OMN-20157: with no choice, a provider whose customer chooses the model
+        # refuses not_chosen here, before anything is stored; any other reads
+        # the model its key runs from the provider's own list.
+        model = await _resolve_registration_model(
+            request, plan, detected_model, model_discoverer
         )
-    model = request.models[0]
     api_key_ref = mint_api_key_ref(tenant_id, request.provider)
 
     owns_store = secret_store is None
@@ -988,7 +993,7 @@ async def register_inference_credential(
         provider=request.provider,
         plan=plan,
         model=model,
-        models=request.models,
+        models=request.models or ([model] if model is not None else []),
         expected_version=request.expected_version,
         expires_at=request.expires_at,
         expiry_warning=credential_expiry_warning(request.expires_at),

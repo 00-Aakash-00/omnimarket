@@ -285,6 +285,63 @@ async def test_sync_ordered_models_concurrent_replace_real_postgres() -> None:
 
 
 @pytest.mark.integration
+@pytest.mark.asyncio
+async def test_sync_concurrent_revokes_raise_version_twice_real_postgres() -> None:
+    """OMN-21217: the sync adapter raises the key's version in SQL, so two
+    concurrent revokes over one stored key raise it twice, as the async
+    runner's ON CONFLICT does; a read-then-write would end one short.
+    """
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from omnimarket.nodes.node_projection_tenant_credentials.handlers.handler_tenant_credentials_store import (
+        apply_credential_registered,
+        apply_credential_revoked,
+    )
+    from omnimarket.projection.postgres_sync_database import (
+        PostgresSyncProjectionAdapter,
+    )
+
+    async with _provisioned_runner() as (_runner, conn, schema):
+        ref = f"cred_{BYOK_TENANT}_sync_version"
+        data = {
+            "tenant_id": BYOK_TENANT,
+            "provider": "openrouter",
+            "name": "sync-version-test",
+            "api_key_ref": ref,
+            "models": ["vendor/a"],
+            "metadata": {"model": "vendor/a"},
+        }
+
+        def adapter() -> PostgresSyncProjectionAdapter:
+            return PostgresSyncProjectionAdapter(_base_dsn(), schema=schema)
+
+        async def version() -> int:
+            value = await conn.fetchval(
+                "SELECT version FROM tenant_inference_credentials WHERE api_key_ref=$1",
+                ref,
+            )
+            assert isinstance(value, int)
+            return value
+
+        await asyncio.to_thread(apply_credential_registered, dict(data), adapter())
+        before = await version()
+        ready = Barrier(2, timeout=10)
+
+        def revoke(_: int) -> None:
+            ready.wait()
+            apply_credential_revoked(dict(data), adapter())
+
+        def compete() -> None:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                list(pool.map(revoke, range(2)))
+
+        await asyncio.to_thread(compete)
+        assert await version() == before + 2
+
+
+@pytest.mark.integration
 class TestRealPostgresWritePath:
     async def test_registered_inserts_a_correctly_typed_row(self) -> None:
         async with _provisioned_runner() as (runner, admin_conn, _schema):
