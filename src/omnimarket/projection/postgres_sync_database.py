@@ -205,6 +205,22 @@ class PostgresSyncProjectionAdapter:
         finally:
             conn.close()
 
+    def record_credential_last_used(self, api_key_ref: str, used_at: str) -> bool:
+        """OMN-19996: move the key's last-used time forward, never insert."""
+        conn = self._connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE tenant_inference_credentials "
+                    "SET last_used_at = %(used_at)s::TIMESTAMPTZ "
+                    "WHERE api_key_ref = %(ref)s AND (last_used_at IS NULL "
+                    "OR last_used_at < %(used_at)s::TIMESTAMPTZ)",
+                    {"ref": api_key_ref, "used_at": used_at},
+                )
+                return bool(cur.rowcount > 0)
+        finally:
+            conn.close()
+
     def upsert(
         self,
         table: str,

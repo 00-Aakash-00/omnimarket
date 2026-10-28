@@ -69,10 +69,15 @@ from typing import Any
 import yaml
 
 from omnimarket.projection.discovery import load_projection_exposures_from_contract
+from omnimarket.projection.envelope import envelope_event_timestamp
 from omnimarket.projection.models import ProjectionTableConfig
 from omnimarket.projection.runner import (
     BaseProjectionRunner,
     MessageMeta,
+)
+from omnimarket.projection.tenant_isolation import (
+    TenantRequiredError,
+    resolve_write_tenant,
 )
 from omnimarket.routing.byok_provider_backends import (
     BYOK_MODEL_UNRESOLVED,
@@ -93,9 +98,13 @@ KNOWN_PROJECTION_TABLES: frozenset[str] = frozenset(
 
 
 #: The full credential-state row: every catalog column, never a secret.
+#: OMN-19996: last_used_at rides along so a register or revoke publishes the
+#: row with the key's last-used time instead of dropping it from the served
+#: snapshot; the state topic's exposure does not list it and never carries it.
 _CREDENTIAL_STATE_COLUMNS = (
     "api_key_ref, tenant_id, name, provider, created_at, revoked_at, "
-    "fingerprint, set_at, expires_at, bound_host, workspace_id, models, version"
+    "fingerprint, set_at, expires_at, bound_host, workspace_id, models, version, "
+    "last_used_at"
 )
 
 
@@ -230,6 +239,13 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
             for exposure in self._snapshot_exposures
             if exposure.topic in _subscribed
         }
+        # OMN-19996: every other subscribed topic past the register and revoke
+        # pair is a delegation terminal (completed or failed), read for the
+        # key it names. Taken from the contract, never named here.
+        _ordered = list(self._contract.get("event_bus", {}).get("subscribe_topics", []))
+        self._terminal_topics: frozenset[str] = frozenset(
+            topic for topic in _ordered[2:] if topic not in self._state_tables
+        )
 
     @property
     def subscribe_topics(self) -> list[str]:
@@ -275,6 +291,8 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
             return await self._apply_credential_state(data)
         if state_table == self._table_routing_overlay:
             return await self._apply_overlay_state(data)
+        if topic in self._terminal_topics:
+            return await self._project_last_used(data, meta)
         return False
 
     async def _publish_snapshot_if_available(
@@ -284,16 +302,20 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
         data: dict[str, Any],
         *,
         table: str | None = None,
+        required_column: str | None = None,
     ) -> None:
         """Best-effort snapshot publish (OMN-15800): a no-op unless this node
         declares a bus_backed exposure of ``table`` AND the write returned a
-        real row. ``table`` defaults to the credential catalog."""
+        real row. ``table`` defaults to the credential catalog.
+        ``required_column`` limits the publish to exposures that list it."""
         if row is None:
             return
         table = table or self._table_credentials
         source_event_id = str(data.get("correlation_id") or meta.fallback_id)
         for exposure in self._snapshot_exposures:
             if exposure.table != table:
+                continue
+            if required_column is not None and required_column not in exposure.columns:
                 continue
             await self.publish_snapshot_delta(
                 exposure,
@@ -309,6 +331,57 @@ class HandlerTenantCredentialsProjectionRunner(BaseProjectionRunner):
                 source_offset=meta.offset,
                 tenant_id=str(row["tenant_id"]),
             )
+
+    async def _project_last_used(self, data: dict[str, Any], meta: MessageMeta) -> bool:
+        """Record a delegation terminal's time on the key it ran with (OMN-19996).
+
+        The terminal's ``secret_ref`` is the key reference the run resolved;
+        a run that resolved none names none and records nothing. The time is
+        the producer's envelope time, never the time this consumer saw it, and
+        an un-timed terminal records nothing rather than an invented time.
+
+        One guarded UPDATE: a ref with no catalog row (a house key, an unknown
+        ref) creates nothing, and a terminal older than the stored time never
+        lowers it, so terminals may arrive in any order. A revoked key still
+        records use. The version is not raised: the compacted state topic does
+        not carry this column, so the changed row is published only to the
+        exposures that list it.
+        """
+        api_key_ref = data.get("secret_ref")
+        used_at = envelope_event_timestamp(data)
+        if not api_key_ref or used_at is None:
+            logger.debug(
+                "delegation terminal names no secret_ref or envelope time -- "
+                "no credential last-used write"
+            )
+            return True
+        try:
+            tenant = resolve_write_tenant(
+                data.get("tenant_id"), table=self._table_credentials
+            )
+        except TenantRequiredError:
+            logger.warning(
+                "delegation terminal for correlation_id=%s carries no tenant_id "
+                "under enforced isolation -- no credential last-used write",
+                data.get("correlation_id"),
+            )
+            return True
+        rows = await self.db_for(self._table_credentials, operation="write").execute(
+            f"""
+            UPDATE {self._table_credentials}
+               SET last_used_at = $2
+             WHERE api_key_ref = $1
+               AND (last_used_at IS NULL OR last_used_at < $2)
+            RETURNING {_CREDENTIAL_STATE_COLUMNS}
+            """,
+            str(api_key_ref),
+            used_at,
+            tenant=tenant,
+        )
+        await self._publish_snapshot_if_available(
+            rows[0] if rows else None, meta, data, required_column="last_used_at"
+        )
+        return True
 
     async def _apply_credential_state(self, data: dict[str, Any]) -> bool:
         """Apply one committed credential row read back from the state topic.

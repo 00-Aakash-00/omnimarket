@@ -556,7 +556,8 @@ CREATE TABLE IF NOT EXISTS tenant_inference_credentials (
     bound_host  TEXT,
     workspace_id TEXT,
     models      TEXT,
-    version     INTEGER NOT NULL DEFAULT 1
+    version     INTEGER NOT NULL DEFAULT 1,
+    last_used_at TEXT
 )
 """
 
@@ -576,6 +577,9 @@ _TENANT_INFERENCE_CREDENTIALS_ADDED_COLUMNS: dict[str, object] = {
     # credential-state topic. The local store never replays that topic, so it
     # only has to exist here for the exposure; it stays at 1.
     "version": 1,
+    # 0010 (OMN-19996): the terminal time of the latest run that used the key,
+    # ISO text; NULL until a run names it.
+    "last_used_at": None,
 }
 # OMN-21217: the columns _ensure_columns adds carry no default, so a store made
 # before them holds NULL there. One recorded step fills them, so a store opens
@@ -1642,6 +1646,28 @@ class SqliteDatabaseAdapter:
             ).fetchone()
             conn.commit()
             return written is not None, None if current is None else int(current[0])
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def record_credential_last_used(self, api_key_ref: str, used_at: str) -> bool:
+        """OMN-19996: move the key's last-used time forward, never insert.
+
+        The time is stored as the ISO text given and compared as text, which
+        orders correctly for times written in one ISO form.
+        """
+        conn = self._connect()
+        try:
+            changed = conn.execute(
+                "UPDATE tenant_inference_credentials SET last_used_at = :used_at "
+                "WHERE api_key_ref = :ref "
+                "AND (last_used_at IS NULL OR last_used_at < :used_at)",
+                {"ref": api_key_ref, "used_at": used_at},
+            ).rowcount
+            conn.commit()
+            return changed > 0
         except BaseException:
             conn.rollback()
             raise
