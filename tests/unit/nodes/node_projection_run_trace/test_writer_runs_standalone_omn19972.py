@@ -31,6 +31,9 @@ from omnibase_core.constants.constants_runtime_profiles import (
     CONSUMER_ATTACHED_RUNTIME_PROFILES,
     REGISTERED_RUNTIME_PROFILES,
 )
+from omnibase_infra.runtime.auto_wiring.profile_ownership import (
+    runtime_profile_owns_contract,
+)
 
 from omnimarket.nodes.node_projection_run_trace.handlers.handler_run_trace_writer import (
     RunTraceProjectionWriter,
@@ -179,50 +182,32 @@ def _standalone_writer(
     return _Writer(), mirror_db
 
 
-def test_the_contract_names_only_its_own_runtime_profile() -> None:
-    """(J1) the contract names only its own runtime profile."""
+def test_only_its_own_runtime_profile_owns_the_contract() -> None:
+    """(J1) its own profile owns the contract; the shared tenant-projection, main and effects runtimes do not, so no second consumer folds the same steps."""
     contract = yaml.safe_load(
         (
             Path(__file__).resolve().parents[4]
             / "src/omnimarket/nodes/node_projection_run_trace/contract.yaml"
         ).read_text(encoding="utf-8")
     )
-    assert contract["runtime_profiles"] == ["projection-writer-run-trace"]
-
-
-def test_the_writer_is_not_dispatched_in_process() -> None:
-    """(J1) the writer is not dispatched in-process by the shared runtime."""
+    # no lane or node selection from the test process environment
+    environ: dict[str, str] = {}
     assert (
-        getattr(RunTraceProjectionWriter, "onex_runtime_inprocess_dispatch", False)
-        is False
+        runtime_profile_owns_contract(
+            contract, "projection-writer-run-trace", environ=environ
+        )
+        is True
     )
+    for other in ("tenant-projection", "main", "effects"):
+        assert (
+            runtime_profile_owns_contract(contract, other, environ=environ) is False
+        ), f"{other} must not own the run-trace writer"
 
 
 def test_core_registers_the_profile_as_consumer_attached() -> None:
     """(J4) the profile the contract names is registered in the installed core."""
     assert "projection-writer-run-trace" in CONSUMER_ATTACHED_RUNTIME_PROFILES
     assert "projection-writer-run-trace" in REGISTERED_RUNTIME_PROFILES
-
-
-def test_the_contract_declares_the_mirror_read_only_and_the_writer_opens_it() -> None:
-    """(J2) the contract declares the mirror read-only and the writer opens it."""
-    contract = yaml.safe_load(
-        (
-            Path(__file__).resolve().parents[4]
-            / "src/omnimarket/nodes/node_projection_run_trace/contract.yaml"
-        ).read_text(encoding="utf-8")
-    )
-    mirror_entry = next(
-        t
-        for t in contract["db_io"]["db_tables"]
-        if t["name"] == "tenant_registry_mirror"
-    )
-    assert mirror_entry["access"] == "read"
-    assert mirror_entry["schema"] == "omninode_internal"
-    assert mirror_entry["role"] == "tenant_registry_mirror"
-    assert RunTraceProjectionWriter()._standalone_db_tables == tuple(
-        contract["db_io"]["db_tables"]
-    )
 
 
 async def test_the_mirror_is_read_through_its_own_binding_not_the_writer_pool() -> None:

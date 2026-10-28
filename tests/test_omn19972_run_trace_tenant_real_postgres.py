@@ -104,11 +104,10 @@ async def _fresh(owner: asyncpg.Connection) -> None:
             await owner.execute(f"CREATE ROLE {role} NOLOGIN NOSUPERUSER NOBYPASSRLS")
     for migration in _MIGRATIONS:
         await owner.execute(migration.read_text(encoding="utf-8"))
-    # The writer role reads nothing on the mirror, as deployed: the mirror's own
-    # migration grants it to the dashboard reader, which is what the writer's
-    # mirror binding logs in as here. An earlier revision of this test granted
-    # it to the writer role by hand, so that grant is revoked, not assumed absent.
-    await owner.execute(f"REVOKE ALL ON public.tenant_registry_mirror FROM {_ROLE}")
+    # The writer role reads nothing on the mirror, as deployed: only the mirror's
+    # own migration grants it, to the dashboard reader, which is what the
+    # writer's mirror binding logs in as here. Nothing in this test grants or
+    # revokes it, so the writer-role denial below is the migrations' own.
     await owner.executemany(
         "INSERT INTO public.tenant_registry_mirror (tenant_slug, tenant_uuid, status) "
         "VALUES ($1, $2, 'active') ON CONFLICT (tenant_slug) DO NOTHING",
@@ -172,10 +171,12 @@ async def test_real_postgres_a_slug_step_is_stored_under_the_mirror_uuid_and_rea
     None
 ):
     owner = await _owner_or_skip()
-    pool = await _as_role_pool(_ROLE)
-    mirror_pool = await _as_role_pool(_MIRROR_ROLE)
+    pool: asyncpg.Pool | None = None
+    mirror_pool: asyncpg.Pool | None = None
     try:
         await _fresh(owner)
+        pool = await _as_role_pool(_ROLE)
+        mirror_pool = await _as_role_pool(_MIRROR_ROLE)
         row = await _writer(pool, mirror_pool)._project_step(
             {**_CHAIN[1], "tenant_id": _SLUG_A}, _META
         )
@@ -184,36 +185,44 @@ async def test_real_postgres_a_slug_step_is_stored_under_the_mirror_uuid_and_rea
         assert await _read_as(owner, _UUID_A) == [_UUID_A]
         assert await _read_as(owner, _SLUG_A) == []
     finally:
-        await mirror_pool.close()
-        await pool.close()
+        if mirror_pool is not None:
+            await mirror_pool.close()
+        if pool is not None:
+            await pool.close()
         await owner.close()
 
 
 @pytest.mark.integration
 async def test_real_postgres_an_unknown_slug_writes_no_row() -> None:
     owner = await _owner_or_skip()
-    pool = await _as_role_pool(_ROLE)
-    mirror_pool = await _as_role_pool(_MIRROR_ROLE)
+    pool: asyncpg.Pool | None = None
+    mirror_pool: asyncpg.Pool | None = None
     try:
         await _fresh(owner)
+        pool = await _as_role_pool(_ROLE)
+        mirror_pool = await _as_role_pool(_MIRROR_ROLE)
         with pytest.raises(TenantRegistryResolutionError):
             await _writer(pool, mirror_pool)._project_step(
                 {**_CHAIN[1], "tenant_id": "local-nobody-minted"}, _META
             )
         assert await _own_rows(owner) == 0
     finally:
-        await mirror_pool.close()
-        await pool.close()
+        if mirror_pool is not None:
+            await mirror_pool.close()
+        if pool is not None:
+            await pool.close()
         await owner.close()
 
 
 @pytest.mark.integration
 async def test_real_postgres_another_tenants_step_never_joins_the_run() -> None:
     owner = await _owner_or_skip()
-    pool = await _as_role_pool(_ROLE)
-    mirror_pool = await _as_role_pool(_MIRROR_ROLE)
+    pool: asyncpg.Pool | None = None
+    mirror_pool: asyncpg.Pool | None = None
     try:
         await _fresh(owner)
+        pool = await _as_role_pool(_ROLE)
+        mirror_pool = await _as_role_pool(_MIRROR_ROLE)
         writer = _writer(pool, mirror_pool)
         step = _CHAIN[1]
         await writer._project_step({**step, "tenant_id": _SLUG_A}, _META)
@@ -225,8 +234,10 @@ async def test_real_postgres_another_tenants_step_never_joins_the_run() -> None:
         # Positive control: both rows exist, so the reads above were narrowed.
         assert await _own_rows(owner) == 2
     finally:
-        await mirror_pool.close()
-        await pool.close()
+        if mirror_pool is not None:
+            await mirror_pool.close()
+        if pool is not None:
+            await pool.close()
         await owner.close()
 
 
