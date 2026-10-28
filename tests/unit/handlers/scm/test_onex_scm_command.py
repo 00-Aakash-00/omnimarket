@@ -66,6 +66,7 @@ pytestmark = pytest.mark.unit
 
 REPO = "OmniNode-ai/omnimarket"
 HEAD = "a" * 40
+NODE_ID = "PR_kwDOAbCdEf4AAAABcDeFgH"
 MOVED = "b" * 40
 GATEWAY = load_topics(EnumScmNode.GATEWAY)
 WRITE = load_topics(EnumScmNode.WRITE)
@@ -350,6 +351,7 @@ def _watcher(tmp_path: Path, *, age: timedelta = timedelta(minutes=1)) -> Path:
                 },
                 "facts": {
                     "number": 77,
+                    "node_id": NODE_ID,
                     "title": "feat(OMN-20913): x",
                     "state": "OPEN",
                     "draft": False,
@@ -1124,6 +1126,76 @@ def test_write_timeout_is_not_retried(
     assert retry_pauses == []
 
 
+def test_write_timeout_reports_missing_consumer_without_republishing(
+    monkeypatch: pytest.MonkeyPatch, retry_pauses: list[float]
+) -> None:
+    from omnimarket.handlers.scm import handler_scm_consumer_diagnostics as diagnostics
+    from omnimarket.models.scm.model_scm_consumer_evidence import (
+        ModelScmConsumerEvidence,
+    )
+
+    bus = FakeBus(answer=False)
+    _install(monkeypatch, bus)
+    observed = []
+
+    async def diagnose(
+        opened: object, node: EnumScmNode, topic: str
+    ) -> ModelScmConsumerEvidence:
+        observed.append((opened, node, topic))
+        return ModelScmConsumerEvidence(
+            reason="no_consumer_for_topic",
+            command_topic=topic,
+            physical_topic=topic,
+            consumer_count=0,
+        )
+
+    monkeypatch.setattr(diagnostics, "diagnose_scm_timeout", diagnose)
+    result = _run(
+        [
+            "pr-create",
+            *_WRITE_ARGS["pr-create"],
+            "--lane",
+            "lane-x",
+            "--timeout-s",
+            "0.01",
+        ]
+    )
+    assert result.exit_code == scm_cli.EXIT_NO_TERMINAL, result.output
+    answer = _answer(result)
+    assert answer["reason"] == "no_consumer_for_topic"
+    assert answer["command_topic"] == WRITE.command
+    assert answer["consumer_count"] == 0
+    assert answer["attempts"] == 1
+    assert observed == [(bus, EnumScmNode.WRITE, WRITE.command)]
+    assert len(bus.published) == 1
+    assert retry_pauses == []
+
+
+def test_timeout_with_unknown_transport_does_not_invent_no_consumers(
+    monkeypatch: pytest.MonkeyPatch, retry_pauses: list[float]
+) -> None:
+    _install(monkeypatch, FakeBus(answer=False))
+    result = _run(["release-list", REPO, "--timeout-s", "0.01"])
+    answer = _answer(result)
+    assert result.exit_code == scm_cli.EXIT_NO_TERMINAL
+    assert answer["reason"] == "consumer_evidence_unreadable"
+    assert answer["consumer_count"] is None
+    assert answer["command_topic"] == GATEWAY.command
+
+
+def test_successful_terminal_does_not_probe_consumer_groups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from omnimarket.handlers.scm import handler_scm_consumer_diagnostics as diagnostics
+
+    async def unexpected(*args: object) -> None:
+        pytest.fail("successful terminal must not need broker admin access")
+
+    monkeypatch.setattr(diagnostics, "diagnose_scm_timeout", unexpected)
+    _install(monkeypatch, FakeBus())
+    assert _run(["release-list", REPO]).exit_code == 0
+
+
 def test_no_terminal_exits_75(
     monkeypatch: pytest.MonkeyPatch, retry_pauses: list[float]
 ) -> None:
@@ -1185,6 +1257,8 @@ def test_write_without_a_head_anywhere_is_a_usage_error(
         ("pr-view", f"{REPO}#77", "head_sha", HEAD),
         ("pr-status", f"{REPO}#77", "class", "pending"),
         ("pr-checks", f"{REPO}#77", "pending", ["CI Summary"]),
+        ("pr-view", f"{REPO}#77", "node_id", NODE_ID),
+        ("pr-status", f"{REPO}#77", "node_id", NODE_ID),
         ("pr-list", REPO, "count", 1),
         ("pr-merge-commit", f"{REPO}#70", "merge_commit_sha", "c" * 40),
     ],
@@ -1207,6 +1281,27 @@ def test_state_reads_are_answered_from_the_watcher_before_the_bus(
     assert answer["bus"] is None
     assert answer["result"][key] == value
     assert bus.published == []
+
+
+def test_pr_list_names_each_open_pr_node_id(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install(monkeypatch, FakeBus())
+    state = _watcher(tmp_path)
+    answer = _answer(_run(["pr-list", REPO, "--watcher-state", str(state)]))
+    assert [pr["node_id"] for pr in answer["result"]["prs"]] == [NODE_ID]
+
+
+def test_a_watcher_state_without_node_ids_prints_null(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install(monkeypatch, FakeBus())
+    state = _watcher(tmp_path)
+    raw = json.loads(state.read_text(encoding="utf-8"))
+    del raw["prs"]["omnimarket#77"]["facts"]["node_id"]
+    state.write_text(json.dumps(raw), encoding="utf-8")
+    answer = _answer(_run(["pr-view", f"{REPO}#77", "--watcher-state", str(state)]))
+    assert answer["result"]["node_id"] is None
 
 
 def test_pr_view_leaves_the_body_out_of_the_local_answer(

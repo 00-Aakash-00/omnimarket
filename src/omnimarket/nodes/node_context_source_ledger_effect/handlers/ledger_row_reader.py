@@ -14,14 +14,15 @@ from __future__ import annotations
 import contextlib
 import importlib
 import os
+import stat
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol, Self, runtime_checkable
 
 import yaml
 from omnibase_infra.runtime.overlay.contract_env_ref import expand_contract_env_refs
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from omnimarket.handlers.work_ledger_fold import (
     parse_stamp,
@@ -43,6 +44,7 @@ class ModelLedgerSourceRow(BaseModel):
     row_id: str = Field(min_length=1)
     raw_row: str = Field(min_length=1)
     source_ref: str = Field(min_length=1)
+    ledger_seq: int | None = Field(default=None, ge=1, strict=True)
 
 
 class ModelLedgerSourceBinding(BaseModel):
@@ -54,6 +56,24 @@ class ModelLedgerSourceBinding(BaseModel):
     dsn_env: str = Field(min_length=1)
     binding_ref: str = Field(min_length=1)
     tenant_ids: tuple[str, ...] = ()
+    mode: Literal["projection", "pinned"] = "projection"
+    manifest_root: str | None = None
+    ledger_paths: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_pinned(self) -> Self:
+        if self.mode == "pinned":
+            if not self.manifest_root or not self.manifest_root.strip():
+                raise ValueError("pinned ledger source requires manifest_root")
+            if not Path(self.manifest_root).is_absolute():
+                raise ValueError("manifest_root must be absolute")
+            if not self.ledger_paths or any(
+                not path.strip() for path in self.ledger_paths
+            ):
+                raise ValueError("pinned ledger source requires ledger_paths")
+        elif self.manifest_root is not None or self.ledger_paths:
+            raise ValueError("projection ledger source cannot carry pinned paths")
+        return self
 
 
 def load_ledger_source_binding(contract_path: Path) -> ModelLedgerSourceBinding:
@@ -63,6 +83,10 @@ def load_ledger_source_binding(contract_path: Path) -> ModelLedgerSourceBinding:
     source = block.get("ledger_source") if isinstance(block, dict) else None
     if not isinstance(source, dict):
         raise ValueError("context_source_ledger.ledger_source must be a mapping")
+    source = dict(source)
+    root = source.get("manifest_root")
+    if isinstance(root, str):
+        source["manifest_root"] = expand_contract_env_refs(root).strip()
     binding = ModelLedgerSourceBinding.model_validate(source)
     # Nested pack sources read their packaged contracts directly, so they must
     # resolve the same deploy-overlay references as top-level runtime handlers.
@@ -86,6 +110,35 @@ class ProtocolLedgerRowReader(Protocol):
     """Every ledger row whose stamp is at or before ``as_of``."""
 
     def read_rows(self, *, as_of: datetime) -> tuple[ModelLedgerSourceRow, ...]: ...
+
+
+@runtime_checkable
+class ProtocolLedgerSequenceReader(Protocol):
+    """Every row through a sequence, including all unsequenced legacy rows."""
+
+    def read_sequence(
+        self, *, ledger_id: str, through_seq: int
+    ) -> tuple[ModelLedgerSourceRow, ...]: ...
+
+
+def reached_sequence(
+    sequences: tuple[int | None, ...], requested: int
+) -> tuple[int, bool]:
+    """Contiguous unique prefix; legacy NULLs prevent claiming complete history.
+
+    Duplicate delivery is stale even for identical rows: the projection's
+    sequence index deliberately permits duplicates so consumers can report them.
+    Values beyond the requested boundary do not belong to this snapshot.
+    """
+    counts: dict[int, int] = {}
+    for value in sequences:
+        if value is None or value > requested:
+            continue
+        counts[value] = counts.get(value, 0) + 1
+    watermark = 0
+    while counts.get(watermark + 1) == 1:
+        watermark += 1
+    return watermark, watermark == requested and None not in sequences
 
 
 class PostgresLedgerRowReader:
@@ -145,20 +198,89 @@ class PostgresLedgerRowReader:
             for row_id, raw_row in fetched
         )
 
+    def read_sequence(
+        self, *, ledger_id: str, through_seq: int
+    ) -> tuple[ModelLedgerSourceRow, ...]:
+        """Read one ledger's sequence snapshot without a timestamp cutoff.
+
+        NULL rows predate sequence cutover. Include them so the caller cannot
+        mistake a contiguous modern tail for complete authority history. Only a
+        governed backfill can remove that stale condition; this reader never
+        assigns synthetic sequences or writes the projection.
+        """
+        schema, table = self._binding.relation.split(".", 1)
+        query = pgsql.SQL(
+            "SELECT row_id, raw_row, ledger_seq FROM {relation}"
+            " WHERE ledger_id = %s AND (ledger_seq <= %s OR ledger_seq IS NULL)"
+            " ORDER BY ledger_seq NULLS FIRST, row_id"
+        ).format(relation=pgsql.Identifier(schema, table))
+        try:
+            with self._connect().cursor() as cursor:
+                cursor.execute(query, (ledger_id, through_seq))
+                fetched = list(cursor.fetchall())
+            return tuple(
+                ModelLedgerSourceRow(
+                    row_id=row_id,
+                    raw_row=raw_row,
+                    source_ref=f"{table}:{row_id}",
+                    ledger_seq=ledger_seq,
+                )
+                for row_id, raw_row, ledger_seq in fetched
+            )
+        except Exception as exc:
+            with contextlib.suppress(Exception):
+                self.close()
+            raise LedgerSourceReadError(self._redacted(exc)) from None
+
 
 class MarkdownLedgerRowReader:
     """Pinned mode: a manifest case's ledger and archive-roll prefixes."""
 
-    def __init__(self, paths: Sequence[Path]) -> None:
+    def __init__(self, paths: Sequence[Path], *, manifest_root: Path) -> None:
+        if not manifest_root.is_absolute():
+            raise ValueError("manifest_root must be absolute")
+        self._root = manifest_root
         self._paths = tuple(paths)
+
+    def _read_lines(self, path: Path) -> list[str]:
+        # Traverse relative to directory handles, never a caller's working directory.
+        # O_NOFOLLOW on each component also closes a symlink swap between checks
+        # and open; a pinned source may not follow even an in-root symlink.
+        try:
+            relative = path.relative_to(self._root) if path.is_absolute() else path
+            if not relative.parts or ".." in relative.parts:
+                raise ValueError("path escapes manifest root")
+            with contextlib.ExitStack() as stack:
+                directory = os.open(
+                    self._root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+                )
+                stack.callback(os.close, directory)
+                for component in relative.parts[:-1]:
+                    directory = os.open(
+                        component,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                        dir_fd=directory,
+                    )
+                    stack.callback(os.close, directory)
+                fd = os.open(
+                    relative.name,
+                    os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                    dir_fd=directory,
+                )
+                stack.callback(os.close, fd)
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise ValueError("pinned ledger path must be a regular file")
+                with os.fdopen(fd, encoding="utf-8", closefd=False) as stream:
+                    return stream.read().splitlines()
+        except (OSError, UnicodeError, ValueError) as exc:
+            raise LedgerSourceReadError(
+                f"pinned ledger read refused ({type(exc).__name__})"
+            ) from None
 
     def read_rows(self, *, as_of: datetime) -> tuple[ModelLedgerSourceRow, ...]:
         rows: dict[str, ModelLedgerSourceRow] = {}
         for path in self._paths:
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()
-            except OSError as exc:
-                raise LedgerSourceReadError(f"{type(exc).__name__}: {exc}") from None
+            lines = self._read_lines(path)
             for number, line in enumerate(lines, start=1):
                 try:
                     event = parse_ledger_row(line)
@@ -184,5 +306,7 @@ __all__ = [
     "ModelLedgerSourceRow",
     "PostgresLedgerRowReader",
     "ProtocolLedgerRowReader",
+    "ProtocolLedgerSequenceReader",
     "load_ledger_source_binding",
+    "reached_sequence",
 ]

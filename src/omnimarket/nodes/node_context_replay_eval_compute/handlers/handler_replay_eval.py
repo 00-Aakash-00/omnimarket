@@ -102,7 +102,7 @@ class HandlerRulingPresence:
 
 
 class HandlerAnswerComparison:
-    """Count matches per run and compare case identities across all supplied runs."""
+    """Compare measured answers; absent answers cannot establish quality parity."""
 
     def handle(
         self, request: ModelAnswerComparisonRequest
@@ -118,26 +118,36 @@ class HandlerAnswerComparison:
             native = sum(
                 case.native_answer is EnumAnswerGrade.MATCH for case in run.cases
             )
+            native_unavailable = sum(
+                case.native_answer is EnumAnswerGrade.UNAVAILABLE for case in run.cases
+            )
+            package_unavailable = sum(
+                case.package_answer is EnumAnswerGrade.UNAVAILABLE for case in run.cases
+            )
             counts.append(
                 ModelRunAnswerCounts(
                     run_id=run.run_id,
                     cases=len(run.cases),
                     package_matches=package,
                     native_matches=native,
-                    native_unavailable=sum(
-                        case.native_answer is EnumAnswerGrade.UNAVAILABLE
-                        for case in run.cases
+                    native_unavailable=native_unavailable,
+                    package_unavailable=package_unavailable,
+                    package_at_least_native=(
+                        package >= native
+                        and package_unavailable == 0
+                        and native_unavailable == 0
                     ),
-                    package_unavailable=sum(
-                        case.package_answer is EnumAnswerGrade.UNAVAILABLE
-                        for case in run.cases
-                    ),
-                    package_at_least_native=package >= native,
                 )
             )
             if package < native:
                 falsifiers.append(
                     f"run {run.run_id}: package {package} < native {native}"
+                )
+            if counts[-1].package_unavailable or counts[-1].native_unavailable:
+                falsifiers.append(
+                    f"run {run.run_id}: answers unavailable: "
+                    f"package {counts[-1].package_unavailable}, "
+                    f"native {counts[-1].native_unavailable}"
                 )
             for case in run.cases:
                 identities.setdefault(case.case_id, set()).add(case.candidate_id)
@@ -158,7 +168,12 @@ class HandlerAnswerComparison:
             falsifiers.append("determinism not checked: fewer than two runs")
         return ModelAnswerComparisonResult(
             runs=tuple(counts),
-            next_action_met=all(run.package_at_least_native for run in counts),
+            next_action_met=all(
+                run.package_at_least_native
+                and run.package_unavailable == 0
+                and run.native_unavailable == 0
+                for run in counts
+            ),
             determinism_checked=checked,
             candidate_id_mismatches=mismatches,
             candidate_ids_identical=checked and not mismatches,

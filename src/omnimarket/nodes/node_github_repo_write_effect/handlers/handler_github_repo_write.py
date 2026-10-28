@@ -35,10 +35,17 @@ Rules this handler enforces:
 - **Claim.** pr_close is refused with ``claim_not_held`` unless the requesting
   lane and run hold a live claim on the PR in node_pr_claim_registry_effect.
   The claim is checked in dry_run too, since it needs no GitHub call.
+- **Lease fence (OMN-21425).** A command carrying a lease is refused before any
+  GitHub call, in either mode, unless the fence port answers ok: stale is
+  lease_fence_stale, expired is lease_expired, unknown, a port error or no port
+  is lease_unreadable. A lease whose expires_at is closer than the contract's
+  descriptor.timeout_ms is refused lease_expired without asking. A command
+  with no lease is not fenced.
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import logging
@@ -51,9 +58,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
+import yaml
+from pydantic import SecretStr
+
 from omnimarket.events.pr_landing_github.model_github_quota_reading import (
     ModelGithubQuotaHeadersMissingError,
     ModelGithubQuotaReading,
+)
+from omnimarket.github_api import GitHubApiError
+from omnimarket.github_app_auth import (
+    GitHubAppCredentialMissingError,
+    GitHubAppIdentityError,
+    mint_installation_token,
 )
 from omnimarket.github_landing.github_landing_requests import (
     LIST_PAGE_SIZE,
@@ -98,6 +114,7 @@ from omnimarket.nodes.node_github_repo_write_effect.handlers.handler_pr_claim_lo
     registry_claim_refusal,
 )
 from omnimarket.nodes.node_github_repo_write_effect.models import (
+    EnumRepoWriteFenceStatus,
     EnumRepoWriteMode,
     EnumRepoWriteOperation,
     EnumRepoWriteRefusal,
@@ -106,8 +123,12 @@ from omnimarket.nodes.node_github_repo_write_effect.models import (
     ModelRepoWriteFailed,
     ModelRepoWriteRequest,
 )
+from omnimarket.nodes.node_github_repo_write_effect.models.model_repo_write_config import (
+    ModelRepoWriteCredentialChoice,
+)
 from omnimarket.nodes.node_github_repo_write_effect.protocols import (
     ProtocolGithubRepoWriteTransport,
+    ProtocolLeaseFence,
     ProtocolPrClaimLookup,
 )
 
@@ -124,6 +145,18 @@ _MARKER_SCAN_PAGES = 3
 _PLANNED_NODE_ID = "<node id read from the pull request>"
 
 Result = ModelRepoWriteCompleted | ModelRepoWriteFailed
+
+
+async def _credential_from_store(ref: str) -> SecretStr | None:
+    """Absence permits the next choice; a broken resolver refuses safely."""
+    try:
+        return await resolve_api_key_async(ref, env_var_fallback=ref, required=False)
+    except Exception:
+        # A store/SDK error may carry a secret. Do not expose its message or cause.
+        raise GitHubAppCredentialMissingError(
+            f"GitHub write: credential lookup failed for declared ref {ref!r}; "
+            "check the secret resolver configuration and read permission"
+        ) from None
 
 
 def idempotency_marker(key: str) -> str:
@@ -312,9 +345,9 @@ class _Run:
 class HandlerGithubRepoWriteEffect:
     """EFFECT: run one PR authoring write against GitHub and report it typed.
 
-    ``transport`` and ``claim_lookup`` are injected in tests (a recorded fake
-    and a stub). Without a transport the handler builds the live urllib
-    transport per call from the contract-declared ``GITHUB_TOKEN`` ref.
+    ``transport``, ``claim_lookup`` and ``fence_port`` are injected in tests
+    (a recorded fake and stubs). Without a transport the handler builds the
+    live urllib transport per call from the contract-declared ``GITHUB_TOKEN`` ref.
     """
 
     def __init__(
@@ -322,12 +355,19 @@ class HandlerGithubRepoWriteEffect:
         transport: ProtocolGithubRepoWriteTransport | None = None,
         *,
         claim_lookup: ProtocolPrClaimLookup | None = None,
+        fence_port: ProtocolLeaseFence | None = None,
+        deadline_seconds: float | None = None,
         runtime_claims_dir: str | None = None,
         quota_floor: ModelGithubQuotaFloor | None = None,
         config: ModelRepoWriteConfig | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._transport = transport
+        self._fence = fence_port
+        if deadline_seconds is None:
+            contract = yaml.safe_load(_CONTRACT_PATH.read_text(encoding="utf-8"))
+            deadline_seconds = contract["descriptor"]["timeout_ms"] / 1000
+        self._deadline = deadline_seconds
         self._claims = claim_lookup or HandlerPrClaimLookup()
         # The registry this runtime keeps, which the effect can read. The empty
         # string reads none; None takes $ONEX_PR_CLAIMS_DIR, as the CLI names it.
@@ -369,6 +409,9 @@ class HandlerGithubRepoWriteEffect:
             return done.model_copy(
                 update={"correlation_id": request.correlation_id, "replayed": True}
             )
+        refused = await self._lease_refusal(request)
+        if refused is not None:
+            return refused
         refused = self._claim_refusal(request)
         if refused is not None:
             return refused
@@ -388,7 +431,12 @@ class HandlerGithubRepoWriteEffect:
                 pr_number=request.pr_number,
                 requests=planned_requests(request),
             )
-        transport = self._transport or await self._live_transport()
+        try:
+            transport = self._transport or await self._live_transport(request.repo)
+        except (GitHubAppCredentialMissingError, GitHubAppIdentityError) as exc:
+            return self._preflight_refusal(
+                request, EnumRepoWriteRefusal.CREDENTIAL_UNAVAILABLE, str(exc)
+            )
         run = _Run(self, request, transport)
         try:
             result: Result = await self._run(run)
@@ -407,6 +455,63 @@ class HandlerGithubRepoWriteEffect:
         )
         return result
 
+    async def _lease_refusal(
+        self, request: ModelRepoWriteRequest
+    ) -> ModelRepoWriteFailed | None:
+        lease = request.lease
+        if lease is None:
+            return None
+        left = lease.expires_at.timestamp() - self._clock()
+        if left < self._deadline:
+            expires_at = lease.expires_at.astimezone(UTC)
+            return self._preflight_refusal(
+                request,
+                EnumRepoWriteRefusal.LEASE_EXPIRED,
+                f"lease {lease.kind} {lease.resource} fence {lease.fence} expires "
+                f"at {expires_at:%Y-%m-%dT%H:%M:%SZ} (UTC), {left:.0f}s away, "
+                f"inside the effect's {self._deadline:.0f}s deadline; no call made",
+            )
+        if self._fence is None:
+            return self._preflight_refusal(
+                request,
+                EnumRepoWriteRefusal.LEASE_UNREADABLE,
+                "no fence port is wired in this runtime; a leased write is "
+                "refused, no call made",
+            )
+        try:
+            answer = await self._fence.check_fence(
+                kind=lease.kind, resource=lease.resource, fence=lease.fence
+            )
+        except Exception:
+            _log.warning("repo-write fence port check failed; leased write refused")
+            status = EnumRepoWriteFenceStatus.UNKNOWN
+        else:
+            try:
+                status = EnumRepoWriteFenceStatus(str(answer))
+            except ValueError:
+                status = EnumRepoWriteFenceStatus.UNKNOWN
+        if status is EnumRepoWriteFenceStatus.OK:
+            return None
+        if status is EnumRepoWriteFenceStatus.STALE:
+            reason = EnumRepoWriteRefusal.LEASE_FENCE_STALE
+            detail = (
+                f"fence {lease.fence} on {lease.kind} {lease.resource} is stale: "
+                "a newer grant holds the resource; no call made"
+            )
+        elif status is EnumRepoWriteFenceStatus.EXPIRED:
+            reason = EnumRepoWriteRefusal.LEASE_EXPIRED
+            detail = (
+                f"no live grant holds {lease.kind} {lease.resource} "
+                f"fence {lease.fence}; no call made"
+            )
+        else:
+            reason = EnumRepoWriteRefusal.LEASE_UNREADABLE
+            detail = (
+                f"the fence port could not read {lease.kind} {lease.resource} "
+                f"fence {lease.fence}; no call made"
+            )
+        return self._preflight_refusal(request, reason, detail)
+
     def _claim_refusal(
         self, request: ModelRepoWriteRequest
     ) -> ModelRepoWriteFailed | None:
@@ -418,6 +523,16 @@ class HandlerGithubRepoWriteEffect:
         detail = self._claim_detail(request, now)
         if detail is None:
             return None
+        return self._preflight_refusal(
+            request, EnumRepoWriteRefusal.CLAIM_NOT_HELD, detail
+        )
+
+    def _preflight_refusal(
+        self,
+        request: ModelRepoWriteRequest,
+        reason: EnumRepoWriteRefusal,
+        detail: str,
+    ) -> ModelRepoWriteFailed:
         return ModelRepoWriteFailed(
             correlation_id=request.correlation_id,
             operation=request.operation,
@@ -428,7 +543,7 @@ class HandlerGithubRepoWriteEffect:
             idempotency_key=request.idempotency_key,
             requested_by_lane=request.requested_by_lane,
             pr_number=request.pr_number,
-            reason=EnumRepoWriteRefusal.CLAIM_NOT_HELD,
+            reason=reason,
             detail=detail,
         )
 
@@ -453,21 +568,75 @@ class HandlerGithubRepoWriteEffect:
             return f"no live claim on {request.pr_key}; pr_close needs one"
         return carried_claim_refusal(request.claim, request, now)
 
-    async def _live_transport(self) -> UrllibGithubLandingTransport:
-        ref = contract_secret_ref(_CONTRACT_PATH, _SECRET_NAME)
-        # env_var_fallback (OMN-14452): the lane resolver does not serve the
-        # GitHub token from the store; the literal container env var does.
-        secret = await resolve_api_key_async(ref, env_var_fallback=ref)
+    async def _live_transport(
+        self, repo: str | None = None
+    ) -> UrllibGithubLandingTransport:
+        choice = ModelRepoWriteCredentialChoice.from_contract(_CONTRACT_PATH)
+        ref = contract_secret_ref(_CONTRACT_PATH, choice.token_secret)
+        secret = await _credential_from_store(ref)
         if secret is None:
-            raise RuntimeError(
-                f"api_key_ref {ref!r} resolved to None; set it in the secret store"
-            )
-        # OMN-20355: once an actor is configured, a person's token is refused.
+            secret = await self._app_token(choice, repo)
+        # A resolved but refused token never changes identities by taking the App path.
         assert_github_token_is_actor(
             ModelLaneWriteIdentity.from_env(os.environ),
             token=secret.get_secret_value(),
         )
         return UrllibGithubLandingTransport(secret)
+
+    async def _app_token(
+        self, choice: ModelRepoWriteCredentialChoice, repo: str | None
+    ) -> SecretStr:
+        app = choice.fallback_app
+        resolved: list[SecretStr | None] = []
+        for name in (
+            app.app_id_secret,
+            app.private_key_secret,
+            app.installation_id_secret,
+        ):
+            ref = contract_secret_ref(_CONTRACT_PATH, name)
+            value = await _credential_from_store(ref)
+            if value is None and name != app.installation_id_secret:
+                raise GitHubAppCredentialMissingError(
+                    f"GitHub write: {choice.token_secret} is absent and App ref "
+                    f"{ref!r} is unreadable or missing from the secret store/environment"
+                )
+            resolved.append(value)
+        app_id, private_key, installation = resolved
+        assert app_id is not None
+        assert private_key is not None
+        installation_id = None
+        if installation is not None:
+            try:
+                installation_id = int(installation.get_secret_value())
+                if installation_id < 1:
+                    raise ValueError
+            except ValueError:
+                raise GitHubAppIdentityError(
+                    f"GitHub write: {app.installation_id_secret} must be a positive integer"
+                ) from None
+        owner, _, name = (repo or "OmniNode-ai").partition("/")
+        try:
+            # The existing synchronous minter must not block the runtime event loop.
+            token = await asyncio.to_thread(
+                mint_installation_token,
+                app_id=app_id.get_secret_value(),
+                private_key_pem=private_key.get_secret_value(),
+                private_key_ref=app.private_key_secret,
+                installation_id=installation_id,
+                org=owner,
+                repositories=[name] if name else None,
+            )
+        except Exception as exc:
+            # SDK/HTTP exceptions can contain response bodies or credential values.
+            # Never forward their text or chained traceback to runtime logging.
+            status = exc.status_code if isinstance(exc, GitHubApiError) else None
+            detail = f" (HTTP {status})" if status is not None else ""
+            raise GitHubAppIdentityError(
+                f"GitHub write App token mint refused{detail}; check permissions and "
+                f"declared refs {app.app_id_secret}, {app.private_key_secret}, "
+                f"{app.installation_id_secret}"
+            ) from None
+        return SecretStr(token)
 
     async def _run(self, run: _Run) -> ModelRepoWriteCompleted:
         op = run.command.operation

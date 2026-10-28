@@ -89,7 +89,7 @@ jobs:
   # (d) not lane-bound: `scripts/ci/check_lane_job_placement.py` refuses a
   # variable-driven placement for a job whose correctness depends on WHERE its
   # runner sits, and its LANE_BOUND_JOBS map names only
-  # delegation-regression-nightly.yml's `golden-tasks`, no job in this file.
+  # the delegation workflows' lab-bound jobs, no job in this file.
   # EVERY OTHER JOB HERE IS UNTOUCHED and keeps its existing placement
   # expression; a survey of the routing repos found no prior use of this wiring
   # at fan-out scale, so widening it in one step would put the whole fleet on
@@ -372,6 +372,10 @@ jobs:
         run: uv sync --locked
       - name: Ruff check
         run: uv run ruff check src/ tests/ benchmarks/
+      - name: Retired model references (including dated history)
+        run: uv run --frozen python -m omnimarket.nodes.node_retired_model_reference_check_effect
+      - name: Retired model and archive safety negative controls
+        run: uv run pytest tests/ci/test_retired_model_references.py tests/nodes/test_file_retention_archive_safety.py -q --no-cov
       - name: Queue full-suite admission policy (OMN-19998)
         run: uv run pytest tests/ci/test_queue_run_once_omn19998.py -q -n 0 -p no:randomly --no-cov
       - name: Ruff format check
@@ -535,7 +539,7 @@ jobs:
       # OMN-13285 (W6/GAP-3): ported to the canonical core COMPUTE validator
       # (replaces the deleted omnimarket-local scripts/ci/check_routing_authority.py).
       - name: Routing-authority demo gate (enforce)
-        run: uv run python -m omnibase_core.validation.validator_routing_authority --repo omnimarket --repo-root .
+        run: uv run python scripts/validation/validate_contract_overlay_boundary.py --routing-authority --root .
       # OMN-12964: Quality-gate calibration. Fails CI if the delegation quality
       # gate score distribution collapses (degenerate {0.0,1.0}) or fails to
       # discriminate known-good from known-bad outputs. A meaningless quality
@@ -725,6 +729,13 @@ jobs:
       # model's digest. SYNC with pre-commit hook 'compaction-lifecycle-model'.
       - name: Compaction lifecycle model and verdict (OMN-21104)
         run: uv run pytest tests/formal/test_compaction_lifecycle_model.py -q -n 0 -p no:randomly --no-cov
+      # OMN-21442: the andon stop and lane lease model (formal/andon_stop) passes its
+      # design configs, each property fails on a one-knob mutation, the results match
+      # the committed model, configs and outputs, the model's states, triggers and
+      # constants are its contracts', and the verdict approves the model's digest.
+      # SYNC with pre-commit hook 'andon-stop-model'.
+      - name: Andon stop model and verdict (OMN-21442)
+        run: uv run pytest tests/formal/test_andon_stop_model.py -q -n 0 -p no:randomly --no-cov
       # OMN-20601: routing decisions come from overlays, never from omnimarket code
       # (ruling 2026-10-10T17:54:30Z). Inventory of routing sources, overlay
       # precedence, and a ratchet on route-selecting code. SYNC with pre-commit hook

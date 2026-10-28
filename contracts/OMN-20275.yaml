@@ -39,6 +39,54 @@ requirements:
       - id: "AC13"
         statement: |-
           AC13: over the in-memory bus, out-of-order row events, a never-published last row and malformed payloads produce the right file, the right committable offsets, a rendered event, a blocked event and a dead-letter event, and the contract declares every topic with no runtime attachment -- falsifier: uv run pytest tests/unit/nodes/node_work_ledger_render_effect/test_golden_chain_work_ledger_render_effect.py -q
+  - id: "req-bus-binding-inmemory-fallback"
+    statement: "When the durable bus fails its health read, a lane that declares a fallback binding runs on the in-memory bus with one alarm per episode and returns to the durable bus on its own; the lane's declared secret resolver is injected on every binding, and ledger appends made while degraded are held in a durable local outbox and replayed once under the same request id."
+    acceptance:
+      - id: "AC14"
+        statement: |-
+          AC14: the bus binding FSM declared in node_bus_binding_reducer's contract equals the pure transition function, a down bus degrades to the in-memory binding with one alarm and recovers on its own, and a lane without a declared fallback fails instead of degrading -- falsifier: uv run pytest tests/unit/bus_binding/test_bus_binding_fallback.py -q -k "fsm_contract or reducer_node_agrees or degrades_alarms_once or without_a_declared_fallback" fails at the merge base
+      - id: "AC15"
+        statement: |-
+          AC15: the same secret reference resolves on the durable and in-memory bindings, and without the injected resolver the in-memory route fails -- falsifier: uv run pytest tests/unit/bus_binding/test_bus_binding_fallback.py -q -k "same_secret_resolves or without_the_injected_resolver" fails at the merge base
+      - id: "AC16"
+        statement: |-
+          AC16: ledger rows appended on either binding land exactly once, the parity check fails when a binding loses a row, and a failed replay loses nothing -- falsifier: uv run pytest tests/unit/bus_binding/test_bus_binding_fallback.py -q -k "land_once_on_either_binding or loses_a_row or failed_replay_loses_nothing" fails at the merge base
+  - id: "req-github-write-app-credentials"
+    statement: "The GitHub write node resolves its primary token before selecting contract-declared GitHub App credentials through the same secret resolver on the in-memory bus."
+    acceptance:
+      - id: "AC17"
+        statement: |-
+          AC17: a resolved GITHUB_TOKEN prevents App credential lookup and minting; a resolver failure refuses without switching identities or exposing the resolver exception -- falsifier: uv run pytest tests/unit/nodes/node_github_repo_write_effect/test_app_credentials.py -q -p no:randomly -k "resolved_github_token_never_takes_app_path or resolver_error_does_not_take_app_path"
+      - id: "AC18"
+        statement: |-
+          AC18: an absent primary token selects contract-declared App secret refs, narrows the minted token to the requested repository, accepts an optional installation id and otherwise discovers the owner's installation; missing App credentials return credential_unavailable with zero repository requests -- falsifier: uv run pytest tests/unit/nodes/node_github_repo_write_effect/test_app_credentials.py tests/unit/test_github_app_auth.py -q -p no:randomly -k "missing_token_mints or missing_installation_ref or unreadable_key or missing_app_credential or explicit_installation or contract_declares_ordered"
+      - id: "AC19"
+        statement: |-
+          AC19: App credential values, minted tokens and untrusted resolver or mint response errors never enter credential failure text or captured logs -- falsifier: uv run pytest tests/unit/nodes/node_github_repo_write_effect/test_app_credentials.py tests/unit/test_github_app_auth.py -q -p no:randomly -k "secret_values_never_reach_logs or resolver_error_does_not_take_app_path or malformed_exchange_does_not_expose_response_secret"
+      - id: "AC20"
+        statement: |-
+          AC20: the in-memory SCM CLI resolves App refs through the write handler's canonical secret resolver, mints a repository-scoped token and returns a completed terminal through a recorded HTTP boundary -- falsifier: uv run pytest tests/unit/nodes/node_github_repo_write_effect/test_app_credentials.py -q -p no:randomly -k inmemory_cli_uses_the_same_store_resolver
+  - id: "req-ledger-writer-consumer-recovery"
+    statement: "The ledger writer retakes its subscriptions when the broker drops its consumer group, under the node contract's capped backoff, without restarting the writer or losing a queued command."
+    acceptance:
+      - id: "AC21"
+        statement: |-
+          AC21: after the consumer session expires and the group coordinator is unavailable, the writer resubscribes once the coordinator returns and appends the commands published during the outage exactly once, through the same worker task, across five dropped sessions -- falsifier: uv run pytest tests/unit/work_ledger_bus/test_consume_watch.py -q -k "resumes_appending or resubscribes_and_appends"
+      - id: "AC22"
+        statement: |-
+          AC22: resubscribe attempts back off from the initial delay and never exceed the cap declared in node_work_ledger_append_effect's contract -- falsifier: uv run pytest tests/unit/work_ledger_bus/test_consume_watch.py -q -k "backoff_grows or policy_comes_from"
+      - id: "AC23"
+        statement: |-
+          AC23: a degraded episode writes a degraded state file and exactly one exception-queue alarm, recovery writes healthy, and a second episode raises a second alarm -- falsifier: uv run pytest tests/unit/work_ledger_bus/test_consume_watch.py -q -k one_alarm_per_episode
+  - id: "req-bus-binding-exception-recovery"
+    statement: "The bus-binding fallback is self-healing: normal episodes stay with the orchestrator, complete recovery resolves their queue rows in code, and only outages beyond the node contract's bound escalate to the orchestrator."
+    acceptance:
+      - id: "AC24"
+        statement: |-
+          AC24: a failed durable read emits one non-decision bus-binding-degraded exception, and a subsequent healthy read plus complete outbox replay resolves that same row with the healthy observation and replay counts; failed, partial, refused or unreadable replays and newer failed reads cannot produce a recovery receipt -- falsifier: uv run pytest tests/unit/bus_binding/test_bus_binding_exceptions.py -q -k "not contract_bound and not bound_is_loaded"
+      - id: "AC25"
+        statement: |-
+          AC25: only an outage strictly longer than recovery_policy.escalate_after_seconds in node_bus_binding_reducer/contract.yaml emits one bus-binding-outage exception to the orchestrator with outage_seconds; repeated reads retain the start, recovery resolves both rows, and a new episode starts a fresh clock -- falsifier: uv run pytest tests/unit/bus_binding/test_bus_binding_exceptions.py -q -k "contract_bound or bound_is_loaded or fresh_clock"
 evidence_requirements:
   - kind: "tests"
     description: "AC6 to AC9: handler, bus host, CLI and lane-principal tests."
@@ -125,4 +173,144 @@ dod_evidence:
     checks:
       - check_type: "command"
         check_value: "gh api \"repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_work_ledger_render_effect/contract.yaml?ref=$(git rev-parse HEAD)\" --jq .content | base64 -d | grep -c '^name: work_ledger_render_effect'"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-ac14-bus-binding-fsm-fallback"
+    description: "AC14: the declared FSM equals the transition function; a down bus degrades to in-memory with one alarm and recovers; a lane without a fallback fails."
+    source: "manual"
+    binds_ac: ["AC14"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/bus_binding/test_bus_binding_fallback.py -q -n 0 -p no:randomly --no-cov -k "fsm_contract or reducer_node_agrees or degrades_alarms_once or without_a_declared_fallback"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-ac15-bus-binding-secret-parity"
+    description: "AC15: the injected secret resolver serves both bindings; without it the in-memory route fails."
+    source: "manual"
+    binds_ac: ["AC15"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/bus_binding/test_bus_binding_fallback.py -q -n 0 -p no:randomly --no-cov -k "same_secret_resolves or without_the_injected_resolver"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-ac16-bus-binding-ledger-outbox"
+    description: "AC16: ledger rows land once on either binding; a lost row fails parity; a failed replay loses nothing."
+    source: "manual"
+    binds_ac: ["AC16"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/bus_binding/test_bus_binding_fallback.py -q -n 0 -p no:randomly --no-cov -k "land_once_on_either_binding or loses_a_row or failed_replay_loses_nothing"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-deploy-bus-binding-fallback"
+    description: "The check runs tests/unit/bus_binding in a disposable Python container from a read-only checkout with no broker and no lab service, verifying the in-memory fallback, the alarm, secret parity and the ledger outbox replay for OMN-20275; the test file does not exist at the merge base, so it fails there."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "docker pull -q ghcr.io/astral-sh/uv@sha256:47965cdc9d53a515f68f78241161c901e70051ce428f12e791bd7fe19f6a631a"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "command"
+        check_value: |-
+          env docker run --rm --user "$(id -u):$(id -g)" -v "${PWD}:/workspace:ro" -w /workspace -v "$(uv cache dir):/uv-cache" -v "$(command -v uv):/usr/local/bin/uv:ro" -e UV_LINK_MODE=copy -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0="*" -e PYTHONDONTWRITEBYTECODE=1 -e UV_PROJECT_ENVIRONMENT=/tmp/bus-binding-venv -e UV_CACHE_DIR=/uv-cache ghcr.io/astral-sh/uv@sha256:47965cdc9d53a515f68f78241161c901e70051ce428f12e791bd7fe19f6a631a uv run --frozen pytest tests/unit/bus_binding -q -n 0 -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/bus-binding-tests
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-github-write-token-precedence"
+    description: "GitHub write auth slice: a resolved GITHUB_TOKEN never reads or mints the fallback App identity; a resolver failure refuses without switching identities. Historical ledger acceptance criteria are not claimed by this auth slice."
+    source: "manual"
+    binds_ac: ["AC17"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'uv run pytest tests/unit/nodes/node_github_repo_write_effect/test_app_credentials.py -q -p no:randomly -k "resolved_github_token_never_takes_app_path or resolver_error_does_not_take_app_path"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-github-write-app-store-refs"
+    description: "GitHub write auth slice: absent token selects contract-declared store refs; the existing minter accepts an optional installation id and restricts the token to the requested repository, otherwise discovering the owner's installation. Missing App credentials produce a failure terminal without a GitHub request."
+    source: "manual"
+    binds_ac: ["AC18"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'uv run pytest tests/unit/nodes/node_github_repo_write_effect/test_app_credentials.py tests/unit/test_github_app_auth.py -q -p no:randomly -k "missing_token_mints or missing_installation_ref or unreadable_key or missing_app_credential or explicit_installation or contract_declares_ordered"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-github-write-no-secret-log"
+    description: "GitHub write auth slice: App key, id, minted token and untrusted resolver/mint response errors never reach credential failure text or captured logs."
+    source: "manual"
+    binds_ac: ["AC19"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'uv run pytest tests/unit/nodes/node_github_repo_write_effect/test_app_credentials.py tests/unit/test_github_app_auth.py -q -p no:randomly -k "secret_values_never_reach_logs or resolver_error_does_not_take_app_path or malformed_exchange_does_not_expose_response_secret"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-github-write-inmemory-auth"
+    description: "GitHub write auth slice: the actual in-memory SCM CLI dispatch resolves App refs through the handler's canonical secret resolver, invokes the existing minter and returns a completed terminal. Only the GitHub HTTP boundary and credentials are synthetic."
+    source: "manual"
+    binds_ac: ["AC20"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_github_repo_write_effect/test_app_credentials.py -q -p no:randomly -k inmemory_cli_uses_the_same_store_resolver"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-deploy-github-write-app-auth"
+    description: "Deploy probe: in a disposable Python container from a read-only checkout, exercise the installed write node's contract, credential precedence, App minter and actual in-memory SCM terminal. No broker, GitHub credential or lab service is required. The new regression file is absent at the merge base, so the command fails there."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "docker pull -q ghcr.io/astral-sh/uv@sha256:47965cdc9d53a515f68f78241161c901e70051ce428f12e791bd7fe19f6a631a"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "command"
+        check_value: |-
+          env docker run --rm --user "$(id -u):$(id -g)" -v "${PWD}:/workspace:ro" -w /workspace -v "$(uv cache dir):/uv-cache" -v "$(command -v uv):/usr/local/bin/uv:ro" -e UV_LINK_MODE=copy -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0="*" -e PYTHONDONTWRITEBYTECODE=1 -e UV_PROJECT_ENVIRONMENT=/tmp/github-write-auth-venv -e UV_CACHE_DIR=/uv-cache ghcr.io/astral-sh/uv@sha256:47965cdc9d53a515f68f78241161c901e70051ce428f12e791bd7fe19f6a631a uv run --frozen pytest tests/unit/nodes/node_github_repo_write_effect/test_app_credentials.py tests/unit/test_github_app_auth.py -q -p no:randomly -p no:cacheprovider --basetemp=/tmp/github-write-auth-tests
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-ac21-consumer-drop-recovery"
+    description: "AC21: the writer resubscribes after dropped sessions and appends each post-drop command exactly once without a restart"
+    source: "manual"
+    binds_ac: ["AC21"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'uv run pytest tests/unit/work_ledger_bus/test_consume_watch.py -q -k "resumes_appending or resubscribes_and_appends"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-ac22-consumer-backoff-cap"
+    description: "AC22: resubscribe backoff grows from the initial delay to the cap declared in the node contract"
+    source: "manual"
+    binds_ac: ["AC22"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'uv run pytest tests/unit/work_ledger_bus/test_consume_watch.py -q -k "backoff_grows or policy_comes_from"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-ac23-consumer-degraded-alarm"
+    description: "AC23: one degraded state report and one exception-queue alarm per episode"
+    source: "manual"
+    binds_ac: ["AC23"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'uv run pytest tests/unit/work_ledger_bus/test_consume_watch.py -q -k "one_alarm_per_episode"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-deploy-consume-watch-recovery"
+    description: "Deploy probe in a disposable Python container from a read-only checkout: five dropped consumer sessions recover without restarting the writer, and the real append handler invokes its configured command once per post-drop row. Disabling ConsumeWatch leaves the ledger empty and fails the regression. No broker, credentials or lab service is required."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "docker pull -q ghcr.io/astral-sh/uv@sha256:47965cdc9d53a515f68f78241161c901e70051ce428f12e791bd7fe19f6a631a"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "command"
+        check_value: |-
+          env docker run --rm --user "$(id -u):$(id -g)" -v "${PWD}:/workspace:ro" -w /workspace -v "$(uv cache dir):/uv-cache" -v "$(command -v uv):/usr/local/bin/uv:ro" -e UV_LINK_MODE=copy -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0="*" -e PYTHONDONTWRITEBYTECODE=1 -e UV_PROJECT_ENVIRONMENT=/tmp/consume-watch-venv -e UV_PYTHON_INSTALL_DIR=/tmp/consume-watch-python -e UV_CACHE_DIR=/uv-cache ghcr.io/astral-sh/uv@sha256:47965cdc9d53a515f68f78241161c901e70051ce428f12e791bd7fe19f6a631a uv run --frozen --python 3.12 pytest tests/unit/work_ledger_bus/test_consume_watch.py -q -p no:cacheprovider --basetemp=/tmp/consume-watch-tests
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-ac24-binding-exception-recovery"
+    description: "AC24: run the real binding selector, durable local outbox and exception emit/list/resolve API on the in-memory bus and the Kafka binding with a recorded producer connection. The new regression file fails before this change; no broker or credentials are used."
+    source: "manual"
+    binds_ac: ["AC24"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'uv run pytest tests/unit/bus_binding/test_bus_binding_exceptions.py -q -n 0 -p no:randomly --no-cov -k "not contract_bound and not bound_is_loaded"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-ac25-binding-outage-bound"
+    description: "AC25: retain the episode start across independent commands, test below/at/above the contract bound, report outage length only to the orchestrator, resolve on recovery, and prove changing the contract changes the loaded bound."
+    source: "manual"
+    binds_ac: ["AC25"]
+    checks:
+      - check_type: "test_passes"
+        check_value: 'uv run pytest tests/unit/bus_binding/test_bus_binding_exceptions.py -q -n 0 -p no:randomly --no-cov -k "contract_bound or bound_is_loaded or fresh_clock"'
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn20275-deploy-binding-exception-recovery"
+    description: "Deploy probe: a disposable Python container runs the real binding and exception-queue handlers from a read-only checkout, including healthy replay, partial replay, refused requests and strictly bounded orchestrator escalation on in-memory and recorded Kafka connections. Falsifier: the new test file is absent at the merge base. No lab service, broker or credential is required."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "docker pull -q ghcr.io/astral-sh/uv@sha256:47965cdc9d53a515f68f78241161c901e70051ce428f12e791bd7fe19f6a631a"
+        cwd: "${OMNI_HOME}/omnimarket"
+      - check_type: "command"
+        check_value: |-
+          env docker run --rm --user "$(id -u):$(id -g)" -v "${PWD}:/workspace:ro" -w /workspace -v "$(uv cache dir):/uv-cache" -v "$(command -v uv):/usr/local/bin/uv:ro" -e UV_LINK_MODE=copy -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0="*" -e PYTHONDONTWRITEBYTECODE=1 -e UV_PROJECT_ENVIRONMENT=/tmp/binding-exception-venv -e UV_PYTHON_INSTALL_DIR=/tmp/binding-exception-python -e UV_CACHE_DIR=/uv-cache ghcr.io/astral-sh/uv@sha256:47965cdc9d53a515f68f78241161c901e70051ce428f12e791bd7fe19f6a631a uv run --frozen --python 3.12 pytest tests/unit/bus_binding/test_bus_binding_exceptions.py -q -n 0 -p no:randomly -p no:cacheprovider --no-cov --basetemp=/tmp/binding-exception-tests
         cwd: "${OMNI_HOME}/omnimarket"

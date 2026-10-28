@@ -2,7 +2,7 @@
 schema_version: "1.0.0"
 ticket_id: "OMN-21090"
 title: "Claude Code context service and delegation adapter (compaction mod)"
-summary: "This repository change adds the per-session current-context fold of the plan's section 6 boundary algorithm, step 5 (TA.13): a pure handler in node_context_compaction_receipts_fold_compute that joins install-confirm results of one session in any order and with duplicates, keeps the maximal boundary chains and every boundary observation, and reads back the current boundary, what it installed, and each installed activation retired at the next boundary. It is not routed and has no table yet. The epic criteria are read through the Linear API on child tickets and are not bound by this contract. The ownership manifest also declares omninode_internal.compaction_current_context and its cursor sequence ahead of migration delivery; no writer node or SQL is added by the ownership stage."
+summary: "TA.18 measured-admission increment (OMN-21119): require a final assembled-input count before a pack hash permits dispatch and refuse input above the routed ceiling. This does not complete the child or epic. This repository change adds the per-session current-context fold of the plan's section 6 boundary algorithm, step 5 (TA.13): a pure handler in node_context_compaction_receipts_fold_compute that joins install-confirm results of one session in any order and with duplicates, keeps the maximal boundary chains and every boundary observation, and reads back the current boundary, what it installed, and each installed activation retired at the next boundary. It is not routed and has no table yet. The epic criteria are read through the Linear API on child tickets and are not bound by this contract. TC.4 additionally offers explicit ledger sequence watermarks: it refuses gaps, duplicates and legacy NULL sequences as stale and reports the contiguous prefix reached; timestamp-pinned replay remains supported. The ownership manifest also declares omninode_internal.compaction_current_context and its cursor sequence ahead of migration delivery; no writer node or SQL is added by the ownership stage."
 is_seam_ticket: false
 interface_change: false
 interfaces_touched: []
@@ -38,6 +38,21 @@ emergency_bypass:
   justification: ""
   follow_up_ticket_id: ""
 dod_evidence:
+  - id: "dod-omn21090-ac4-pinned-git-source"
+    description: "TC.3 repository contribution: a canonical pinned Git source returns exact bytes and provenance, denies unauthorized tenants and fails closed on unreadable objects. This does not assert that every Track C child is Done; that epic criterion remains a Linear API check. Existing evidence for each epic acceptance criterion is preserved."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "env UV_FROZEN=true uv run pytest tests/nodes/node_context_source_git_effect/test_golden_chain_context_source_git.py -q -n 0 --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC4"]
+  - id: "dod-omn21090-git-source-deploy-probe"
+    description: "Hosted-runner probe executes the packaged Git source through the local runtime and in-memory bus using a temporary repository and overlay, then checks exact pinned bytes. No runtime host or credential is required."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/nodes/node_context_source_git_effect/test_golden_chain_context_source_git.py -q -n 0 --no-cov -k packaged_node_cli_inmemory"
+        cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn21090-ac1-current-context-fold"
     description: "Track T0 rides on the install-confirm compute and the adapter's capture. This repository's part here: results of the merged install-confirm compute over a growing P6-shaped capture fold to the custom activation retired at the native boundary. The test module fails at the merge base, where the fold does not exist. The child-ticket state this criterion names is read through the Linear API and is not bound here."
     source: "manual"
@@ -177,3 +192,180 @@ dod_evidence:
         check_value: "env PYTHONDONTWRITEBYTECODE=1 uv run pytest tests/unit/scripts/test_application_relation_inventory.py -q -p no:randomly --no-cov -k 'compaction_receipts_ownership_and_migration_delivery or compaction_current_context_ownership_precedes_migration_delivery'"
         cwd: "${OMNI_HOME}/omnimarket"
     binds_ac: ["AC5"]
+
+  - id: "dod-omn21090-ac4-sequence-watermark"
+    description: "Track C TC.4: sequence completeness is checked before authority folding; incomplete reads are stale with the contiguous watermark reached, never resolved with partial rulings. Epic completion still requires every child state to be verified through Linear."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/unit/nodes/node_context_source_ledger_effect/test_ledger_sequence_watermark.py -q -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC4"]
+
+  - id: "dod-omn21090-deploy-sequence-probe"
+    description: "Hosted-runner packaged-handler probe: a complete snapshot resolves, but a missing or duplicate sequence cannot expose partial authority. No dev services or credentials are required. The new test file fails against the merge base."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --locked pytest tests/unit/nodes/node_context_source_ledger_effect/test_ledger_sequence_watermark.py -q -p no:randomly --no-cov -k 'complete_sequence or reached_prefix'"
+        cwd: "${OMNI_HOME}/omnimarket"
+
+  - id: "dod-omn21090-ac1-measurement-record-validation"
+    description: "This change's foundation only: invalid transcript identity, usage and label evidence fail loudly. Epic child completion still requires the criterion's Linear read."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_session_compaction_measurement_compute/test_measurement.py -q --no-cov -k invalid_inputs"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1"]
+  - id: "dod-omn21090-ac2-measurement-boundaries"
+    description: "This change's compaction measurement seam only: marked summaries, boundary isolation and lexical decision loss controls. Does not claim Track A complete."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_session_compaction_measurement_compute/test_measurement.py -q --no-cov -k 'dropped_decision or missing_summary or two_boundaries'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC2"]
+  - id: "dod-omn21090-ac3-measurement-canonical-node"
+    description: "This change's portable measurement node shape only: contract, explicit disabled offline overlay and package entry point resolve. Does not claim Track B complete."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_session_compaction_measurement_compute/test_measurement.py -q --no-cov -k node_contract_and_overlay"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC3"]
+  - id: "dod-omn21090-ac4-measurement-labelled-facts"
+    description: "This change's information-retention measurement only: a retained fact passes and its removal is detected. Does not claim Track C complete."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_session_compaction_measurement_compute/test_measurement.py -q --no-cov -k positive_control_and_dropped_fact"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC4"]
+  - id: "dod-omn21090-ac5-measurement-accounting"
+    description: "This change's evaluation foundation only: deterministic wall time, streaming usage deduplication, missing usage and a disabled-detector mutant. Does not claim Track E complete."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_session_compaction_measurement_compute/test_measurement.py -q --no-cov -k 'wall_time or missing_usage or boundary_sizes or disabled_mutant'"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC5"]
+  - id: "dod-omn21090-deploy-session-measurement-probe"
+    description: "Hosted-runner offline probe of the packaged measurement handler: the transcript fixture must report adapter-choice dropped and measured usage. Fails on a head without this node. No runtime, network or credentials are needed."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/nodes/node_session_compaction_measurement_compute/test_measurement.py -q --no-cov -k 'dropped_decision_negative_control or wall_time_and_usage_stream_dedup or node_contract_and_overlay'"
+        cwd: "${OMNI_HOME}/omnimarket"
+
+  - id: "dod-omn21090-ac4-pinned-ledger-source"
+    description: "Track C TC.4 repository contribution: pinned ledger reads are confined to their explicit manifest root and provenance labels require both linking cells. This does not assert every Track C child is Done; epic completion remains a Linear state audit."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "env UV_FROZEN=1 uv run pytest tests/unit/nodes/node_context_source_ledger_effect/test_ledger_pinned_root.py tests/unit/nodes/node_context_source_ledger_effect/test_ledger_provenance.py -q -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC4"]
+  - id: "dod-omn21090-deploy-pinned-ledger-dispatch"
+    description: "Hosted-runner TC.4 probe: packaged typed dispatch preserves the D1 correction and refuses missing files, manifest escapes and unauthorized tenants on both local bus bindings. No services or credentials are used; the test fails at the merge base."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/test_golden_chain_context_source_ledger_pinned.py -q -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn21090-ac4-sampled-exemplar-revocation"
+    description: "Track C TC.5 contribution: minimum-sample revocation and count-derived quality metrics. This does not assert every Track C child is Done; the epic criterion remains a Linear API check. All existing evidence entries for AC1 through AC5 are preserved."
+    source: "manual"
+    binds_ac: ["AC4"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "env UV_FROZEN=true uv run pytest tests/nodes/node_exemplar_registry_reconcile_compute/test_sampled_revocation.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn21090-deploy-sampled-exemplar-revocation"
+    description: "Hosted-runner probe executes the packaged exemplar reconcile handler and in-memory runtime against count-based revocation controls; a head without the change fails. No runtime host or credentials are used."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/nodes/node_exemplar_registry_reconcile_compute/test_sampled_revocation.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+  - id: "dod-omn21090-ac3-client-receipt-verdict"
+    description: "Track B repository contribution: core-enveloped delegation receipts are checked before mapping the section 7.2 verdict to a hook output. The child and epic remain incomplete; the existing evidence for every epic criterion is preserved, and their completion remains a Linear API check."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/nodes/node_delegation_receipt_verdict_compute/test_golden_chain_receipt_verdict.py -q -n 0 --no-cov --refuse-skips"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC3"]
+  - id: "dod-omn21090-routing-overlay-boundary"
+    description: "Repository gate repair only: the generation base contract forbids model choices, its explicit overlay supplies every canonical routing field, and missing or conflicting authority fails closed. This does not establish that any epic child track is Done; AC1 through AC5 still require their specified Linear API reads."
+    source: "manual"
+    checks:
+      - check_type: "test_passes"
+        check_value: "uv run pytest tests/validation/test_generation_routing_overlay.py tests/test_routing_authority_gate.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+    binds_ac: ["AC1", "AC2", "AC3", "AC4", "AC5"]
+  - id: "dod-omn21090-deploy-routing-overlay-probe"
+    description: "Hosted runner checks the packaged generation handler reads the declared model from its packaged overlay and both enforcing gates pass. No services, inference calls, or credentials are required."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/validation/test_generation_routing_overlay.py tests/test_routing_authority_gate.py -q -n 0 -p no:randomly --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+
+  - id: "dod-omn21090-ac2-required-parity-evidence"
+    description: "Track A TA.5 code contribution; this does not assert all Track A children are Done: exact parity refuses absent or partial projected text through the in-memory bus, injected spool transport and JSON CLI; changed words and dropped correction links remain mismatches. The full UTC-day live projection proof remains a separate required check."
+    source: "manual"
+    binds_ac: ["AC2"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "env UV_FROZEN=true uv run pytest tests/unit/nodes/node_projection_work_ledger/test_work_ledger_parity_required_text.py -q --no-cov"
+        cwd: "${OMNI_HOME}/omnimarket"
+
+  - id: "dod-omn21090-deploy-required-parity-evidence"
+    description: "Hosted-runner probe reads the published parity module at the checked-out head and executes its missing-text negative control. The old module returns no missing-text mismatch and fails. No runtime host or application credential is required."
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: |-
+          set -euo pipefail
+          probe=$(mktemp -d)
+          trap 'rm -rf "$probe"' EXIT
+          gh api "repos/OmniNode-ai/omnimarket/contents/src/omnimarket/nodes/node_projection_work_ledger/parity.py?ref=$(git rev-parse HEAD)" --jq .content | base64 -d > "$probe/parity.py"
+          uv run --frozen python - "$probe/parity.py" <<'PYPROBE'
+          import hashlib
+          import runpy
+          import sys
+          from datetime import UTC, datetime
+          compare = runpy.run_path(sys.argv[1])["compare"]
+          raw = "2026-10-01T12:00:00Z | STATUS | lane=probe | evidence"
+          rid = hashlib.sha256(raw.encode()).hexdigest()
+          result = compare(file_rows=[raw], projection_rows={rid: raw[:20]}, projection_state={}, since=datetime(2026, 10, 1, tzinfo=UTC), until=datetime(2026, 10, 2, tzinfo=UTC))
+          assert not result.exact
+          assert [(m.kind.value, m.key) for m in result.mismatches] == [("row_text_missing_in_projection", rid)]
+          PYPROBE
+        cwd: "${OMNI_HOME}/omnimarket"
+
+  - id: "dod-omn21090-compaction-absolute-deadline"
+    description: >-
+      Compaction implementation evidence: the same contract-bound handler on the
+      in-memory bus and broker-semantics binding spends publication time from the
+      remaining reply budget, refuses a late package without prepared or activated
+      emissions, closes both subscriptions on expiry, and rejects a revision probe
+      for another session or barrier. The ticket's live dev-bus package proof and
+      epic child-state criteria remain outstanding; these tests do not assert them.
+    source: "manual"
+    binds_ac: ["AC2"]
+    checks:
+      - check_type: "test_passes"
+        check_value: "env UV_FROZEN=true uv run pytest tests/nodes/node_context_compaction_orchestrator/test_compaction_pack_build_deadline.py -q -n 0 --no-cov"
+  - id: "dod-omn21090-deploy-compaction-deadline"
+    description: >-
+      Hosted-runner offline deployment probe of the packaged compaction handler
+      using both local bus bindings. A slow publish must reduce the terminal wait,
+      a late terminal must never activate, and expired subscriptions must close.
+      The probe fails on a merge base without the deadline tests or deadline fix.
+      It needs no services or credentials and is not live dev-runtime proof.
+    source: "manual"
+    checks:
+      - check_type: "command"
+        check_value: "uv run --frozen pytest tests/nodes/node_context_compaction_orchestrator/test_compaction_pack_build_deadline.py -q -n 0 --no-cov"

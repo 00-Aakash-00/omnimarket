@@ -12,6 +12,22 @@
 #   pre-commit run --all-files
 
 repos:
+  - repo: local
+    hooks:
+      - id: retired-model-references
+        name: Retired model references (including dated history)
+        entry: env -u PYTHONPATH uv run --frozen python -m omnimarket.nodes.node_retired_model_reference_check_effect
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: history-archive-safety
+        name: History removal requires verified archives
+        entry: env -u PYTHONPATH uv run --frozen pytest tests/nodes/test_file_retention_archive_safety.py -q -n 0 -p no:randomly --no-cov
+        language: system
+        files: ^(src/omnimarket/nodes/node_retention_cleanup/.*|scripts/retention/.*|tests/nodes/test_file_retention_archive_safety\.py|\.pre-commit-config\.yaml|\.github/workflows/ci\.yml)$
+        pass_filenames: false
+        stages: [pre-commit]
   # OMN-19998: public-repository runner placement (RULING 2026-10-16T07:07:09Z,
   # "Ci runners should be for private repos only"). CI twin job
   # public-runner-placement in .github/workflows/ci.yml; keep this rev equal to
@@ -708,7 +724,7 @@ repos:
         language: system
         entry: uv run python scripts/ci/check_lane_job_placement.py
         pass_filenames: false
-        files: ^(\.github/workflows/delegation-regression-nightly\.yml|scripts/ci/check_lane_job_placement\.py)$
+        files: ^(\.github/workflows/delegation-(regression-nightly|terminal-join-daily|rung-eval-nightly)\.yml|scripts/ci/check_lane_job_placement\.py)$
         stages: [pre-commit]
 
       # OMN-18349. The Layer-2 golden corpus is data the nightly publishes
@@ -1282,7 +1298,8 @@ repos:
       # (replaces the deleted omnimarket-local scripts/ci/check_routing_authority.py
       # and folds in the previously-unwired core validator_delegation_profile).
       # Proves the demo path resolves provider/served_model_id/endpoint_ref/
-      # routing_source from contract + bifrost authority; no demo-path source reads
+      # routing_source from the explicit overlay + bifrost authority; the base
+      # contract is checked too. No demo-path source reads
       # env for endpoint/provider/model, hardcodes a provider literal, or reads a
       # fallback endpoint string; residue files stay within their env-authority
       # baselines (OMN-12877); every bifrost backend respects the provider-class
@@ -1291,7 +1308,7 @@ repos:
       - id: routing-authority-demo-gate
         name: Routing-authority demo gate (OMN-13285)
         language: system
-        entry: uv run python -m omnibase_core.validation.validator_routing_authority --repo omnimarket --repo-root .
+        entry: uv run python scripts/validation/validate_contract_overlay_boundary.py --routing-authority --root .
         files: >-
           ^(src/omnimarket/nodes/node_generation_consumer/|
           src/omnimarket/nodes/node_llm_delegation_call_effect/|
@@ -1793,6 +1810,19 @@ repos:
         language: system
         entry: uv run pytest tests/formal/test_compaction_lifecycle_model.py -q -n 0 -p no:randomly --no-cov
         files: ^(formal/compaction_lifecycle/|tests/formal/(test_compaction_lifecycle_model\.py|compaction_lifecycle_tlc\.sh)$)
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # OMN-21442: the andon stop and lane lease model passes its design configs, each
+      # property fails on a one-knob mutation, the TLC results match the committed
+      # model, configs and outputs, the model's states, triggers and constants are its
+      # contracts', and VERDICT.txt approves the model's digest. Check-only. SYNC with
+      # the ci.yml lint step "Andon stop model and verdict (OMN-21442)".
+      - id: andon-stop-model
+        name: Andon stop model and verdict (OMN-21442)
+        language: system
+        entry: uv run pytest tests/formal/test_andon_stop_model.py -q -n 0 -p no:randomly --no-cov
+        files: ^(formal/andon_stop/|src/omnimarket/nodes/node_(andon_stop|lane_lease)_reducer/contract\.yaml$|tests/formal/(test_andon_stop_model\.py|andon_stop_tlc\.sh|fixtures/(andon_stop|lane_lease)_contract_fragment\.yaml)$)
         pass_filenames: false
         stages: [pre-commit]
 

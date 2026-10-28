@@ -50,6 +50,15 @@ is returned as the message content. The provider's ``stop_reason`` rides back as
 ``finish_reason`` (``length`` for ``max_tokens``, never a silently shortened
 body) and the cache usage rides back in ``usage``.
 
+**A voter's reasoning-off request is honoured (OMN-19998).** The voter's
+``chat_template_kwargs.enable_thinking`` false becomes the native ``thinking``
+``{"type": "disabled"}`` for models that support it. A gateway whose host
+configuration declares ``thinking_mode: adaptive`` instead sends adaptive
+thinking and low effort: those models reject disabled thinking. A Claude model
+that reasons by default counts its reasoning against ``max_tokens``; on a large
+diff it spent the whole budget and answered nothing. The mode is a validated
+deployment fact, never inferred from a model name.
+
 Not here: a per-key budget ledger with a reserve, a sticky key per review run,
 and the overlay entry.
 """
@@ -66,7 +75,7 @@ import re
 import uuid
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -103,6 +112,8 @@ MODELS_ROUTE = "/v1/models"
 #: compatible endpoint with HTTP 400, so the voter's sampling is not forwarded.
 _CLAUDE_TEMPERATURE = 1.0
 _DEFAULT_MAX_TOKENS = 4096
+#: The native thinking option for a voter's explicit reasoning-off request.
+_DISABLED_THINKING = {"type": "disabled"}
 #: The line the prompt builder puts between the parts of a message that are cached
 #: apart: system instructions and catalog | standing rules, and diff | persona.
 BLOCK_BOUNDARY_MARKER = "<<onex-cache-boundary>>"
@@ -392,6 +403,7 @@ def translate_chat_request(
     secret_ref: str,
     timeout_seconds: float,
     workspace_id: str | None = None,
+    thinking_mode: Literal["disabled", "adaptive"] = "disabled",
 ) -> ModelLlmDelegationCallRequest:
     """The voter's chat call as one native Messages call on this host's key.
 
@@ -402,6 +414,9 @@ def translate_chat_request(
     A key that belongs to an Anthropic workspace names it in the call's
     ``anthropic-workspace-id`` header (OMN-20967): the provider answers the
     key only with it.
+    Only bool False requests the smallest reasoning budget. The host's declared
+    thinking mode determines whether that is native disabled thinking or adaptive
+    thinking at low effort; models that require adaptive thinking reject disabled.
     """
     messages = payload.get("messages")
     system_parts: list[str] = []
@@ -436,6 +451,18 @@ def translate_chat_request(
         else _DEFAULT_MAX_TOKENS
     )
     request_id = str(uuid.uuid4())
+    chat_template_kwargs = payload.get("chat_template_kwargs")
+    options: dict[str, Any] = {}
+    reasoning_off = (
+        isinstance(chat_template_kwargs, Mapping)
+        and chat_template_kwargs.get("enable_thinking") is False
+    )
+    if thinking_mode == "adaptive":
+        options["thinking"] = {"type": "adaptive"}
+        if reasoning_off:
+            options["output_config"] = {"effort": "low"}
+    elif reasoning_off:
+        options["thinking"] = _DISABLED_THINKING.copy()
     return ModelLlmDelegationCallRequest(
         request_id=request_id,
         correlation_id=request_id,
@@ -457,6 +484,7 @@ def translate_chat_request(
             {workspace_header(): workspace_id} if workspace_id is not None else {}
         ),
         inference_protocol="anthropic_messages",
+        provider_request_options=options,
         system_blocks=system_blocks,
         messages=(ModelPromptMessage(role="user", blocks=user_blocks),),
         tool_schema=tool_schema,
@@ -481,6 +509,8 @@ def describe_call(request: ModelLlmDelegationCallRequest) -> dict[str, Any]:
         "task_type": request.task_type,
         "max_tokens": request.max_tokens,
         "temperature": request.temperature,
+        "thinking": request.provider_request_options.get("thinking"),
+        "output_config": request.provider_request_options.get("output_config"),
         "system_block_chars": [len(block.text) for block in request.system_blocks],
         "prompt_block_chars": [
             len(block.text) for message in request.messages for block in message.blocks
@@ -609,6 +639,7 @@ class ClaudeReviewGateway:
             secret_ref=key.api_key_ref,
             timeout_seconds=self._request.upstream_timeout_seconds,
             workspace_id=key.workspace_id,
+            thinking_mode=self._request.thinking_mode,
         )
 
     def _repository_refusal(self, payload: Mapping[str, Any]) -> tuple[str, str] | None:

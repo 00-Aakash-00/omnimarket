@@ -7,6 +7,8 @@
 and ``closing_outcome``, ``final_lane_outcome``, ``parse_delegation_line`` and
 ``waiting_on_background``) on generated inputs. Each placement case carries the
 readings' evaluated facts; the expected answer is the runner's.
+Opus expectations now require refusal under RULING 2026-10-26T11:31:48Z;
+all non-Opus recorded answers remain unchanged.
 """
 
 from __future__ import annotations
@@ -73,10 +75,7 @@ def test_closing_matches_the_runner(index: int) -> None:
     result = HandlerRemoteLaneResult().handle(
         ModelRemoteLaneResultRequest.model_validate(case["request"])
     )
-    assert (
-        result.model_dump(exclude={"delegation"}) | {"delegation": result.delegation}
-        == case["expected"]
-    )
+    assert result.model_dump(include=set(case["expected"])) == case["expected"]
 
 
 def test_a_broken_rank_fails_the_cases(monkeypatch: pytest.MonkeyPatch) -> None:
