@@ -335,3 +335,12 @@ def test_each_boundary_result_round_trips_through_json(
     restored = ModelCheckReleaseGateResult.model_validate_json(result.model_dump_json())
     assert restored == result
     assert restored.model_dump_json() == result.model_dump_json()
+
+
+def test_a_pull_request_event_without_its_facts_is_blocked_not_a_crash() -> None:
+    result = _checker(f.HistorySource(f.standing_grant())).handle(
+        f.check_request(pull_request=None)
+    )
+    assert result.exit_code == 2
+    assert result.decision.decision is EnumReleaseDecision.BLOCKED
+    assert result.decision.reason == "pull_request_facts_missing"

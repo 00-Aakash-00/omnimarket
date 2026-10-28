@@ -58,10 +58,15 @@ class HandlerCheckReleaseGate:
         except Exception:
             return self._blocked("policy_unreadable")
 
-        grant = None
         if (
             request.event is EnumReleaseEvent.PULL_REQUEST
-            and request.pull_request is not None
+            and request.pull_request is None
+        ):
+            return self._blocked("pull_request_facts_missing")
+
+        grant = None
+        if request.pull_request is not None and (
+            request.event is EnumReleaseEvent.PULL_REQUEST
         ):
             grant = self._reader.handle(
                 ModelReadReleaseGrantRequest(
