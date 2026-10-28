@@ -2,7 +2,7 @@
 # ONEX Pre-commit Configuration — omnimarket
 #
 # Hooks:
-#   - ruff format + lint (auto-fix)
+#   - ruff format + lint (check-only)
 #   - Stub implementation detection (from omnibase_core)
 #   - TODO format enforcement (from omnibase_core)
 #   - Hardcoded topic string prevention (from omnibase_core)
@@ -372,12 +372,21 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-yaml
-      - id: end-of-file-fixer
       # This verbatim captured prompt intentionally contains merge-marker text.
       - id: check-merge-conflict
         exclude: ^tests/fixtures/delegation/omn19523/prompts/run_6bfe152a_t2a\.txt$
       - id: check-added-large-files
         args: [--maxkb=1000]
+
+  # A check that writes nothing; replaces the end-of-file-fixer hook
+  - repo: local
+    hooks:
+      - id: end-of-file-check
+        name: Files end in exactly one newline (check only)
+        entry: '(?:[^\n]\Z|\n\n+\Z)'
+        language: pygrep
+        args: [--multiline]
+        types: [text]
 
   # Topic naming lint — producer-segment allowlist (OMN-8507)
   # Requires omnibase_infra at $OMNIBASE_INFRA_PATH or ../omnibase_infra.
@@ -1480,7 +1489,7 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
-  # Ruff — standalone pre-commit hooks (no uv source resolution needed)
+  # Ruff — standalone check-only pre-commit hooks (no uv source resolution needed)
   # Using astral-sh/ruff-pre-commit avoids `uv run ruff` which fails in worktrees
   # because uv.sources relative paths (../omnibase_core) resolve against the worktree
   # parent directory instead of $OMNI_HOME. (OMN-8103)
@@ -1488,14 +1497,14 @@ repos:
     rev: v0.15.9
     hooks:
       - id: ruff-format
+        args: [--check]
         pass_filenames: true
         types: [python]
         files: ^(src|tests)/
 
       - id: ruff
-        alias: ruff-fix
-        name: ruff check (auto-fix)
-        args: [--fix, --exit-non-zero-on-fix]
+        name: ruff check (check only)
+        args: [--no-fix]
         pass_filenames: true
         types: [python]
         files: ^(src|tests)/
@@ -2277,11 +2286,12 @@ repos:
         language: script
         pass_filenames: true
         stages: [commit-msg]
-      - id: strip-ai-coauthor-trailer
+      - id: refuse-ai-coauthor-trailer
         require_serial: true
-        name: Strip AI-generated Co-Authored-By trailers from commit messages
-        entry: perl -i -ne 'print unless /^co-authored-by:.*claude.*noreply\@anthropic\.com/i'
-        language: system
+        name: Refuse AI-generated Co-Authored-By trailers in commit messages (check only)
+        entry: '^co-authored-by:.*claude.*noreply@anthropic\.com'
+        language: pygrep
+        args: [--ignore-case]
         pass_filenames: true
         stages: [commit-msg]
 
