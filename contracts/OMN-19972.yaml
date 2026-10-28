@@ -174,7 +174,7 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn19972-run-trace-writer-standalone"
     binds_ac: ["AC3"]
-    description: "The run-trace writer runs as a standalone runner under runtime profile projection-writer-run-trace (Jonah's ruling a6967cf0). The runtime ownership function gives the contract to that profile and not to tenant-projection, main or effects; the writer resolves a step's tenant slug through the tenant mirror's own read binding, never the writer pool; and an unknown slug is refused before the writer pool is touched. The file fails at the merge base, where the contract names tenant-projection and the writer reads the mirror through the writer's own pool. This is the writer half of AC3's Runs readback; the lab readback lands separately."
+    description: "The run-trace contract is owned by runtime profile projection-writer-run-trace and the writer is configured for standalone execution (Jonah's ruling a6967cf0); booting it is left to the lab readback. The runtime ownership function gives the contract to that profile and not to tenant-projection, main or effects; the writer resolves a step's tenant slug through the tenant mirror's own read binding, never the writer pool; and an unknown slug is refused before the writer pool is touched. The file fails at the merge base, where the contract names tenant-projection and the writer reads the mirror through the writer's own pool. This is the writer half of AC3's Runs readback; the lab readback lands separately."
     source: "manual"
     checks:
       - check_type: "test_passes"
