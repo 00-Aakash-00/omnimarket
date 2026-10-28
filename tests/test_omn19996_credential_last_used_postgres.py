@@ -114,10 +114,20 @@ async def test_real_postgres_sync_adapter_moves_last_used_forward_only() -> None
 
         db = PostgresSyncProjectionAdapter(_base_dsn(), schema=schema)
 
-        assert await asyncio.to_thread(db.record_credential_last_used, ref, T1) is True
+        assert (
+            await asyncio.to_thread(
+                db.record_credential_last_used, ref, T1, tenant_id=BYOK_TENANT
+            )
+            is True
+        )
         assert await _last_used(conn, ref) == datetime.fromisoformat(T1)
 
-        assert await asyncio.to_thread(db.record_credential_last_used, ref, T0) is False
+        assert (
+            await asyncio.to_thread(
+                db.record_credential_last_used, ref, T0, tenant_id=BYOK_TENANT
+            )
+            is False
+        )
         assert await _last_used(conn, ref) == datetime.fromisoformat(T1)
 
         assert (
@@ -125,6 +135,39 @@ async def test_real_postgres_sync_adapter_moves_last_used_forward_only() -> None
                 db.record_credential_last_used,
                 "cred_test_openrouter_sync_unknown",
                 T1,
+                tenant_id=BYOK_TENANT,
             )
             is False
         )
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_real_postgres_other_tenant_terminal_changes_nothing() -> None:
+    async with _provisioned_runner() as (runner, conn, schema):
+        ref = "cred_test_openrouter_other_tenant"
+        await _register(runner, ref)
+
+        await runner.project_event(
+            TOPIC_COMPLETED,
+            {
+                "correlation_id": "c0ffee00-0000-4000-8000-000000000005",
+                "tenant_id": "omn19996-other-tenant",
+                "secret_ref": ref,
+                "_envelope_timestamp": T1,
+            },
+            _meta(TOPIC_COMPLETED, 5),
+        )
+        assert await _last_used(conn, ref) is None
+
+        db = PostgresSyncProjectionAdapter(_base_dsn(), schema=schema)
+        assert (
+            await asyncio.to_thread(
+                db.record_credential_last_used,
+                ref,
+                T1,
+                tenant_id="omn19996-other-tenant",
+            )
+            is False
+        )
+        assert await _last_used(conn, ref) is None

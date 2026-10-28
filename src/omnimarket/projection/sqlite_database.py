@@ -42,6 +42,9 @@ from omnimarket.handlers.handler_projection_derived_write import (
     HandlerProjectionDerivedWrite,
 )
 from omnimarket.models.model_credential_route_write import ModelCredentialRouteWrite
+from omnimarket.protocols.protocol_credential_last_used_write import (
+    credential_used_at_instant,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1652,22 +1655,53 @@ class SqliteDatabaseAdapter:
         finally:
             conn.close()
 
-    def record_credential_last_used(self, api_key_ref: str, used_at: str) -> bool:
+    def record_credential_last_used(
+        self, api_key_ref: str, used_at: str, *, tenant_id: str | None = None
+    ) -> bool:
         """OMN-19996: move the key's last-used time forward, never insert.
 
-        The time is stored as the ISO text given and compared as text, which
-        orders correctly for times written in one ISO form.
+        SQLite has no time type, so the stored text cannot be compared in SQL:
+        ``05:00+02:00`` sorts after ``04:00+00:00`` though it is earlier. The
+        stored time is read and compared as an instant inside one immediate
+        transaction, so a row written in any ISO form (including one stored
+        before this rule) is never lowered, and no second writer interleaves.
+        A stored value that is not a time is replaced. ``tenant_id`` adds a
+        tenant predicate; ``None`` adds none (the local store).
         """
+        new_instant = credential_used_at_instant(used_at)
+        where = "api_key_ref = :ref"
+        params = {"ref": api_key_ref, "used_at": used_at}
+        if tenant_id is not None:
+            where += " AND tenant_id = :tenant"
+            params["tenant"] = tenant_id
         conn = self._connect()
         try:
-            changed = conn.execute(
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                f"SELECT last_used_at FROM tenant_inference_credentials WHERE {where}",
+                params,
+            ).fetchone()
+            if row is None:
+                conn.rollback()
+                return False
+            stored = row["last_used_at"]
+            if stored is not None:
+                try:
+                    stored_instant: datetime | None = credential_used_at_instant(
+                        str(stored)
+                    )
+                except ValueError:
+                    stored_instant = None
+                if stored_instant is not None and stored_instant >= new_instant:
+                    conn.rollback()
+                    return False
+            conn.execute(
                 "UPDATE tenant_inference_credentials SET last_used_at = :used_at "
-                "WHERE api_key_ref = :ref "
-                "AND (last_used_at IS NULL OR last_used_at < :used_at)",
-                {"ref": api_key_ref, "used_at": used_at},
-            ).rowcount
+                f"WHERE {where}",
+                params,
+            )
             conn.commit()
-            return changed > 0
+            return True
         except BaseException:
             conn.rollback()
             raise

@@ -5426,8 +5426,11 @@ class LocalDelegationDispatchPort:
 
         The time is the ``timestamp`` the evidence row was just stored with,
         read back rather than re-derived, so the Credentials page and the
-        run's own row show one instant. A run that resolved no key, and a key
-        with no catalog row, record nothing. Best-effort like the evidence
+        run's own row show one instant. No tenant predicate: this store is one
+        install's own file, and its keys carry the tenant given to
+        ``onex secret`` (for example ``dev``), not the install's minted
+        identity the run is recorded under. A run that resolved no key, and a
+        key with no catalog row, record nothing. Best-effort like the evidence
         write: a failure is logged and the delegation response is untouched.
         """
         if not secret_ref:
