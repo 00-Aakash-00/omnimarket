@@ -136,32 +136,19 @@ def test_the_tier_escalation_tests_pass_before_the_customer_never_lab_file() -> 
 TENANT_OVERLAY_POLLUTER = "tests/nodes/node_delegation_routing_reducer/test_omn15631_tenant_overlay_routing.py"
 
 
-def test_the_tenant_overlay_routing_file_does_not_change_the_escalation_tier_after_it() -> (
-    None
-):
-    """OMN-19996: the same leak from a second file, found on Tests (Split 8/20).
+def test_the_tenant_overlay_routing_file_leaves_no_routing_global_set() -> None:
+    """After the tenant-overlay routing file's last test no routing global is bound.
 
-    ``platform_default_routable`` routes through ``delta`` on a one-tier
-    contract and cleared only the bifrost endpoint cache, so the escalation
-    test that followed it in one shard read ``cheap_cloud`` where it expected
-    ``cheap_frontier``.
+    OMN-19996 found this leak on Tests (Split 8/20). The delegation conftest resets
+    ``_config`` before each test in this directory, which hides the leak here, so
+    the globals the file leaves are read directly instead of waiting for a victim.
     """
     result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            TENANT_OVERLAY_POLLUTER,
-            VICTIM,
-            "-q",
-            "-p",
-            "no:cacheprovider",
-            "--no-cov",
-        ],
+        [sys.executable, "-c", _LEAK_PROBE, TENANT_OVERLAY_POLLUTER],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
-        timeout=240,
+        timeout=480,
         check=False,
     )
     assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-1000:]

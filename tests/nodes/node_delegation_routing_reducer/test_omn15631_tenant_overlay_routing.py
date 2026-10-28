@@ -126,6 +126,8 @@ def _reset_routing_caches() -> None:
     routing._load_bifrost_endpoints.cache_clear()
     routing._get_task_class_contract.cache_clear()
     routing._config = None
+    routing._config_spread_peers = None
+    routing._config_spread_weights = None
 
 
 @pytest.fixture
