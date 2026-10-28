@@ -279,6 +279,7 @@
   ["receipt-honesty.yml", 42, "actions/checkout", "11d5960a326750d5838078e36cf38b85af677262"],
   ["receipt-honesty.yml", 48, "astral-sh/setup-uv", "38f3f104447c67c051c4a08e39b64a148898af3a"],
   ["reject-leaked-literals.yml", 66, "actions/checkout", "11d5960a326750d5838078e36cf38b85af677262"],
+  ["release-audit.yml", 24, "./.github/workflows/release-gate.yml", ""],
   ["release-cut.yml", 74, "./.github/workflows/release-gate.yml", ""],
   ["release-cut.yml", 89, "actions/checkout", "9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"],
   ["release-cut.yml", 147, "actions/create-github-app-token", "d72941d797fd3113feb6b93fd0dec494b13a2547"],
