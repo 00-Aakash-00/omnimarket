@@ -18,23 +18,28 @@ EXPLICIT = {"node_projection_consumer_flow": "compact,delete"}
 
 
 def _snapshot_exposures(contract: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return every onex.snapshot exposure reachable from projection_api."""
-    exposures: list[dict[str, Any]] = []
+    """Return every onex.snapshot exposure the projection parser would serve.
+
+    Mirrors the parser's two shapes: an ``exposures`` list, when present, is
+    the whole set; otherwise the section itself is the one exposure.
+    """
     projection_api = contract.get("projection_api")
-    if isinstance(projection_api, dict):
-        topic = projection_api.get("topic")
-        if isinstance(topic, str) and topic.startswith(SNAPSHOT_PREFIX):
-            exposures.append(projection_api)
-        raw_exposures = projection_api.get("exposures")
-        if isinstance(raw_exposures, list):
-            for item in raw_exposures:
-                if isinstance(item, dict):
-                    item_topic = item.get("topic")
-                    if isinstance(item_topic, str) and item_topic.startswith(
-                        SNAPSHOT_PREFIX
-                    ):
-                        exposures.append(item)
-    return exposures
+    if not isinstance(projection_api, dict):
+        return []
+    raw_exposures = projection_api.get("exposures")
+    if raw_exposures is None:
+        candidates: list[object] = [projection_api]
+    elif isinstance(raw_exposures, list):
+        candidates = list(raw_exposures)
+    else:
+        candidates = []
+    return [
+        item
+        for item in candidates
+        if isinstance(item, dict)
+        and isinstance(item.get("topic"), str)
+        and item["topic"].startswith(SNAPSHOT_PREFIX)
+    ]
 
 
 def _policy(item: dict[str, Any]) -> str | None:
@@ -116,3 +121,19 @@ def test_a_policy_on_a_sibling_item_does_not_count() -> None:
     exposures = _snapshot_exposures(synthetic)
     assert len(exposures) == 1
     assert _policy(exposures[0]) is None
+
+
+def test_a_section_topic_beside_an_exposures_list_is_not_an_exposure() -> None:
+    synthetic: dict[str, Any] = {
+        "projection_api": {
+            "topic": "onex.snapshot.projection.legacy.v1",
+            "exposures": [
+                {
+                    "topic": "onex.snapshot.projection.x.v1",
+                    "topic_config": {"kafka_config": {"cleanup.policy": "compact"}},
+                }
+            ],
+        }
+    }
+    exposures = _snapshot_exposures(synthetic)
+    assert [item["topic"] for item in exposures] == ["onex.snapshot.projection.x.v1"]
