@@ -608,6 +608,8 @@ EXPECTED_EXTERNAL_CONTEXTS: tuple[str, ...] = (
     # is for subscriber-dispatcher-resolution below.
     "handler-event-type-source",
     "imperative-contract-guard / Imperative Contract Guard",
+    # OMN-21478: enforce the core reusable's internal sibling pin policy.
+    "internal-sibling-pins / Internal Sibling Pins",
     # OMN-17888 (contract-topic-closure.yml): two routes may not claim one local-ingress
     # alias. Same workflow file and same L4 reasoning as handler-event-type-source above.
     "local-ingress-alias-collision",
@@ -1867,6 +1869,12 @@ EXTERNAL_CONTEXT_PRODUCERS: dict[str, ExternalContextProducer] = {
             ("pull_request", "push"),
             ("main",),
             ("imperative-contract-guard / Imperative Contract Guard",),
+        ),
+        (
+            "internal-sibling-pins.yml",
+            ("pull_request", "merge_group", "push"),
+            ("dev", "main"),
+            ("internal-sibling-pins / Internal Sibling Pins",),
         ),
         (
             "main-target-guard.yml",
