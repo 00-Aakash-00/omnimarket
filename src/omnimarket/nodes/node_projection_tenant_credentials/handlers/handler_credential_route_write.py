@@ -10,6 +10,9 @@ from types import MappingProxyType
 from omnibase_core.models.projection.model_upsert_plan import build_upsert_plan
 
 from omnimarket.models.model_credential_route_write import ModelCredentialRouteWrite
+from omnimarket.models.model_credential_row_write import ModelCredentialRowWrite
+
+_CREDENTIALS = "tenant_inference_credentials"
 
 
 class HandlerCredentialRouteWrite:
@@ -42,8 +45,10 @@ class HandlerCredentialRouteWrite:
             ),
             sqlite_models_write=(
                 # An empty choice is an unknown one: NULL, as a revoke-first
-                # delivery order leaves it.
-                "UPDATE tenant_inference_credentials SET models = NULLIF(:models, '[]') "
+                # delivery order leaves it. The version rises as the runner's
+                # does (OMN-21217), so both stores hold the same row.
+                "UPDATE tenant_inference_credentials SET models = NULLIF(:models, '[]'), "
+                "version = version + 1 "
                 "WHERE tenant_id = :tenant_id AND api_key_ref = :secret_ref "
                 "AND revoked_at IS NULL RETURNING api_key_ref"
                 if row.get("secret_ref") is not None
@@ -106,3 +111,66 @@ class HandlerCredentialRouteWrite:
                 f"version = {table}.version + 1 WHERE {guard} RETURNING version"
             )
         return statement, params
+
+
+class HandlerCredentialRowWrite:
+    """The credential catalog row's register and revoke as one atomic statement.
+
+    OMN-21217: the same writes the asynchronous runner makes
+    (``handler_tenant_credentials_projection``), with the version raised in
+    SQL on conflict, so the sync stores hold the runner's versions without a
+    read-then-write that two writers could interleave.
+    """
+
+    @staticmethod
+    def registered(row: dict[str, object]) -> ModelCredentialRowWrite:
+        """Insert, or overwrite the named columns and raise the version.
+
+        ``row`` names only the columns the event carries; an absent optional
+        column is left as stored, as the runner's COALESCE leaves it.
+        """
+        build_upsert_plan(table=_CREDENTIALS, conflict_key="api_key_ref", row=row)
+        columns = list(row)
+        updates = ", ".join(
+            f"{column} = EXCLUDED.{column}"
+            for column in columns
+            if column != "api_key_ref"
+        )
+
+        def statement(bind: Callable[[str], str], now: str) -> str:
+            return (
+                f"INSERT INTO {_CREDENTIALS} ({', '.join(columns)}, created_at) "
+                f"VALUES ({', '.join(bind(column) for column in columns)}, {now}) "
+                f"ON CONFLICT (api_key_ref) DO UPDATE SET {updates}, "
+                f"version = {_CREDENTIALS}.version + 1 RETURNING version"
+            )
+
+        return ModelCredentialRowWrite(
+            tenant_id=str(row["tenant_id"]),
+            parameters=MappingProxyType(dict(row)),
+            sqlite_write=statement(lambda key: f":{key}", ":now"),
+            postgres_write=statement(lambda key: f"%({key})s", "NOW()"),
+        )
+
+    @staticmethod
+    def revoked(api_key_ref: str, tenant_id: str) -> ModelCredentialRowWrite:
+        """Tombstone an unknown key, else keep the earliest revoked_at; raise the version."""
+
+        def statement(bind: Callable[[str], str], now: str) -> str:
+            return (
+                f"INSERT INTO {_CREDENTIALS} "
+                "(api_key_ref, tenant_id, name, provider, created_at, revoked_at) "
+                f"VALUES ({bind('api_key_ref')}, {bind('tenant_id')}, NULL, NULL, "
+                f"{now}, {now}) ON CONFLICT (api_key_ref) DO UPDATE SET "
+                f"revoked_at = COALESCE({_CREDENTIALS}.revoked_at, EXCLUDED.revoked_at), "
+                f"version = {_CREDENTIALS}.version + 1 RETURNING version"
+            )
+
+        return ModelCredentialRowWrite(
+            tenant_id=tenant_id,
+            parameters=MappingProxyType(
+                {"api_key_ref": api_key_ref, "tenant_id": tenant_id}
+            ),
+            sqlite_write=statement(lambda key: f":{key}", ":now"),
+            postgres_write=statement(lambda key: f"%({key})s", "NOW()"),
+        )

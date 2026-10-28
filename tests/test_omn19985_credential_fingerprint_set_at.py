@@ -159,6 +159,11 @@ def test_f6_duplicate_delivery_converges(tmp_path: Path) -> None:
     db = SqliteDatabaseAdapter(tmp_path / "store.sqlite")
     payload = _registered(fingerprint="0123abcd", set_at=_SET_AT)
     apply_credential_registered(dict(payload), db)
-    first = db.query(CREDENTIALS_TABLE, {"api_key_ref": _REF})
+    [first] = db.query(CREDENTIALS_TABLE, {"api_key_ref": _REF})
     apply_credential_registered(dict(payload), db)
-    assert db.query(CREDENTIALS_TABLE, {"api_key_ref": _REF}) == first
+    [again] = db.query(CREDENTIALS_TABLE, {"api_key_ref": _REF})
+    # OMN-21217: version counts writes, as the Postgres runner's does (pinned
+    # against it in test_omn19968_writer_store_parity), so a redelivery raises
+    # it; every fact about the key converges.
+    assert again["version"] > first["version"]
+    assert {**again, "version": None} == {**first, "version": None}

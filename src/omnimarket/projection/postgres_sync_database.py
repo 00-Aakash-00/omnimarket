@@ -40,6 +40,7 @@ from omnimarket.handlers.handler_projection_derived_write import (
     HandlerProjectionDerivedWrite,
 )
 from omnimarket.models.model_credential_route_write import ModelCredentialRouteWrite
+from omnimarket.models.model_credential_row_write import ModelCredentialRowWrite
 from omnimarket.projection.tenant_isolation import (
     TENANT_GUC,
     resolve_read_tenant,
@@ -168,6 +169,20 @@ class PostgresSyncProjectionAdapter:
 
             return Json(value)
         return value
+
+    def write_credential_row(self, plan: ModelCredentialRowWrite) -> int | None:
+        """OMN-21217: one statement; the version is raised in SQL, never read first."""
+        conn = self._connect()
+        try:
+            with self._tenant_scoped(conn, plan.tenant_id), conn.cursor() as cur:
+                cur.execute(
+                    plan.postgres_write,
+                    {key: self._adapt(value) for key, value in plan.parameters.items()},
+                )
+                written = cur.fetchone()
+                return None if written is None else int(written[0])
+        finally:
+            conn.close()
 
     def replace_credential_route(
         self,

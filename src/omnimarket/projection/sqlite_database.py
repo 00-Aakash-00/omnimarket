@@ -42,6 +42,7 @@ from omnimarket.handlers.handler_projection_derived_write import (
     HandlerProjectionDerivedWrite,
 )
 from omnimarket.models.model_credential_route_write import ModelCredentialRouteWrite
+from omnimarket.models.model_credential_row_write import ModelCredentialRowWrite
 from omnimarket.protocols.protocol_credential_last_used_write import (
     credential_used_at_instant,
 )
@@ -577,8 +578,9 @@ _TENANT_INFERENCE_CREDENTIALS_ADDED_COLUMNS: dict[str, object] = {
     "workspace_id": None,
     "models": None,
     # 0009 (OMN-21217): the row's version, published with it on the compacted
-    # credential-state topic. The local store never replays that topic, so it
-    # only has to exist here for the exposure; it stays at 1.
+    # credential-state topic. The local store never replays that topic, but it
+    # raises the version on each write exactly as the Postgres runner does, so
+    # both stores hold the same row (tests/test_omn19968_writer_store_parity.py).
     "version": 1,
     # 0010 (OMN-19996): the terminal time of the latest run that used the key,
     # ISO text; NULL until a run names it.
@@ -1615,6 +1617,25 @@ class SqliteDatabaseAdapter:
         if not stored:
             return []
         return [{column: stored[0].get(column) for column in plan.returning}]
+
+    def write_credential_row(self, plan: ModelCredentialRowWrite) -> int | None:
+        """OMN-21217: one statement; the version is raised in SQL, never read first."""
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            parameters = {
+                key: self._encode(key, value) for key, value in plan.parameters.items()
+            }
+            # The runner's NOW(), as upsert_returning supplies it on this store.
+            parameters["now"] = datetime.now(tz=UTC).isoformat()
+            written = conn.execute(plan.sqlite_write, parameters).fetchone()
+            conn.commit()
+            return None if written is None else int(written[0])
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def replace_credential_route(
         self,
