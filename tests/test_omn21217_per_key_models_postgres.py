@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Any
 
 import asyncpg
@@ -159,3 +160,44 @@ async def test_real_postgres_catalogue_error_rolls_back_overlay_and_models(
             )
             == before_key
         )
+
+
+_NODES = Path(__file__).resolve().parents[1] / "src" / "omnimarket" / "nodes"
+_REPLAYED = {
+    "0007": (
+        _NODES
+        / "node_delegation_routing_reducer/migrations"
+        / "0007_add_credential_ordered_models.sql",
+        ("credential_route_version_positive", "credential_route_models_array"),
+    ),
+    "0009": (
+        _NODES
+        / "node_projection_tenant_credentials/migrations"
+        / "0009_tenant_credentials_models_and_version.sql",
+        (
+            "tenant_inference_credentials_models_array",
+            "tenant_inference_credentials_version_positive",
+        ),
+    ),
+}
+
+
+@pytest.mark.parametrize("migration", sorted(_REPLAYED))
+async def test_real_postgres_ordered_model_migrations_replay_cleanly(
+    migration: str,
+) -> None:
+    """A replayed or partly applied migration must not fail on its constraints."""
+    path, constraints = _REPLAYED[migration]
+    async with _provisioned_runner() as (_runner, conn, schema):
+        await conn.execute(path.read_text())
+        rows = await conn.fetch(
+            """
+            SELECT c.conname
+            FROM pg_constraint c
+            JOIN pg_namespace n ON n.oid = c.connamespace
+            WHERE n.nspname = $1 AND c.conname = ANY($2::text[])
+            """,
+            schema,
+            list(constraints),
+        )
+        assert sorted(row["conname"] for row in rows) == sorted(constraints)

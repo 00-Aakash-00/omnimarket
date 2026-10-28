@@ -86,6 +86,7 @@ unreadable).
 from __future__ import annotations
 
 import ast
+import functools
 import pathlib
 import re
 import sys
@@ -375,6 +376,37 @@ def _migration_readers(
     return readers
 
 
+def _projection_imports(tree: ast.AST) -> set[str]:
+    """Return the set of projection stems that *tree* imports.
+
+    A stem is recorded when any of the following absolute import forms
+    appears in the tree::
+
+        import omnimarket.projection.<stem>
+        from omnimarket.projection.<stem> import name
+        from omnimarket.projection import <stem>
+
+    Relative imports are ignored.  A dotted remainder such as
+    ``omnimarket.projection.a.b`` yields the stem ``a.b``.
+    """
+    stems: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                prefix = "omnimarket.projection."
+                if alias.name.startswith(prefix):
+                    stems.add(alias.name[len(prefix) :])
+        elif isinstance(node, ast.ImportFrom):
+            if node.level or not node.module:
+                continue
+            if node.module == "omnimarket.projection":
+                for alias in node.names:
+                    stems.add(alias.name)
+            elif node.module.startswith("omnimarket.projection."):
+                stems.add(node.module[len("omnimarket.projection.") :])
+    return stems
+
+
 def _imports_projection_module(tree: ast.AST, module_stem: str) -> bool:
     """Whether this module actually IMPORTS ``omnimarket.projection.<stem>``.
 
@@ -397,38 +429,52 @@ def _imports_projection_module(tree: ast.AST, module_stem: str) -> bool:
     Narrowing this makes the gate MORE probative, not less. The registry shape
     it exists to catch is a real code dependency, and a real code dependency is
     an import.
+
+    This function now reads the shared index via :func:`_projection_imports`.
     """
-    target = f"omnimarket.projection.{module_stem}"
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            if any(alias.name == target for alias in node.names):
-                return True
-        elif isinstance(node, ast.ImportFrom):
-            # A relative import cannot name another package, so only absolute
-            # ones are candidates.
-            if node.level or not node.module:
-                continue
-            if node.module == target:
-                return True
-            if node.module == "omnimarket.projection" and any(
-                alias.name == module_stem for alias in node.names
-            ):
-                return True
-    return False
+    return module_stem in _projection_imports(tree)
 
 
-def _module_importers(repo_root: pathlib.Path, module_stem: str) -> set[str]:
-    """Node directories importing ``omnimarket.projection.<module_stem>``."""
-    importers: set[str] = set()
+@functools.cache
+def _node_projection_importers(
+    repo_root: pathlib.Path,
+) -> dict[str, frozenset[str]]:
+    """Map each projection stem to the node directories that import it.
+
+    Each ``*.py`` file under ``repo_root/src/omnimarket/nodes`` is parsed
+    exactly once.  Tests that create files under a tmp repo root get a fresh
+    cache entry because the root differs.  A long-lived process scanning the
+    same root twice after editing files must call
+    ``_node_projection_importers.cache_clear()``.
+    """
     nodes_dir = repo_root / "src" / "omnimarket" / "nodes"
+    index: dict[str, set[str]] = {}
     for py_path in nodes_dir.rglob("*.py"):
         try:
-            tree = ast.parse(py_path.read_text(encoding="utf-8", errors="replace"))
+            tree = ast.parse(
+                py_path.read_text(encoding="utf-8", errors="replace"),
+            )
         except SyntaxError as exc:
-            raise GateInputError(f"cannot parse node module {py_path}") from exc
-        if _imports_projection_module(tree, module_stem):
-            importers.add(py_path.relative_to(nodes_dir).parts[0])
-    return importers
+            raise GateInputError(
+                f"cannot parse node module {py_path}",
+            ) from exc
+        node_dir = py_path.relative_to(nodes_dir).parts[0]
+        for stem in _projection_imports(tree):
+            index.setdefault(stem, set()).add(node_dir)
+    return {stem: frozenset(dirs) for stem, dirs in index.items()}
+
+
+def _module_importers(
+    repo_root: pathlib.Path,
+    module_stem: str,
+) -> set[str]:
+    """Node directories importing ``omnimarket.projection.<module_stem>``."""
+    return set(
+        _node_projection_importers(repo_root).get(
+            module_stem,
+            frozenset(),
+        ),
+    )
 
 
 def _sql_strings(tree: ast.AST) -> list[str]:
