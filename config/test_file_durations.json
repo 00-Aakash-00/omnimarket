@@ -1947,6 +1947,8 @@
   "tests/test_omn19988_native_environment_report.py": 12.53,
   "tests/test_omn19988_observer_runtime_tenant.py": 0.71,
   "tests/test_omn19988_prober_budget_excludes_client_setup.py": 3.75,
+  "tests/test_omn19996_credential_last_used.py": 5.89,
+  "tests/test_omn19996_credential_last_used_postgres.py": 3.01,
   "tests/test_omn19998_pr_merged_dedupe_real_postgres.py": 0.25,
   "tests/test_omn19998_pr_merged_projection_repo_merged.py": 0.09,
   "tests/test_omn20008_measured_savings_real_postgres.py": 12.75,
