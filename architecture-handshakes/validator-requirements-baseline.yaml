@@ -47,7 +47,6 @@ classification:
     ci_workflow: backlog
     tracking: OMN-9048
   hardcoded-local-paths:
-    pre_commit: backlog
     ci_workflow: backlog
     tracking: OMN-9048
   hardcoded-localhost-url:
@@ -136,9 +135,6 @@ gaps:
   - repo: omnimarket
     validator: hardcoded-local-paths
     kind: MISSING_CI_WORKFLOW
-  - repo: omnimarket
-    validator: hardcoded-local-paths
-    kind: MISSING_PRE_COMMIT
   - repo: omnimarket
     validator: hardcoded-localhost-url
     kind: MISSING_CI_WORKFLOW

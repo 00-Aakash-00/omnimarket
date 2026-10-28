@@ -39,6 +39,30 @@ repos:
       - id: check-action-pins
         files: ^\.github/workflows/[^/]+\.ya?ml$
         require_serial: true
+  # OMN-21433: omnibase_core's generic validators, consumed by hook id at the
+  # dev-merge tag; the rules and patterns live in core. These four need no
+  # baseline: pre-commit judges the staged files, and CI twin job core-validators
+  # in ci.yml runs the same hook ids from this file over the files a change
+  # touches, so the two cannot name different tags.
+  # Not consumed yet, each for a stated reason:
+  #   - pydantic-extra-forbid, check-hardcoded-model-config-compute, detect-secrets
+  #     need a committed baseline; canonical-file-shape (OMN-20304) refuses a new
+  #     baseline file unless a hook of its gate list declares it, and its core pin
+  #     here predates the declaration of the model-config baseline.
+  #   - check-no-backward-compat scans all of src/ and 18 findings stand; one of
+  #     them sits in a projection write-path file that projection-write-path-db-gate
+  #     refuses to let a diff touch without a real-Postgres test.
+  #   - spdx-headers-check fixes the copyright year at 2025; 7186 Python files here
+  #     carry 2026 and 2241 carry 2025.
+  #   - validate-single-class-per-file, validate-dict-any-usage and
+  #     validate-union-usage have no hook id in the core hook repository at this tag.
+  - repo: https://github.com/OmniNode-ai/omnibase_core
+    rev: dev-20261028202452-b8b19b0b4bff
+    hooks:
+      - id: check-no-utcnow
+      - id: check-no-raw-sqlite3
+      - id: check-no-direct-kafka-producer
+      - id: check-local-paths-compute
   # OMN-19998: public-repository runner placement (RULING 2026-10-16T07:07:09Z,
   # "Ci runners should be for private repos only"). CI twin job
   # public-runner-placement in .github/workflows/ci.yml; keep this rev equal to

@@ -29,6 +29,15 @@ requirements:
     statement: 'AC3: a writer that closes its pipes and lingers does not add a polling sleep to the
       recorded backoff -- falsifier: uv run pytest tests/nodes/node_ledger_reconcile_effect/test_local_adapters_ledger_reconcile_effect.py
       -k slow_to_exit fails with [0.001, 0.002, ...] when the test patches time.sleep globally'
+- id: req-t21-omnimarket-core-validators
+  statement: 'T2.1 (omnimarket slice, first part): omnimarket consumes the omnibase_core validators that need no baseline by hook id at a dev-merge tag, locally and in CI.'
+  acceptance:
+  - id: AC4
+    statement: 'AC4: T2.1 .pre-commit-config.yaml consumes check-no-utcnow, check-no-raw-sqlite3, check-no-direct-kafka-producer and check-local-paths-compute from omnibase_core at one dev-merge tag -- falsifier: uv run pytest tests/ci/test_core_validators_wired_omn21433.py fails on the tree without the wiring'
+  - id: AC5
+    statement: 'AC5: T2.1 ci.yml runs the same hook ids as the job core-validators, which CI Summary registers -- falsifier: the same test file fails without the job or its registration in scripts/ci/ci_summary_gate.py'
+  - id: AC6
+    statement: 'AC6: T2.1 the four canary defects utcnow, raw_sqlite3, kafka_producer and local_path are refused locally by the wired hooks -- falsifier: pre-commit run --files over the canary files at the tree head refuses no more canary files than at the base'
 evidence_requirements:
 - kind: tests
   description: Order isolation test.
@@ -118,4 +127,39 @@ dod_evidence:
     cwd: ${OMNI_HOME}/omnimarket
   - check_type: test_passes
     check_value: uv run pytest tests/nodes/node_ledger_reconcile_effect/test_local_adapters_ledger_reconcile_effect.py -q --no-cov --tb=line
+    cwd: ${OMNI_HOME}/omnimarket
+- id: dod-omn21433-t21-ac1
+  description: T2.1 AC4 runs the wiring test file, which reads .pre-commit-config.yaml for each hook id, and that every one is at a dev-merge tag.
+  source: manual
+  binds_ac:
+  - AC4
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/ci/test_core_validators_wired_omn21433.py -q --no-cov --tb=line -p no:randomly -n 0
+    cwd: ${OMNI_HOME}/omnimarket
+- id: dod-omn21433-t21-ac2
+  description: T2.1 AC5 runs the CI job tests of the same file and the CI Summary registration check.
+  source: manual
+  binds_ac:
+  - AC5
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/ci/test_core_validators_wired_omn21433.py -q --no-cov --tb=line -p no:randomly -n 0 -k "ci_"
+    cwd: ${OMNI_HOME}/omnimarket
+- id: dod-omn21433-t21-ac3
+  description: T2.1 AC6 checks the four hook ids are wired; the canary run itself is the lab receipt in the pull request body.
+  source: manual
+  binds_ac:
+  - AC6
+  checks:
+  - check_type: command
+    check_value: |-
+      python3 - <<'PYCODE'
+      import yaml
+      config = yaml.safe_load(open(".pre-commit-config.yaml"))
+      ids = {hook["id"] for repo in config["repos"] for hook in repo["hooks"]}
+      needed = {"check-no-utcnow", "check-no-raw-sqlite3", "check-no-direct-kafka-producer", "check-local-paths-compute"}
+      assert needed <= ids, sorted(needed - ids)
+      print("the four canary-catching hook ids are wired")
+      PYCODE
     cwd: ${OMNI_HOME}/omnimarket
