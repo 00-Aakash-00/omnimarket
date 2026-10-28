@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -41,3 +42,26 @@ def test_workflow_calls_core_at_a_full_sha_and_is_required() -> None:
     }
     assert "OMN-21478" in rows[0]["rationale"]
     assert "2026-10-16" in rows[0]["rationale"]
+
+
+@pytest.mark.parametrize(
+    ("distribution", "repo"),
+    [
+        ("omnibase-core", "omnibase_core"),
+        ("omnibase-spi", "omnibase_spi"),
+        ("omninode-memory", "omnimemory"),
+    ],
+)
+def test_pyproject_and_lock_pin_the_sibling_to_one_dev_merge_tag(
+    distribution: str, repo: str
+) -> None:
+    sources = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["uv"][
+        "sources"
+    ]
+    source = sources[distribution]
+    assert source["git"] == f"https://github.com/OmniNode-ai/{repo}.git"
+    assert re.fullmatch(r"dev-[0-9]{14}-[0-9a-f]{12}", source["tag"])
+
+    packages = tomllib.loads((ROOT / "uv.lock").read_text())["package"]
+    (locked,) = [p for p in packages if p["name"] == distribution]
+    assert locked["source"]["git"].startswith(source["git"] + "?tag=" + source["tag"])
