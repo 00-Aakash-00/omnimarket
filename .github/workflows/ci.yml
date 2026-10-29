@@ -479,7 +479,7 @@ jobs:
       # pre-commit hook 'check-action-pins'.
       - name: GitHub Actions pin check
         env:
-          ACTION_PINS_CORE: "omnibase-core @ git+https://github.com/OmniNode-ai/omnibase_core@dev-20261028202452-b8b19b0b4bff"
+          ACTION_PINS_CORE: "omnibase-core @ git+https://github.com/OmniNode-ai/omnibase_core@dev-20261023085853-9d65b648bff5"
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           MQ_BASE: ${{ github.event.merge_group.base_sha }}
         run: |
@@ -4030,12 +4030,12 @@ jobs:
           uv run --no-project --with "$RUNNER_PLACEMENT_CORE" \
             python -m omnibase_core.handlers.handler_public_runner_placement_cli "${args[@]}"
 
-  # OMN-21433: omnibase_core's generic validators run in CI as the hook ids of
+  # OMN-21500: omnibase_core's generic validators run in CI as the hook ids of
   # .pre-commit-config.yaml, so this job and the local hooks name one core
   # dev-merge tag and cannot drift. Unconditional: no needs/if; registered in
   # ci_summary_gate.py STRICT_GATE_JOBS.
   core-validators:
-    name: Core Validators (OMN-21433)
+    name: Core Validators (OMN-21500)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -4081,7 +4081,7 @@ jobs:
           fi
           from_ref="$(git merge-base "$base" HEAD)"
           for hook in check-no-utcnow check-no-raw-sqlite3 check-no-direct-kafka-producer \
-            check-local-paths-compute; do
+            check-local-paths-compute check-hardcoded-model-config-compute; do
             uvx pre-commit@4.5.1 run "$hook" --from-ref "$from_ref" --to-ref HEAD
           done
 
