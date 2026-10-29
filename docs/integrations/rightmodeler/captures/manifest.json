@@ -1,0 +1,241 @@
+{
+  "tool_commit": "a1fed146ed738fd50be224716ad6139e35d6d173",
+  "node_version": "v24.19.0",
+  "package_manager": "pnpm 11.7.0",
+  "build_mode": "prefetch, then offline frozen install with scripts disabled, then CLI build",
+  "runtime_env_keys": [
+    "PATH",
+    "HOME",
+    "P0_GATEWAY_TOKEN"
+  ],
+  "tool_bundle_sha256": "e9be4d0022ad89401f4bb910598e5783b8e624874a3179b46c61b811fb8ca4d0",
+  "capture_summaries": [
+    {
+      "capture": "native-priced",
+      "runtime": "native macOS Node.js 24; not a container",
+      "input_case_count": 12,
+      "init_exit_code": 0,
+      "report_exit_code": 0,
+      "gateway_calls": {
+        "catalog": 1
+      },
+      "decision": "abstain",
+      "effective_recommendation": false,
+      "abstain_reason": {
+        "observed": 6,
+        "reason": "holdout_below_floor_minimum",
+        "required": 22
+      },
+      "tool_estimated_cost_usd": 0,
+      "per_case_evidence_count": 0
+    },
+    {
+      "capture": "native-free-excluded",
+      "runtime": "native macOS Node.js 24; not a container",
+      "input_case_count": 12,
+      "init_exit_code": 0,
+      "report_exit_code": 0,
+      "gateway_calls": {
+        "catalog": 1
+      },
+      "decision": "abstain",
+      "effective_recommendation": false,
+      "abstain_reason": {
+        "observed": 6,
+        "reason": "holdout_below_floor_minimum",
+        "required": 22
+      },
+      "tool_estimated_cost_usd": 0,
+      "per_case_evidence_count": 0
+    },
+    {
+      "capture": "native-free-included",
+      "runtime": "native macOS Node.js 24; not a container",
+      "input_case_count": 12,
+      "init_exit_code": 0,
+      "report_exit_code": 0,
+      "gateway_calls": {
+        "catalog": 1
+      },
+      "decision": "abstain",
+      "effective_recommendation": false,
+      "abstain_reason": {
+        "observed": 6,
+        "reason": "holdout_below_floor_minimum",
+        "required": 22
+      },
+      "tool_estimated_cost_usd": 0,
+      "per_case_evidence_count": 0
+    },
+    {
+      "capture": "native-64-priced",
+      "runtime": "native macOS Node.js 24; not a container",
+      "input_case_count": 64,
+      "init_exit_code": 1,
+      "report_exit_code": 1,
+      "gateway_calls": {
+        "catalog": 1,
+        "candidate": 64,
+        "judge": 128
+      },
+      "decision": "recommend",
+      "effective_recommendation": true,
+      "abstain_reason": null,
+      "tool_estimated_cost_usd": 0.412416,
+      "per_case_evidence_count": 64
+    },
+    {
+      "capture": "native-64-free-excluded",
+      "runtime": "native macOS Node.js 24; not a container",
+      "input_case_count": 64,
+      "init_exit_code": 0,
+      "report_exit_code": 0,
+      "gateway_calls": {
+        "catalog": 1
+      },
+      "decision": "abstain",
+      "effective_recommendation": false,
+      "abstain_reason": {
+        "observed": 0,
+        "reason": "selection_missing_shortlist_verdicts",
+        "required": 1
+      },
+      "tool_estimated_cost_usd": 0,
+      "per_case_evidence_count": 0
+    },
+    {
+      "capture": "native-64-free-included",
+      "runtime": "native macOS Node.js 24; not a container",
+      "input_case_count": 64,
+      "init_exit_code": 1,
+      "report_exit_code": 1,
+      "gateway_calls": {
+        "catalog": 1,
+        "candidate": 64,
+        "judge": 128
+      },
+      "decision": "recommend",
+      "effective_recommendation": true,
+      "abstain_reason": null,
+      "tool_estimated_cost_usd": 0.4096,
+      "per_case_evidence_count": 64
+    }
+  ],
+  "process_cleanup": "local HTTP server shut down and joined after final capture",
+  "source_provenance": {
+    "commit": "a1fed146ed738fd50be224716ad6139e35d6d173",
+    "archive_sha256": "7b354241f4bb389b4c72ed37c577c145e5e58e0d5285360d4a992efbe9cd602a",
+    "native_capture_source_differences_excluding_generated_bundles": []
+  },
+  "native_wire_examples": "gateway-calls.json contains representative catalog/candidate/both-judge-order requests; complete call counts are retained above.",
+  "sandbox": {
+    "tool_commit": "a1fed146ed738fd50be224716ad6139e35d6d173",
+    "image_digest": "sha256:9b86ff4a48f7568fd830fda6344e33103d812904cdfc0ac33c67fdf091a3954c",
+    "monitor_image": "nicolaka/netshoot@sha256:47b907d662d139d1e2f22bfe14f4efca1e3f1feed283572f47c970c780c03b61",
+    "runtime": "actual Linux arm64 Docker sandbox; recorded candidates and explicit stub judge; zero external model requests",
+    "environment_keys": [
+      "HOME",
+      "PATH",
+      "RM_RUN_TOKEN"
+    ],
+    "trace_note": "Representative packet lines plus complete packet counts, unique destination sets and SHA256 of full raw trace. Bulky raw traces are temporary QA files.",
+    "captures": [
+      {
+        "capture": "exact-12",
+        "file": "sandbox/exact-12.json",
+        "sha256": "1561e20fd2fddcfc7309bbaed41b4e3fe93eebde43bb87c92c3ad06788deb1e4",
+        "status": "completed",
+        "failure_reason": null,
+        "decision": "abstain",
+        "per_case_count": 0,
+        "gateway_receipt_count": 0,
+        "packet_count": 0,
+        "observed_destinations": [],
+        "forbidden_destinations": [],
+        "environment_keys": [
+          "HOME",
+          "PATH",
+          "RM_RUN_TOKEN"
+        ],
+        "uid": 1000,
+        "capture_complete": true
+      },
+      {
+        "capture": "replay-64",
+        "file": "sandbox/replay-64.json",
+        "sha256": "ad6354256dfafd27dc49713edb8a000f80ed9c475ea3a2b4475f209c59c09860",
+        "status": "completed",
+        "failure_reason": null,
+        "decision": "recommend",
+        "per_case_count": 64,
+        "gateway_receipt_count": 192,
+        "packet_count": 964,
+        "observed_destinations": [
+          "172.18.0.2.8080"
+        ],
+        "forbidden_destinations": [],
+        "environment_keys": [
+          "HOME",
+          "PATH",
+          "RM_RUN_TOKEN"
+        ],
+        "uid": 1000,
+        "capture_complete": true
+      },
+      {
+        "capture": "bus-replay-64",
+        "file": "sandbox/bus-replay-64.json",
+        "sha256": "62a6f82ccb6c6ad0190be60af90b8a093ab0607d72607a1751674a7409d16344",
+        "status": "completed",
+        "failure_reason": null,
+        "decision": "recommend",
+        "per_case_count": 64,
+        "gateway_receipt_count": 192,
+        "packet_count": 962,
+        "observed_destinations": [
+          "172.18.0.2.8080"
+        ],
+        "forbidden_destinations": [],
+        "environment_keys": [
+          "HOME",
+          "PATH",
+          "RM_RUN_TOKEN"
+        ],
+        "uid": 1000,
+        "capture_complete": true
+      },
+      {
+        "capture": "forbidden-destination",
+        "file": "sandbox/forbidden-destination.json",
+        "sha256": "2d91d5b1b9f9c761952f29a3534492579ebf27edf9922deb089b27e7e6bab375",
+        "status": "failed",
+        "failure_reason": "egress_violation",
+        "decision": null,
+        "per_case_count": 0,
+        "gateway_receipt_count": 0,
+        "packet_count": 2,
+        "observed_destinations": [
+          "2001:db8:ffff::7.443",
+          "203.0.113.1.443"
+        ],
+        "forbidden_destinations": [
+          "2001:db8:ffff::7.443",
+          "203.0.113.1.443"
+        ],
+        "environment_keys": [
+          "HOME",
+          "PATH",
+          "RM_RUN_TOKEN"
+        ],
+        "uid": 1000,
+        "capture_complete": true
+      }
+    ],
+    "remaining_containers_after_capture": [],
+    "execution_limits": {
+      "combined_stdout_stderr_bytes_per_command": 8388608,
+      "shared_init_report_deadline_default_seconds": 300,
+      "capture_requires_complete_zero_drop_monitor": true
+    }
+  }
+}

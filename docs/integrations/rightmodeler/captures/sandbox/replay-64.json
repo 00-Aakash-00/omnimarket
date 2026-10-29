@@ -1,0 +1,2780 @@
+{
+  "tool_commit": "a1fed146ed738fd50be224716ad6139e35d6d173",
+  "image_digest": "sha256:9b86ff4a48f7568fd830fda6344e33103d812904cdfc0ac33c67fdf091a3954c",
+  "monitor_image": "nicolaka/netshoot@sha256:47b907d662d139d1e2f22bfe14f4efca1e3f1feed283572f47c970c780c03b61",
+  "runtime": "actual Docker sandbox; recorded answers and explicit stub judge; no upstream model provider",
+  "request": {
+    "correlation_id": "d4169e8b-8b57-4621-9a94-b28a16962ab6",
+    "task_type": "model_swap_validation",
+    "reference_model": "example-reference/large",
+    "candidate_model": "example-candidate/small",
+    "judge_mode": "stub",
+    "judge_backend_id": null,
+    "answer_source": "recorded",
+    "replay_set_digest": "a553af39a897b34c02568e749a8e52a26cdee2a6ff198cb3a1e144ab1421c1b4",
+    "quality_floor": 0.85,
+    "max_cost_usd": 10.0,
+    "work_unit_repository": "synthetic/integration-proof"
+  },
+  "argv": [
+    [
+      "exec",
+      "rmv-d4169e8b8b5746219a94b28a16962ab6",
+      "/usr/bin/env",
+      "-i",
+      "PATH=/usr/local/bin:/usr/bin:/bin",
+      "HOME=/state/home",
+      "RM_RUN_TOKEN=<run-token>",
+      "node",
+      "/opt/rightmodeler/cli.js",
+      "init",
+      "--through",
+      "report",
+      "--yes",
+      "--output",
+      "json",
+      "--repo",
+      "/synthetic",
+      "--store",
+      "/state/store",
+      "--traces",
+      "/replay/traces.jsonl",
+      "--policy",
+      "/replay/policy.json",
+      "--base-url",
+      "http://172.18.0.2:8080/v1",
+      "--api-key-env",
+      "RM_RUN_TOKEN",
+      "--max-cost-usd",
+      "10.0",
+      "--include-free"
+    ],
+    [
+      "exec",
+      "rmv-d4169e8b8b5746219a94b28a16962ab6",
+      "/usr/bin/env",
+      "-i",
+      "PATH=/usr/local/bin:/usr/bin:/bin",
+      "HOME=/state/home",
+      "RM_RUN_TOKEN=<run-token>",
+      "node",
+      "/opt/rightmodeler/cli.js",
+      "report",
+      "--repo",
+      "/synthetic",
+      "--store",
+      "/state/store",
+      "--output",
+      "json"
+    ]
+  ],
+  "environment": {
+    "keys": [
+      "HOME",
+      "PATH",
+      "RM_RUN_TOKEN"
+    ],
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "HOME": "/state/home",
+    "uid": 1000,
+    "platform": "linux",
+    "arch": "arm64"
+  },
+  "isolation": {
+    "ReadonlyRootfs": true,
+    "CapDrop": [
+      "ALL"
+    ],
+    "SecurityOpt": [
+      "no-new-privileges"
+    ],
+    "PidsLimit": 128,
+    "Memory": 805306368,
+    "NanoCpus": 1000000000,
+    "NetworkMode": "container:3088dfd52897f8b40d8048e6f72c1229673d024595372921a277adbf57c04cc7",
+    "Tmpfs": {
+      "/state": "rw,nosuid,nodev,mode=1777,size=256m",
+      "/tmp": "rw,nosuid,nodev,mode=1777,size=32m"
+    }
+  },
+  "mounts": [
+    {
+      "Type": "bind",
+      "Source": "<scratch>/sandbox-proof/adapter-state/model-swap-pgh1b_9u/replay",
+      "Destination": "/replay",
+      "Mode": "",
+      "RW": false,
+      "Propagation": "rprivate"
+    },
+    {
+      "Type": "bind",
+      "Source": "<scratch>/sandbox-proof/adapter-state/model-swap-pgh1b_9u/synthetic",
+      "Destination": "/synthetic",
+      "Mode": "",
+      "RW": false,
+      "Propagation": "rprivate"
+    }
+  ],
+  "network_configuration": "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000\n    inet 127.0.0.1/8 scope host lo\n       valid_lft forever preferred_lft forever\n2: eth0@if93: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default  link-netnsid 0\n    inet 172.18.0.3/16 brd 172.18.255.255 scope global eth0\n       valid_lft forever preferred_lft forever\ndefault via 172.18.0.2 dev eth0 \n172.18.0.0/16 dev eth0 proto kernel scope link src 172.18.0.3 \n1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 state UNKNOWN qlen 1000\n    inet6 ::1/128 scope host proto kernel_lo \n       valid_lft forever preferred_lft forever\n2: eth0@if93: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP \n    inet6 2001:db8::2/128 scope global nodad \n       valid_lft forever preferred_lft forever\n    inet6 fdd4:169e:8b8b::3/64 scope global nodad \n       valid_lft forever preferred_lft forever\n    inet6 fe80::c0ee:27ff:fe25:8980/64 scope link tentative proto kernel_ll \n       valid_lft forever preferred_lft forever\n2001:db8::2 dev eth0 proto kernel metric 256 pref medium\nfdd4:169e:8b8b::/64 dev eth0 proto kernel metric 256 pref medium\nfe80::/64 dev eth0 proto kernel metric 256 pref medium\ndefault dev eth0 metric 1024 pref medium\n",
+  "tool_run": {
+    "exit_code": 1,
+    "stdout": "{\"stages\":[{\"stage\":\"scan\",\"state\":\"complete\"},{\"stage\":\"ingest\",\"state\":\"complete\"},{\"stage\":\"reconcile\",\"state\":\"complete\"},{\"stage\":\"scrub\",\"state\":\"complete\"},{\"stage\":\"corpus\",\"state\":\"complete\"},{\"stage\":\"audit-sample\",\"state\":\"complete\"},{\"stage\":\"shortlist\",\"state\":\"complete\"},{\"stage\":\"replay\",\"state\":\"complete\"},{\"stage\":\"aggregate\",\"state\":\"complete\"},{\"stage\":\"confirm\",\"state\":\"complete\"},{\"stage\":\"report\",\"state\":\"complete\"}],\"executedStages\":[\"scan\",\"ingest\",\"reconcile\",\"scrub\",\"corpus\",\"audit-sample\",\"shortlist\",\"replay\",\"aggregate\",\"confirm\",\"report\"],\"verdicts\":[{\"evidenceQuestionId\":\"4defe657a6cd2f64f784015b724997079f19cf5fbc598e4d7cf424da72f6c528\",\"corpusSplit\":\"holdout\",\"familyId\":\"model_swap_validation\",\"candidateId\":\"example-candidate/small\",\"candidateFamily\":\"example-candidate\",\"caseIds\":[\"005f46631319cd30f52c4f1b635a0523f22101e8eb8071e375a4545a6d432ee4\",\"09a090d265942ead85d3b77e4295e74e2eff30b3b7ac12d4235f719d218805d8\",\"0d0b63809593ad5792cc70373795229f32bee547851ccd14d62018fb09aed43b\",\"0ef10ecaaa64a5009ceca81460df9a73b3779a2cc77122addf3e02870d5a4bdb\",\"10ae1683ce421593ed4b7b6c56bc6e4dda211575d281ba08dfb7a7edef4741f1\",\"13021ddab536996d00a823aa4cd67a2f658222c32188181e447dc5c1f0068a67\",\"2f83ebb3450fbca1ef4506e5a216a199ba615ea83647820eba22d6e2a17f09c2\",\"37eced2f2be2396e135a8d4d26a10d5e243654d47e3947e1f60b493b8486406d\",\"3a1df0960f0eb06f86c75e2995d8299c3e81140a2489fa25b30b99a1ae09a71f\",\"3adaeb623c2d1260dfe13ec7c8b382381e94399de5ba4875cb0e2f49cef92d4b\",\"3bd90efc41c6d2f5ea4d4a5ac15d9e331ead31288956a3f4a7071a1feae0c1a1\",\"3c7e02629d8dc045c95d9184dcfd3096941d2676ed08f5a730b7ada212d350fb\",\"3de17b5c52da0761ed50d5679dacf68d4b08d0e298e1ad22a6ad7e217a80333e\",\"4ae881c7676f108bbbe1c82e69ac62b1fe10dba90208f975f8e5f7ac4956088f\",\"5e19e2029af7992a922615b976a840a8e11a45c3f2f2a92da1d127b5cfe43337\",\"750e001c0e6e200d8294ad94298b30aa668bf770c2a109b795f2b30e93a7344c\",\"82c0bd424acbab0d902b64b0a94e321ebb3ef219301cd3dcabb90ac3eb124758\",\"9cb84a5998b697df74ad544cec5d8d195f0f5b47d795cf2f5dc970b31e72f057\",\"a5928e21a686687e315ed7dc1beb1bedae97234ac0c5d1059231da7a034a6e05\",\"b2c371e18f89f217af5bc484b283f79171259be17fcc3e7ab565d237d5afb8dd\",\"bcf765f351537c24f423e47a9a16b1a332cbb05888581a376f7cf372320cabb3\",\"bf33d0834e0a5af088cbbe65c56432df23fc5bbd9fc702655a90689cc1144f47\",\"c703a3c4385fc6e5f64e0cc33fef2e08df67585d9dc4a2133e922b63a96f7271\",\"c74ef63968c3fc9e6b86c872e1e9c2605e6c8931f6db6285bc811deca12cf4ac\",\"c863d2fe1aacfa4046c8bd9f2435685445fe0cf3084441f7a3ad9c7c3f5c0bad\",\"d2928327776c9d634ea7cea929e05b8a6cae7be9fe8e9c66a65f418d18fc4289\",\"d55a40868382ab90ea4d092dd1832bc17c7faaea7e22ed178be759f4dbad8ad6\",\"dc35b3ab91d2ca8456929f15d90b5092c062c233240ce724003b23c2991f4214\",\"e4d13a05cd649b15dea9c238e9123f76c99bf61f23952e3c4133860951c5dc79\",\"e91e729f4ba4e0d1c3dcef6b2c3ebfd35fb52965d6effde2b261f0bd9f193904\",\"ec367759a4108abb643a21962c19a8c4ee9fc038eea5e3c4bccdccce86c92683\",\"f54c29380acf688084de6d35fb073e67df761b2c10f00396c99549f06b1da08c\"],\"candidateCostUsd\":0,\"gatePolicyVersion\":\"phase-a-v3-e8116997225d\",\"referenceCeilingMultiplier\":1,\"evaluatorKinds\":[{\"evaluatorKind\":\"judge\",\"conditionalExecutions\":32,\"passes\":32,\"trials\":32,\"passRate\":1,\"averageScore\":1,\"orderConsistencyRate\":1,\"nTrajectories\":32,\"nDistinctSteps\":1,\"excludedExecutions\":0,\"excludedFraction\":0,\"assessmentAbsent\":0,\"assessmentAbsentReasons\":[],\"worstCasePassRate\":1,\"worstCaseBound\":0.8928208015906339,\"naiveInterval\":{\"point\":1,\"lower\":0.8928208015906339,\"upper\":1},\"trajectoryClusters\":[{\"trajectoryId\":\"case-01\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-03\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-04\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-05\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-06\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-11\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-14\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-15\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-20\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-21\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-22\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-25\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-27\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-31\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-33\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-34\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-35\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-36\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-40\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-42\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-43\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-45\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-46\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-48\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-52\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-54\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-57\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-58\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-60\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-62\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-63\",\"passes\":1,\"trials\":1},{\"trajectoryId\":\"case-64\",\"passes\":1,\"trials\":1}]}],\"weakestEvaluatorKind\":\"judge\",\"nExecutions\":32,\"nReviewTrials\":32,\"nTrajectories\":32,\"nDistinctSteps\":1,\"excludedExecutions\":0,\"excludedFraction\":0,\"assessmentAbsent\":0,\"assessmentAbsentReasons\":[],\"worstCaseBound\":0.8928208015906339,\"naiveInterval\":{\"point\":1,\"lower\":0.8928208015906339,\"upper\":1},\"availability\":{\"availableExecutions\":32,\"executions\":32,\"rate\":1,\"lowerBound\":0.8928208015906339,\"naiveInterval\":{\"point\":1,\"lower\":0.8928208015906339,\"upper\":1}},\"unsafeSubstitutions\":0,\"coveredEvidenceCases\":32,\"requiredAbstentions\":0,\"satisfiedRequiredAbstentions\":0,\"decision\":\"recommend\"}],\"familyOutcomes\":[{\"familyId\":\"model_swap_validation\",\"verdict\":{\"assessmentAbsent\":0,\"assessmentAbsentReasons\":[],\"availability\":{\"availableExecutions\":32,\"executions\":32,\"lowerBound\":0.8928208015906339,\"naiveInterval\":{\"lower\":0.8928208015906339,\"point\":1,\"upper\":1},\"rate\":1},\"candidateCostUsd\":0,\"candidateFamily\":\"example-candidate\",\"candidateId\":\"example-candidate/small\",\"caseIds\":[\"005f46631319cd30f52c4f1b635a0523f22101e8eb8071e375a4545a6d432ee4\",\"09a090d265942ead85d3b77e4295e74e2eff30b3b7ac12d4235f719d218805d8\",\"0d0b63809593ad5792cc70373795229f32bee547851ccd14d62018fb09aed43b\",\"0ef10ecaaa64a5009ceca81460df9a73b3779a2cc77122addf3e02870d5a4bdb\",\"10ae1683ce421593ed4b7b6c56bc6e4dda211575d281ba08dfb7a7edef4741f1\",\"13021ddab536996d00a823aa4cd67a2f658222c32188181e447dc5c1f0068a67\",\"2f83ebb3450fbca1ef4506e5a216a199ba615ea83647820eba22d6e2a17f09c2\",\"37eced2f2be2396e135a8d4d26a10d5e243654d47e3947e1f60b493b8486406d\",\"3a1df0960f0eb06f86c75e2995d8299c3e81140a2489fa25b30b99a1ae09a71f\",\"3adaeb623c2d1260dfe13ec7c8b382381e94399de5ba4875cb0e2f49cef92d4b\",\"3bd90efc41c6d2f5ea4d4a5ac15d9e331ead31288956a3f4a7071a1feae0c1a1\",\"3c7e02629d8dc045c95d9184dcfd3096941d2676ed08f5a730b7ada212d350fb\",\"3de17b5c52da0761ed50d5679dacf68d4b08d0e298e1ad22a6ad7e217a80333e\",\"4ae881c7676f108bbbe1c82e69ac62b1fe10dba90208f975f8e5f7ac4956088f\",\"5e19e2029af7992a922615b976a840a8e11a45c3f2f2a92da1d127b5cfe43337\",\"750e001c0e6e200d8294ad94298b30aa668bf770c2a109b795f2b30e93a7344c\",\"82c0bd424acbab0d902b64b0a94e321ebb3ef219301cd3dcabb90ac3eb124758\",\"9cb84a5998b697df74ad544cec5d8d195f0f5b47d795cf2f5dc970b31e72f057\",\"a5928e21a686687e315ed7dc1beb1bedae97234ac0c5d1059231da7a034a6e05\",\"b2c371e18f89f217af5bc484b283f79171259be17fcc3e7ab565d237d5afb8dd\",\"bcf765f351537c24f423e47a9a16b1a332cbb05888581a376f7cf372320cabb3\",\"bf33d0834e0a5af088cbbe65c56432df23fc5bbd9fc702655a90689cc1144f47\",\"c703a3c4385fc6e5f64e0cc33fef2e08df67585d9dc4a2133e922b63a96f7271\",\"c74ef63968c3fc9e6b86c872e1e9c2605e6c8931f6db6285bc811deca12cf4ac\",\"c863d2fe1aacfa4046c8bd9f2435685445fe0cf3084441f7a3ad9c7c3f5c0bad\",\"d2928327776c9d634ea7cea929e05b8a6cae7be9fe8e9c66a65f418d18fc4289\",\"d55a40868382ab90ea4d092dd1832bc17c7faaea7e22ed178be759f4dbad8ad6\",\"dc35b3ab91d2ca8456929f15d90b5092c062c233240ce724003b23c2991f4214\",\"e4d13a05cd649b15dea9c238e9123f76c99bf61f23952e3c4133860951c5dc79\",\"e91e729f4ba4e0d1c3dcef6b2c3ebfd35fb52965d6effde2b261f0bd9f193904\",\"ec367759a4108abb643a21962c19a8c4ee9fc038eea5e3c4bccdccce86c92683\",\"f54c29380acf688084de6d35fb073e67df761b2c10f00396c99549f06b1da08c\"],\"corpusSplit\":\"holdout\",\"coveredEvidenceCases\":32,\"decision\":\"recommend\",\"evaluatorKinds\":[{\"assessmentAbsent\":0,\"assessmentAbsentReasons\":[],\"averageScore\":1,\"conditionalExecutions\":32,\"evaluatorKind\":\"judge\",\"excludedExecutions\":0,\"excludedFraction\":0,\"nDistinctSteps\":1,\"nTrajectories\":32,\"naiveInterval\":{\"lower\":0.8928208015906339,\"point\":1,\"upper\":1},\"orderConsistencyRate\":1,\"passRate\":1,\"passes\":32,\"trajectoryClusters\":[{\"passes\":1,\"trajectoryId\":\"case-01\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-03\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-04\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-05\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-06\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-11\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-14\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-15\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-20\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-21\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-22\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-25\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-27\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-31\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-33\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-34\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-35\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-36\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-40\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-42\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-43\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-45\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-46\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-48\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-52\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-54\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-57\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-58\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-60\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-62\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-63\",\"trials\":1},{\"passes\":1,\"trajectoryId\":\"case-64\",\"trials\":1}],\"trials\":32,\"worstCaseBound\":0.8928208015906339,\"worstCasePassRate\":1}],\"evidenceQuestionId\":\"4defe657a6cd2f64f784015b724997079f19cf5fbc598e4d7cf424da72f6c528\",\"excludedExecutions\":0,\"excludedFraction\":0,\"familyId\":\"model_swap_validation\",\"gatePolicyVersion\":\"phase-a-v3-e8116997225d\",\"nDistinctSteps\":1,\"nExecutions\":32,\"nReviewTrials\":32,\"nTrajectories\":32,\"naiveInterval\":{\"lower\":0.8928208015906339,\"point\":1,\"upper\":1},\"referenceCeilingMultiplier\":1,\"requiredAbstentions\":0,\"satisfiedRequiredAbstentions\":0,\"unsafeSubstitutions\":0,\"weakestEvaluatorKind\":\"judge\",\"worstCaseBound\":0.8928208015906339},\"referenceCeiling\":{\"family\":\"model_swap_validation\",\"multiplier\":1,\"baseMultiplier\":1,\"baseSource\":\"default\",\"referenceCount\":64,\"verifiedCuratedReferences\":0},\"selection\":{\"status\":\"selected\",\"shortlistedCandidateIds\":[\"example-candidate/small\"],\"confirmedCandidateId\":\"example-candidate/small\",\"selectedCandidateId\":\"example-candidate/small\",\"selectionAdjustedEstimate\":{\"point\":1,\"lower\":0.8928208015906339,\"upper\":1,\"confidence\":0.95,\"comparisons\":1,\"evaluatorKind\":\"judge\",\"method\":\"wilson\"},\"holdoutRequired\":false},\"gates\":[{\"id\":\"zero-unsafe-substitutions\",\"pass\":true,\"reason\":\"No unsafe substitutions were observed.\"},{\"id\":\"quality\",\"pass\":true,\"reason\":\"Every worst-case-imputed evaluator lower bound meets the 0.85 quality floor.\"},{\"id\":\"evidence-coverage\",\"pass\":true,\"reason\":\"All 32 execution(s) have evidence coverage.\"},{\"id\":\"required-abstention\",\"pass\":true,\"reason\":\"All 0 required abstention(s) were satisfied.\"},{\"id\":\"availability\",\"pass\":true,\"reason\":\"Every availability lower bound meets the 0.7 floor.\"}],\"decisionDisplay\":\"recommend\",\"effectiveRecommendation\":true,\"confirmation\":{\"status\":\"not_required\",\"runSetsUsed\":0,\"culprits\":[],\"cascadeSeedStepId\":null}}],\"reportPath\":\"/state/store/project/reports/report.md\",\"recommendationExists\":true}\n",
+    "stderr": "{\"event\":\"warning\",\"code\":\"release_window_skipped\",\"message\":\"The provider catalog gives its priced models fewer than two distinct release dates, so the default release window (models released on or after 2026-07-31) was not applied and candidates are ranked by price. Pass --catalog-reference with a model list that publishes release dates to apply it.\"}\n",
+    "report": {
+      "verdicts": [
+        {
+          "assessmentAbsent": 0,
+          "assessmentAbsentReasons": [],
+          "availability": {
+            "availableExecutions": 32,
+            "executions": 32,
+            "lowerBound": 0.8928208015906339,
+            "naiveInterval": {
+              "lower": 0.8928208015906339,
+              "point": 1,
+              "upper": 1
+            },
+            "rate": 1
+          },
+          "candidateCostUsd": 0,
+          "candidateFamily": "example-candidate",
+          "candidateId": "example-candidate/small",
+          "caseIds": [
+            "005f46631319cd30f52c4f1b635a0523f22101e8eb8071e375a4545a6d432ee4",
+            "09a090d265942ead85d3b77e4295e74e2eff30b3b7ac12d4235f719d218805d8",
+            "0d0b63809593ad5792cc70373795229f32bee547851ccd14d62018fb09aed43b",
+            "0ef10ecaaa64a5009ceca81460df9a73b3779a2cc77122addf3e02870d5a4bdb",
+            "10ae1683ce421593ed4b7b6c56bc6e4dda211575d281ba08dfb7a7edef4741f1",
+            "13021ddab536996d00a823aa4cd67a2f658222c32188181e447dc5c1f0068a67",
+            "2f83ebb3450fbca1ef4506e5a216a199ba615ea83647820eba22d6e2a17f09c2",
+            "37eced2f2be2396e135a8d4d26a10d5e243654d47e3947e1f60b493b8486406d",
+            "3a1df0960f0eb06f86c75e2995d8299c3e81140a2489fa25b30b99a1ae09a71f",
+            "3adaeb623c2d1260dfe13ec7c8b382381e94399de5ba4875cb0e2f49cef92d4b",
+            "3bd90efc41c6d2f5ea4d4a5ac15d9e331ead31288956a3f4a7071a1feae0c1a1",
+            "3c7e02629d8dc045c95d9184dcfd3096941d2676ed08f5a730b7ada212d350fb",
+            "3de17b5c52da0761ed50d5679dacf68d4b08d0e298e1ad22a6ad7e217a80333e",
+            "4ae881c7676f108bbbe1c82e69ac62b1fe10dba90208f975f8e5f7ac4956088f",
+            "5e19e2029af7992a922615b976a840a8e11a45c3f2f2a92da1d127b5cfe43337",
+            "750e001c0e6e200d8294ad94298b30aa668bf770c2a109b795f2b30e93a7344c",
+            "82c0bd424acbab0d902b64b0a94e321ebb3ef219301cd3dcabb90ac3eb124758",
+            "9cb84a5998b697df74ad544cec5d8d195f0f5b47d795cf2f5dc970b31e72f057",
+            "a5928e21a686687e315ed7dc1beb1bedae97234ac0c5d1059231da7a034a6e05",
+            "b2c371e18f89f217af5bc484b283f79171259be17fcc3e7ab565d237d5afb8dd",
+            "bcf765f351537c24f423e47a9a16b1a332cbb05888581a376f7cf372320cabb3",
+            "bf33d0834e0a5af088cbbe65c56432df23fc5bbd9fc702655a90689cc1144f47",
+            "c703a3c4385fc6e5f64e0cc33fef2e08df67585d9dc4a2133e922b63a96f7271",
+            "c74ef63968c3fc9e6b86c872e1e9c2605e6c8931f6db6285bc811deca12cf4ac",
+            "c863d2fe1aacfa4046c8bd9f2435685445fe0cf3084441f7a3ad9c7c3f5c0bad",
+            "d2928327776c9d634ea7cea929e05b8a6cae7be9fe8e9c66a65f418d18fc4289",
+            "d55a40868382ab90ea4d092dd1832bc17c7faaea7e22ed178be759f4dbad8ad6",
+            "dc35b3ab91d2ca8456929f15d90b5092c062c233240ce724003b23c2991f4214",
+            "e4d13a05cd649b15dea9c238e9123f76c99bf61f23952e3c4133860951c5dc79",
+            "e91e729f4ba4e0d1c3dcef6b2c3ebfd35fb52965d6effde2b261f0bd9f193904",
+            "ec367759a4108abb643a21962c19a8c4ee9fc038eea5e3c4bccdccce86c92683",
+            "f54c29380acf688084de6d35fb073e67df761b2c10f00396c99549f06b1da08c"
+          ],
+          "corpusSplit": "holdout",
+          "coveredEvidenceCases": 32,
+          "decision": "recommend",
+          "evaluatorKinds": [
+            {
+              "assessmentAbsent": 0,
+              "assessmentAbsentReasons": [],
+              "averageScore": 1,
+              "conditionalExecutions": 32,
+              "evaluatorKind": "judge",
+              "excludedExecutions": 0,
+              "excludedFraction": 0,
+              "nDistinctSteps": 1,
+              "nTrajectories": 32,
+              "naiveInterval": {
+                "lower": 0.8928208015906339,
+                "point": 1,
+                "upper": 1
+              },
+              "orderConsistencyRate": 1,
+              "passRate": 1,
+              "passes": 32,
+              "trajectoryClusters": [
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-01",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-03",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-04",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-05",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-06",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-11",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-14",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-15",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-20",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-21",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-22",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-25",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-27",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-31",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-33",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-34",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-35",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-36",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-40",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-42",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-43",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-45",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-46",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-48",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-52",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-54",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-57",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-58",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-60",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-62",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-63",
+                  "trials": 1
+                },
+                {
+                  "passes": 1,
+                  "trajectoryId": "case-64",
+                  "trials": 1
+                }
+              ],
+              "trials": 32,
+              "worstCaseBound": 0.8928208015906339,
+              "worstCasePassRate": 1
+            }
+          ],
+          "evidenceQuestionId": "4defe657a6cd2f64f784015b724997079f19cf5fbc598e4d7cf424da72f6c528",
+          "excludedExecutions": 0,
+          "excludedFraction": 0,
+          "familyId": "model_swap_validation",
+          "gatePolicyVersion": "phase-a-v3-e8116997225d",
+          "nDistinctSteps": 1,
+          "nExecutions": 32,
+          "nReviewTrials": 32,
+          "nTrajectories": 32,
+          "naiveInterval": {
+            "lower": 0.8928208015906339,
+            "point": 1,
+            "upper": 1
+          },
+          "referenceCeilingMultiplier": 1,
+          "requiredAbstentions": 0,
+          "satisfiedRequiredAbstentions": 0,
+          "unsafeSubstitutions": 0,
+          "weakestEvaluatorKind": "judge",
+          "worstCaseBound": 0.8928208015906339
+        }
+      ],
+      "families": [
+        {
+          "familyId": "model_swap_validation",
+          "verdict": {
+            "assessmentAbsent": 0,
+            "assessmentAbsentReasons": [],
+            "availability": {
+              "availableExecutions": 32,
+              "executions": 32,
+              "lowerBound": 0.8928208015906339,
+              "naiveInterval": {
+                "lower": 0.8928208015906339,
+                "point": 1,
+                "upper": 1
+              },
+              "rate": 1
+            },
+            "candidateCostUsd": 0,
+            "candidateFamily": "example-candidate",
+            "candidateId": "example-candidate/small",
+            "caseIds": [
+              "005f46631319cd30f52c4f1b635a0523f22101e8eb8071e375a4545a6d432ee4",
+              "09a090d265942ead85d3b77e4295e74e2eff30b3b7ac12d4235f719d218805d8",
+              "0d0b63809593ad5792cc70373795229f32bee547851ccd14d62018fb09aed43b",
+              "0ef10ecaaa64a5009ceca81460df9a73b3779a2cc77122addf3e02870d5a4bdb",
+              "10ae1683ce421593ed4b7b6c56bc6e4dda211575d281ba08dfb7a7edef4741f1",
+              "13021ddab536996d00a823aa4cd67a2f658222c32188181e447dc5c1f0068a67",
+              "2f83ebb3450fbca1ef4506e5a216a199ba615ea83647820eba22d6e2a17f09c2",
+              "37eced2f2be2396e135a8d4d26a10d5e243654d47e3947e1f60b493b8486406d",
+              "3a1df0960f0eb06f86c75e2995d8299c3e81140a2489fa25b30b99a1ae09a71f",
+              "3adaeb623c2d1260dfe13ec7c8b382381e94399de5ba4875cb0e2f49cef92d4b",
+              "3bd90efc41c6d2f5ea4d4a5ac15d9e331ead31288956a3f4a7071a1feae0c1a1",
+              "3c7e02629d8dc045c95d9184dcfd3096941d2676ed08f5a730b7ada212d350fb",
+              "3de17b5c52da0761ed50d5679dacf68d4b08d0e298e1ad22a6ad7e217a80333e",
+              "4ae881c7676f108bbbe1c82e69ac62b1fe10dba90208f975f8e5f7ac4956088f",
+              "5e19e2029af7992a922615b976a840a8e11a45c3f2f2a92da1d127b5cfe43337",
+              "750e001c0e6e200d8294ad94298b30aa668bf770c2a109b795f2b30e93a7344c",
+              "82c0bd424acbab0d902b64b0a94e321ebb3ef219301cd3dcabb90ac3eb124758",
+              "9cb84a5998b697df74ad544cec5d8d195f0f5b47d795cf2f5dc970b31e72f057",
+              "a5928e21a686687e315ed7dc1beb1bedae97234ac0c5d1059231da7a034a6e05",
+              "b2c371e18f89f217af5bc484b283f79171259be17fcc3e7ab565d237d5afb8dd",
+              "bcf765f351537c24f423e47a9a16b1a332cbb05888581a376f7cf372320cabb3",
+              "bf33d0834e0a5af088cbbe65c56432df23fc5bbd9fc702655a90689cc1144f47",
+              "c703a3c4385fc6e5f64e0cc33fef2e08df67585d9dc4a2133e922b63a96f7271",
+              "c74ef63968c3fc9e6b86c872e1e9c2605e6c8931f6db6285bc811deca12cf4ac",
+              "c863d2fe1aacfa4046c8bd9f2435685445fe0cf3084441f7a3ad9c7c3f5c0bad",
+              "d2928327776c9d634ea7cea929e05b8a6cae7be9fe8e9c66a65f418d18fc4289",
+              "d55a40868382ab90ea4d092dd1832bc17c7faaea7e22ed178be759f4dbad8ad6",
+              "dc35b3ab91d2ca8456929f15d90b5092c062c233240ce724003b23c2991f4214",
+              "e4d13a05cd649b15dea9c238e9123f76c99bf61f23952e3c4133860951c5dc79",
+              "e91e729f4ba4e0d1c3dcef6b2c3ebfd35fb52965d6effde2b261f0bd9f193904",
+              "ec367759a4108abb643a21962c19a8c4ee9fc038eea5e3c4bccdccce86c92683",
+              "f54c29380acf688084de6d35fb073e67df761b2c10f00396c99549f06b1da08c"
+            ],
+            "corpusSplit": "holdout",
+            "coveredEvidenceCases": 32,
+            "decision": "recommend",
+            "evaluatorKinds": [
+              {
+                "assessmentAbsent": 0,
+                "assessmentAbsentReasons": [],
+                "averageScore": 1,
+                "conditionalExecutions": 32,
+                "evaluatorKind": "judge",
+                "excludedExecutions": 0,
+                "excludedFraction": 0,
+                "nDistinctSteps": 1,
+                "nTrajectories": 32,
+                "naiveInterval": {
+                  "lower": 0.8928208015906339,
+                  "point": 1,
+                  "upper": 1
+                },
+                "orderConsistencyRate": 1,
+                "passRate": 1,
+                "passes": 32,
+                "trajectoryClusters": [
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-01",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-03",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-04",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-05",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-06",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-11",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-14",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-15",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-20",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-21",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-22",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-25",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-27",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-31",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-33",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-34",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-35",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-36",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-40",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-42",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-43",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-45",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-46",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-48",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-52",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-54",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-57",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-58",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-60",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-62",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-63",
+                    "trials": 1
+                  },
+                  {
+                    "passes": 1,
+                    "trajectoryId": "case-64",
+                    "trials": 1
+                  }
+                ],
+                "trials": 32,
+                "worstCaseBound": 0.8928208015906339,
+                "worstCasePassRate": 1
+              }
+            ],
+            "evidenceQuestionId": "4defe657a6cd2f64f784015b724997079f19cf5fbc598e4d7cf424da72f6c528",
+            "excludedExecutions": 0,
+            "excludedFraction": 0,
+            "familyId": "model_swap_validation",
+            "gatePolicyVersion": "phase-a-v3-e8116997225d",
+            "nDistinctSteps": 1,
+            "nExecutions": 32,
+            "nReviewTrials": 32,
+            "nTrajectories": 32,
+            "naiveInterval": {
+              "lower": 0.8928208015906339,
+              "point": 1,
+              "upper": 1
+            },
+            "referenceCeilingMultiplier": 1,
+            "requiredAbstentions": 0,
+            "satisfiedRequiredAbstentions": 0,
+            "unsafeSubstitutions": 0,
+            "weakestEvaluatorKind": "judge",
+            "worstCaseBound": 0.8928208015906339
+          },
+          "referenceCeiling": {
+            "family": "model_swap_validation",
+            "multiplier": 1,
+            "baseMultiplier": 1,
+            "baseSource": "default",
+            "referenceCount": 64,
+            "verifiedCuratedReferences": 0
+          },
+          "selection": {
+            "status": "selected",
+            "shortlistedCandidateIds": [
+              "example-candidate/small"
+            ],
+            "confirmedCandidateId": "example-candidate/small",
+            "selectedCandidateId": "example-candidate/small",
+            "selectionAdjustedEstimate": {
+              "point": 1,
+              "lower": 0.8928208015906339,
+              "upper": 1,
+              "confidence": 0.95,
+              "comparisons": 1,
+              "evaluatorKind": "judge",
+              "method": "wilson"
+            },
+            "holdoutRequired": false
+          },
+          "gates": [
+            {
+              "id": "zero-unsafe-substitutions",
+              "pass": true,
+              "reason": "No unsafe substitutions were observed."
+            },
+            {
+              "id": "quality",
+              "pass": true,
+              "reason": "Every worst-case-imputed evaluator lower bound meets the 0.85 quality floor."
+            },
+            {
+              "id": "evidence-coverage",
+              "pass": true,
+              "reason": "All 32 execution(s) have evidence coverage."
+            },
+            {
+              "id": "required-abstention",
+              "pass": true,
+              "reason": "All 0 required abstention(s) were satisfied."
+            },
+            {
+              "id": "availability",
+              "pass": true,
+              "reason": "Every availability lower bound meets the 0.7 floor."
+            }
+          ],
+          "decisionDisplay": "recommend",
+          "effectiveRecommendation": true,
+          "confirmation": {
+            "status": "not_required",
+            "runSetsUsed": 0,
+            "culprits": [],
+            "cascadeSeedStepId": null
+          }
+        }
+      ],
+      "referenceCeilings": [
+        {
+          "family": "model_swap_validation",
+          "multiplier": 1,
+          "baseMultiplier": 1,
+          "baseSource": "default",
+          "referenceCount": 64,
+          "verifiedCuratedReferences": 0
+        }
+      ],
+      "judgeDisagreement": {
+        "disagreements": 0,
+        "assessments": 64,
+        "rate": 0
+      },
+      "spend": {
+        "events": 192,
+        "totalCostUsd": 0.9856,
+        "byActor": {
+          "judge": {
+            "events": 128,
+            "costUsd": 0.9856
+          },
+          "replay-driver": {
+            "events": 64,
+            "costUsd": 0
+          }
+        }
+      },
+      "stratumWeights": {
+        "basis": "corpus_only",
+        "weights": [
+          {
+            "family": "model_swap_validation",
+            "corpusShare": 1,
+            "trafficShare": 1
+          }
+        ]
+      },
+      "caps": [
+        {
+          "name": "top-N shortlist",
+          "value": 1
+        },
+        {
+          "name": "audit sample size",
+          "value": 20
+        },
+        {
+          "name": "replay sample size",
+          "family": "model_swap_validation",
+          "value": 64
+        },
+        {
+          "name": "droppedByTop",
+          "stepId": "98706e96b589f8fd46bba02cbaef25eef17a719ea5a73209665f3e1d82ea2b41",
+          "value": 0
+        },
+        {
+          "name": "droppedFreeModels",
+          "stepId": "98706e96b589f8fd46bba02cbaef25eef17a719ea5a73209665f3e1d82ea2b41",
+          "value": 0
+        }
+      ],
+      "candidateErrors": [],
+      "receipts": [
+        {
+          "familyId": "model_swap_validation",
+          "winnerCostPerCaseUsd": 0,
+          "incumbentCostPerCaseUsd": 0.00044,
+          "costDeltaPct": -100,
+          "winnerLatencyP50Ms": 3
+        }
+      ],
+      "blockedFamilies": [],
+      "apply": [],
+      "reportPath": "/state/store/project/reports/report.md"
+    },
+    "egress": "tcpdump: verbose output suppressed, use -v[v]... for full protocol decode\nlistening on nflog:1, link-type NFLOG (Linux netfilter log messages), snapshot length 262144 bytes\n1793237010.414451 IP 172.18.0.3.50222 > 172.18.0.2.8080: Flags [S], seq 1887498129, win 64240, options [mss 1460,sackOK,TS val 1315626640 ecr 0,nop,wscale 7], length 0\n964 packets captured\n964 packets received by filter\n0 packets dropped by kernel\n",
+    "forbidden_destinations": [],
+    "timed_out": false,
+    "egress_sha256": "ebbab3aa5147ed299ec38bac87bdcc1ee1f72c3cb288c2daa4326dd673136930",
+    "egress_capture_is_excerpt": true,
+    "observed_destinations": [
+      "172.18.0.2.8080"
+    ]
+  },
+  "result": {
+    "correlation_id": "d4169e8b-8b57-4621-9a94-b28a16962ab6",
+    "status": "completed",
+    "failure_reason": null,
+    "tool_commit": "a1fed146ed738fd50be224716ad6139e35d6d173",
+    "image_digest": "sha256:9b86ff4a48f7568fd830fda6344e33103d812904cdfc0ac33c67fdf091a3954c",
+    "decision": "recommend",
+    "reported_decision": "recommend",
+    "recommendation_effective": true,
+    "recommended_model": "example-candidate/small",
+    "lower_bound": 0.8928208015906339,
+    "quality_floor": 0.85,
+    "gates": [
+      {
+        "id": "zero-unsafe-substitutions",
+        "pass": true,
+        "reason": "No unsafe substitutions were observed."
+      },
+      {
+        "id": "quality",
+        "pass": true,
+        "reason": "Every worst-case-imputed evaluator lower bound meets the 0.85 quality floor."
+      },
+      {
+        "id": "evidence-coverage",
+        "pass": true,
+        "reason": "All 32 execution(s) have evidence coverage."
+      },
+      {
+        "id": "required-abstention",
+        "pass": true,
+        "reason": "All 0 required abstention(s) were satisfied."
+      },
+      {
+        "id": "availability",
+        "pass": true,
+        "reason": "Every availability lower bound meets the 0.7 floor."
+      }
+    ],
+    "per_case": [
+      {
+        "case_id": "case-01",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-02",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-03",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-04",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-05",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-06",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-07",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-08",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-09",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-10",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-11",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-12",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-13",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-14",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-15",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-16",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-17",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-18",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-19",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-20",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-21",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-22",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-23",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-24",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-25",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-26",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-27",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-28",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-29",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-30",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-31",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-32",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-33",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-34",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-35",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-36",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-37",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-38",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-39",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-40",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-41",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-42",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-43",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-44",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-45",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-46",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-47",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-48",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-49",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-50",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-51",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-52",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-53",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-54",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-55",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-56",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-57",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-58",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-59",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-60",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-61",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-62",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-63",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      },
+      {
+        "case_id": "case-64",
+        "verdict_reference_first": "equivalent",
+        "verdict_candidate_first": "equivalent",
+        "score": 1.0
+      }
+    ],
+    "judge_model": "example-judge/neutral",
+    "judge_mode": "stub",
+    "gateway_calls": [
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "candidate",
+        "model_id": "example-candidate/small",
+        "tokens_in": 20,
+        "tokens_out": 8,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      },
+      {
+        "role": "judge",
+        "model_id": "example-judge/neutral",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cost_usd": 0.0,
+        "cost_measurement_source": "estimated_list_price"
+      }
+    ],
+    "provider_reported_cost_usd": 0.0,
+    "estimated_cost_usd": 0.0,
+    "tool_estimated_cost_usd": 0.9856,
+    "tool_cost_measurement_source": "estimated_list_price",
+    "exit_code": 1,
+    "tool_error_code": null,
+    "evidence_only": true
+  },
+  "capture_note": "Filesystem paths and run token are replaced. Packet trace retains one example per observed destination, exact capture statistics, and full original trace SHA256. Full typed result and CLI outputs retained.",
+  "capture_health_recheck": {
+    "complete_under_final_monitor_policy": true,
+    "kernel_dropped_packets": 0,
+    "full_trace_sha256": "ebbab3aa5147ed299ec38bac87bdcc1ee1f72c3cb288c2daa4326dd673136930"
+  }
+}

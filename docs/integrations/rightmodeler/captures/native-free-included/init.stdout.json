@@ -1,0 +1,194 @@
+{
+  "stages": [
+    {
+      "stage": "scan",
+      "state": "complete"
+    },
+    {
+      "stage": "ingest",
+      "state": "complete"
+    },
+    {
+      "stage": "reconcile",
+      "state": "complete"
+    },
+    {
+      "stage": "scrub",
+      "state": "complete"
+    },
+    {
+      "stage": "corpus",
+      "state": "complete"
+    },
+    {
+      "stage": "audit-sample",
+      "state": "complete"
+    },
+    {
+      "stage": "shortlist",
+      "state": "complete"
+    },
+    {
+      "stage": "replay",
+      "state": "complete"
+    },
+    {
+      "stage": "aggregate",
+      "state": "complete"
+    },
+    {
+      "stage": "confirm",
+      "state": "complete"
+    },
+    {
+      "stage": "report",
+      "state": "complete"
+    }
+  ],
+  "executedStages": [
+    "scan",
+    "ingest",
+    "reconcile",
+    "scrub",
+    "corpus",
+    "audit-sample",
+    "shortlist",
+    "replay",
+    "aggregate",
+    "confirm",
+    "report"
+  ],
+  "verdicts": [
+    {
+      "evidenceQuestionId": "4aace0bcfcfa1b1ec5bf6f2d9ad09d4ef5a1a9d02d5601c75b83f08bd17e67b5",
+      "corpusSplit": "shortlist",
+      "familyId": "model_swap_validation",
+      "candidateId": "unavailable",
+      "candidateFamily": "unknown",
+      "caseIds": [],
+      "candidateCostUsd": 0,
+      "gatePolicyVersion": "phase-a-v3-e8116997225d",
+      "referenceCeilingMultiplier": 1,
+      "evaluatorKinds": [],
+      "weakestEvaluatorKind": "none",
+      "nExecutions": 0,
+      "nReviewTrials": 0,
+      "nTrajectories": 0,
+      "nDistinctSteps": 0,
+      "excludedExecutions": 0,
+      "excludedFraction": 0,
+      "assessmentAbsent": 0,
+      "assessmentAbsentReasons": [],
+      "worstCaseBound": 0,
+      "availability": {
+        "availableExecutions": 0,
+        "executions": 0,
+        "rate": 0,
+        "lowerBound": 0
+      },
+      "unsafeSubstitutions": 0,
+      "coveredEvidenceCases": 0,
+      "requiredAbstentions": 0,
+      "satisfiedRequiredAbstentions": 0,
+      "decision": "abstain",
+      "abstainReason": {
+        "reason": "holdout_below_floor_minimum",
+        "observed": 6,
+        "required": 22
+      }
+    }
+  ],
+  "familyOutcomes": [
+    {
+      "familyId": "model_swap_validation",
+      "verdict": {
+        "abstainReason": {
+          "observed": 6,
+          "reason": "holdout_below_floor_minimum",
+          "required": 22
+        },
+        "assessmentAbsent": 0,
+        "assessmentAbsentReasons": [],
+        "availability": {
+          "availableExecutions": 0,
+          "executions": 0,
+          "lowerBound": 0,
+          "rate": 0
+        },
+        "candidateCostUsd": 0,
+        "candidateFamily": "unknown",
+        "candidateId": "unavailable",
+        "caseIds": [],
+        "corpusSplit": "shortlist",
+        "coveredEvidenceCases": 0,
+        "decision": "abstain",
+        "evaluatorKinds": [],
+        "evidenceQuestionId": "4aace0bcfcfa1b1ec5bf6f2d9ad09d4ef5a1a9d02d5601c75b83f08bd17e67b5",
+        "excludedExecutions": 0,
+        "excludedFraction": 0,
+        "familyId": "model_swap_validation",
+        "gatePolicyVersion": "phase-a-v3-e8116997225d",
+        "nDistinctSteps": 0,
+        "nExecutions": 0,
+        "nReviewTrials": 0,
+        "nTrajectories": 0,
+        "referenceCeilingMultiplier": 1,
+        "requiredAbstentions": 0,
+        "satisfiedRequiredAbstentions": 0,
+        "unsafeSubstitutions": 0,
+        "weakestEvaluatorKind": "none",
+        "worstCaseBound": 0
+      },
+      "referenceCeiling": {
+        "family": "model_swap_validation",
+        "multiplier": 1,
+        "baseMultiplier": 1,
+        "baseSource": "default",
+        "referenceCount": 0,
+        "verifiedCuratedReferences": 0
+      },
+      "selection": {
+        "status": "no_shortlist_passer",
+        "shortlistedCandidateIds": [],
+        "holdoutRequired": false
+      },
+      "gates": [
+        {
+          "id": "zero-unsafe-substitutions",
+          "pass": true,
+          "reason": "No unsafe substitutions were observed."
+        },
+        {
+          "id": "quality",
+          "pass": false,
+          "reason": "1 verdict(s) have no evaluator evidence for the quality gate."
+        },
+        {
+          "id": "evidence-coverage",
+          "pass": false,
+          "reason": "No executions were available for the evidence-coverage gate."
+        },
+        {
+          "id": "required-abstention",
+          "pass": true,
+          "reason": "All 0 required abstention(s) were satisfied."
+        },
+        {
+          "id": "availability",
+          "pass": false,
+          "reason": "1 verdict(s) miss the 0.7 availability floor."
+        }
+      ],
+      "decisionDisplay": "abstain",
+      "effectiveRecommendation": false,
+      "confirmation": {
+        "status": "not_required",
+        "runSetsUsed": 0,
+        "culprits": [],
+        "cascadeSeedStepId": null
+      }
+    }
+  ],
+  "reportPath": "<scratch>/native-free-included/store/project/reports/report.md",
+  "recommendationExists": false
+}

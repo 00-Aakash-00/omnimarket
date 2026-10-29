@@ -1,0 +1,669 @@
+{
+  "verdicts": [
+    {
+      "assessmentAbsent": 0,
+      "assessmentAbsentReasons": [],
+      "availability": {
+        "availableExecutions": 32,
+        "executions": 32,
+        "lowerBound": 0.8928208015906339,
+        "naiveInterval": {
+          "lower": 0.8928208015906339,
+          "point": 1,
+          "upper": 1
+        },
+        "rate": 1
+      },
+      "candidateCostUsd": 1.5e-06,
+      "candidateFamily": "example-candidate",
+      "candidateId": "example-candidate/small",
+      "caseIds": [
+        "005f46631319cd30f52c4f1b635a0523f22101e8eb8071e375a4545a6d432ee4",
+        "09a090d265942ead85d3b77e4295e74e2eff30b3b7ac12d4235f719d218805d8",
+        "0d0b63809593ad5792cc70373795229f32bee547851ccd14d62018fb09aed43b",
+        "0ef10ecaaa64a5009ceca81460df9a73b3779a2cc77122addf3e02870d5a4bdb",
+        "10ae1683ce421593ed4b7b6c56bc6e4dda211575d281ba08dfb7a7edef4741f1",
+        "13021ddab536996d00a823aa4cd67a2f658222c32188181e447dc5c1f0068a67",
+        "2f83ebb3450fbca1ef4506e5a216a199ba615ea83647820eba22d6e2a17f09c2",
+        "37eced2f2be2396e135a8d4d26a10d5e243654d47e3947e1f60b493b8486406d",
+        "3a1df0960f0eb06f86c75e2995d8299c3e81140a2489fa25b30b99a1ae09a71f",
+        "3adaeb623c2d1260dfe13ec7c8b382381e94399de5ba4875cb0e2f49cef92d4b",
+        "3bd90efc41c6d2f5ea4d4a5ac15d9e331ead31288956a3f4a7071a1feae0c1a1",
+        "3c7e02629d8dc045c95d9184dcfd3096941d2676ed08f5a730b7ada212d350fb",
+        "3de17b5c52da0761ed50d5679dacf68d4b08d0e298e1ad22a6ad7e217a80333e",
+        "4ae881c7676f108bbbe1c82e69ac62b1fe10dba90208f975f8e5f7ac4956088f",
+        "5e19e2029af7992a922615b976a840a8e11a45c3f2f2a92da1d127b5cfe43337",
+        "750e001c0e6e200d8294ad94298b30aa668bf770c2a109b795f2b30e93a7344c",
+        "82c0bd424acbab0d902b64b0a94e321ebb3ef219301cd3dcabb90ac3eb124758",
+        "9cb84a5998b697df74ad544cec5d8d195f0f5b47d795cf2f5dc970b31e72f057",
+        "a5928e21a686687e315ed7dc1beb1bedae97234ac0c5d1059231da7a034a6e05",
+        "b2c371e18f89f217af5bc484b283f79171259be17fcc3e7ab565d237d5afb8dd",
+        "bcf765f351537c24f423e47a9a16b1a332cbb05888581a376f7cf372320cabb3",
+        "bf33d0834e0a5af088cbbe65c56432df23fc5bbd9fc702655a90689cc1144f47",
+        "c703a3c4385fc6e5f64e0cc33fef2e08df67585d9dc4a2133e922b63a96f7271",
+        "c74ef63968c3fc9e6b86c872e1e9c2605e6c8931f6db6285bc811deca12cf4ac",
+        "c863d2fe1aacfa4046c8bd9f2435685445fe0cf3084441f7a3ad9c7c3f5c0bad",
+        "d2928327776c9d634ea7cea929e05b8a6cae7be9fe8e9c66a65f418d18fc4289",
+        "d55a40868382ab90ea4d092dd1832bc17c7faaea7e22ed178be759f4dbad8ad6",
+        "dc35b3ab91d2ca8456929f15d90b5092c062c233240ce724003b23c2991f4214",
+        "e4d13a05cd649b15dea9c238e9123f76c99bf61f23952e3c4133860951c5dc79",
+        "e91e729f4ba4e0d1c3dcef6b2c3ebfd35fb52965d6effde2b261f0bd9f193904",
+        "ec367759a4108abb643a21962c19a8c4ee9fc038eea5e3c4bccdccce86c92683",
+        "f54c29380acf688084de6d35fb073e67df761b2c10f00396c99549f06b1da08c"
+      ],
+      "corpusSplit": "holdout",
+      "coveredEvidenceCases": 32,
+      "decision": "recommend",
+      "evaluatorKinds": [
+        {
+          "assessmentAbsent": 0,
+          "assessmentAbsentReasons": [],
+          "averageScore": 1,
+          "conditionalExecutions": 32,
+          "evaluatorKind": "judge",
+          "excludedExecutions": 0,
+          "excludedFraction": 0,
+          "nDistinctSteps": 1,
+          "nTrajectories": 32,
+          "naiveInterval": {
+            "lower": 0.8928208015906339,
+            "point": 1,
+            "upper": 1
+          },
+          "orderConsistencyRate": 1,
+          "passRate": 1,
+          "passes": 32,
+          "trajectoryClusters": [
+            {
+              "passes": 1,
+              "trajectoryId": "case-01",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-03",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-04",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-05",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-06",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-11",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-14",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-15",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-20",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-21",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-22",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-25",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-27",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-31",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-33",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-34",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-35",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-36",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-40",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-42",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-43",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-45",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-46",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-48",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-52",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-54",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-57",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-58",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-60",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-62",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-63",
+              "trials": 1
+            },
+            {
+              "passes": 1,
+              "trajectoryId": "case-64",
+              "trials": 1
+            }
+          ],
+          "trials": 32,
+          "worstCaseBound": 0.8928208015906339,
+          "worstCasePassRate": 1
+        }
+      ],
+      "evidenceQuestionId": "3b79cfd0b0994f9389682da53d8e72a92cfb2f40119e492364ae37df7f2fef0e",
+      "excludedExecutions": 0,
+      "excludedFraction": 0,
+      "familyId": "model_swap_validation",
+      "gatePolicyVersion": "phase-a-v3-e8116997225d",
+      "nDistinctSteps": 1,
+      "nExecutions": 32,
+      "nReviewTrials": 32,
+      "nTrajectories": 32,
+      "naiveInterval": {
+        "lower": 0.8928208015906339,
+        "point": 1,
+        "upper": 1
+      },
+      "referenceCeilingMultiplier": 1,
+      "requiredAbstentions": 0,
+      "satisfiedRequiredAbstentions": 0,
+      "unsafeSubstitutions": 0,
+      "weakestEvaluatorKind": "judge",
+      "worstCaseBound": 0.8928208015906339
+    }
+  ],
+  "families": [
+    {
+      "familyId": "model_swap_validation",
+      "verdict": {
+        "assessmentAbsent": 0,
+        "assessmentAbsentReasons": [],
+        "availability": {
+          "availableExecutions": 32,
+          "executions": 32,
+          "lowerBound": 0.8928208015906339,
+          "naiveInterval": {
+            "lower": 0.8928208015906339,
+            "point": 1,
+            "upper": 1
+          },
+          "rate": 1
+        },
+        "candidateCostUsd": 1.5e-06,
+        "candidateFamily": "example-candidate",
+        "candidateId": "example-candidate/small",
+        "caseIds": [
+          "005f46631319cd30f52c4f1b635a0523f22101e8eb8071e375a4545a6d432ee4",
+          "09a090d265942ead85d3b77e4295e74e2eff30b3b7ac12d4235f719d218805d8",
+          "0d0b63809593ad5792cc70373795229f32bee547851ccd14d62018fb09aed43b",
+          "0ef10ecaaa64a5009ceca81460df9a73b3779a2cc77122addf3e02870d5a4bdb",
+          "10ae1683ce421593ed4b7b6c56bc6e4dda211575d281ba08dfb7a7edef4741f1",
+          "13021ddab536996d00a823aa4cd67a2f658222c32188181e447dc5c1f0068a67",
+          "2f83ebb3450fbca1ef4506e5a216a199ba615ea83647820eba22d6e2a17f09c2",
+          "37eced2f2be2396e135a8d4d26a10d5e243654d47e3947e1f60b493b8486406d",
+          "3a1df0960f0eb06f86c75e2995d8299c3e81140a2489fa25b30b99a1ae09a71f",
+          "3adaeb623c2d1260dfe13ec7c8b382381e94399de5ba4875cb0e2f49cef92d4b",
+          "3bd90efc41c6d2f5ea4d4a5ac15d9e331ead31288956a3f4a7071a1feae0c1a1",
+          "3c7e02629d8dc045c95d9184dcfd3096941d2676ed08f5a730b7ada212d350fb",
+          "3de17b5c52da0761ed50d5679dacf68d4b08d0e298e1ad22a6ad7e217a80333e",
+          "4ae881c7676f108bbbe1c82e69ac62b1fe10dba90208f975f8e5f7ac4956088f",
+          "5e19e2029af7992a922615b976a840a8e11a45c3f2f2a92da1d127b5cfe43337",
+          "750e001c0e6e200d8294ad94298b30aa668bf770c2a109b795f2b30e93a7344c",
+          "82c0bd424acbab0d902b64b0a94e321ebb3ef219301cd3dcabb90ac3eb124758",
+          "9cb84a5998b697df74ad544cec5d8d195f0f5b47d795cf2f5dc970b31e72f057",
+          "a5928e21a686687e315ed7dc1beb1bedae97234ac0c5d1059231da7a034a6e05",
+          "b2c371e18f89f217af5bc484b283f79171259be17fcc3e7ab565d237d5afb8dd",
+          "bcf765f351537c24f423e47a9a16b1a332cbb05888581a376f7cf372320cabb3",
+          "bf33d0834e0a5af088cbbe65c56432df23fc5bbd9fc702655a90689cc1144f47",
+          "c703a3c4385fc6e5f64e0cc33fef2e08df67585d9dc4a2133e922b63a96f7271",
+          "c74ef63968c3fc9e6b86c872e1e9c2605e6c8931f6db6285bc811deca12cf4ac",
+          "c863d2fe1aacfa4046c8bd9f2435685445fe0cf3084441f7a3ad9c7c3f5c0bad",
+          "d2928327776c9d634ea7cea929e05b8a6cae7be9fe8e9c66a65f418d18fc4289",
+          "d55a40868382ab90ea4d092dd1832bc17c7faaea7e22ed178be759f4dbad8ad6",
+          "dc35b3ab91d2ca8456929f15d90b5092c062c233240ce724003b23c2991f4214",
+          "e4d13a05cd649b15dea9c238e9123f76c99bf61f23952e3c4133860951c5dc79",
+          "e91e729f4ba4e0d1c3dcef6b2c3ebfd35fb52965d6effde2b261f0bd9f193904",
+          "ec367759a4108abb643a21962c19a8c4ee9fc038eea5e3c4bccdccce86c92683",
+          "f54c29380acf688084de6d35fb073e67df761b2c10f00396c99549f06b1da08c"
+        ],
+        "corpusSplit": "holdout",
+        "coveredEvidenceCases": 32,
+        "decision": "recommend",
+        "evaluatorKinds": [
+          {
+            "assessmentAbsent": 0,
+            "assessmentAbsentReasons": [],
+            "averageScore": 1,
+            "conditionalExecutions": 32,
+            "evaluatorKind": "judge",
+            "excludedExecutions": 0,
+            "excludedFraction": 0,
+            "nDistinctSteps": 1,
+            "nTrajectories": 32,
+            "naiveInterval": {
+              "lower": 0.8928208015906339,
+              "point": 1,
+              "upper": 1
+            },
+            "orderConsistencyRate": 1,
+            "passRate": 1,
+            "passes": 32,
+            "trajectoryClusters": [
+              {
+                "passes": 1,
+                "trajectoryId": "case-01",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-03",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-04",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-05",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-06",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-11",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-14",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-15",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-20",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-21",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-22",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-25",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-27",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-31",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-33",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-34",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-35",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-36",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-40",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-42",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-43",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-45",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-46",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-48",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-52",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-54",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-57",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-58",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-60",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-62",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-63",
+                "trials": 1
+              },
+              {
+                "passes": 1,
+                "trajectoryId": "case-64",
+                "trials": 1
+              }
+            ],
+            "trials": 32,
+            "worstCaseBound": 0.8928208015906339,
+            "worstCasePassRate": 1
+          }
+        ],
+        "evidenceQuestionId": "3b79cfd0b0994f9389682da53d8e72a92cfb2f40119e492364ae37df7f2fef0e",
+        "excludedExecutions": 0,
+        "excludedFraction": 0,
+        "familyId": "model_swap_validation",
+        "gatePolicyVersion": "phase-a-v3-e8116997225d",
+        "nDistinctSteps": 1,
+        "nExecutions": 32,
+        "nReviewTrials": 32,
+        "nTrajectories": 32,
+        "naiveInterval": {
+          "lower": 0.8928208015906339,
+          "point": 1,
+          "upper": 1
+        },
+        "referenceCeilingMultiplier": 1,
+        "requiredAbstentions": 0,
+        "satisfiedRequiredAbstentions": 0,
+        "unsafeSubstitutions": 0,
+        "weakestEvaluatorKind": "judge",
+        "worstCaseBound": 0.8928208015906339
+      },
+      "referenceCeiling": {
+        "family": "model_swap_validation",
+        "multiplier": 1,
+        "baseMultiplier": 1,
+        "baseSource": "default",
+        "referenceCount": 64,
+        "verifiedCuratedReferences": 0
+      },
+      "selection": {
+        "status": "selected",
+        "shortlistedCandidateIds": [
+          "example-candidate/small"
+        ],
+        "confirmedCandidateId": "example-candidate/small",
+        "selectedCandidateId": "example-candidate/small",
+        "selectionAdjustedEstimate": {
+          "point": 1,
+          "lower": 0.8928208015906339,
+          "upper": 1,
+          "confidence": 0.95,
+          "comparisons": 1,
+          "evaluatorKind": "judge",
+          "method": "wilson"
+        },
+        "holdoutRequired": false
+      },
+      "gates": [
+        {
+          "id": "zero-unsafe-substitutions",
+          "pass": true,
+          "reason": "No unsafe substitutions were observed."
+        },
+        {
+          "id": "quality",
+          "pass": true,
+          "reason": "Every worst-case-imputed evaluator lower bound meets the 0.85 quality floor."
+        },
+        {
+          "id": "evidence-coverage",
+          "pass": true,
+          "reason": "All 32 execution(s) have evidence coverage."
+        },
+        {
+          "id": "required-abstention",
+          "pass": true,
+          "reason": "All 0 required abstention(s) were satisfied."
+        },
+        {
+          "id": "availability",
+          "pass": true,
+          "reason": "Every availability lower bound meets the 0.7 floor."
+        }
+      ],
+      "decisionDisplay": "recommend",
+      "effectiveRecommendation": true,
+      "confirmation": {
+        "status": "not_required",
+        "runSetsUsed": 0,
+        "culprits": [],
+        "cascadeSeedStepId": null
+      }
+    }
+  ],
+  "referenceCeilings": [
+    {
+      "family": "model_swap_validation",
+      "multiplier": 1,
+      "baseMultiplier": 1,
+      "baseSource": "default",
+      "referenceCount": 64,
+      "verifiedCuratedReferences": 0
+    }
+  ],
+  "judgeDisagreement": {
+    "disagreements": 0,
+    "assessments": 64,
+    "rate": 0
+  },
+  "spend": {
+    "events": 192,
+    "totalCostUsd": 0.412416,
+    "byActor": {
+      "replay-driver": {
+        "events": 64,
+        "costUsd": 0.002816
+      },
+      "judge": {
+        "events": 128,
+        "costUsd": 0.4096
+      }
+    }
+  },
+  "stratumWeights": {
+    "basis": "corpus_only",
+    "weights": [
+      {
+        "family": "model_swap_validation",
+        "corpusShare": 1,
+        "trafficShare": 1
+      }
+    ]
+  },
+  "caps": [
+    {
+      "name": "top-N shortlist",
+      "value": 1
+    },
+    {
+      "name": "audit sample size",
+      "value": 20
+    },
+    {
+      "name": "replay sample size",
+      "family": "model_swap_validation",
+      "value": 64
+    },
+    {
+      "name": "droppedByTop",
+      "stepId": "65878c050acc04df247875e0cf0537bc0f477d06094d055033b19e87f09967f9",
+      "value": 0
+    },
+    {
+      "name": "droppedFreeModels",
+      "stepId": "65878c050acc04df247875e0cf0537bc0f477d06094d055033b19e87f09967f9",
+      "value": 0
+    }
+  ],
+  "candidateErrors": [],
+  "receipts": [
+    {
+      "familyId": "model_swap_validation",
+      "winnerCostPerCaseUsd": 4.4e-05,
+      "incumbentCostPerCaseUsd": 0.00044,
+      "costDeltaPct": -90,
+      "winnerLatencyP50Ms": 1
+    }
+  ],
+  "blockedFamilies": [],
+  "apply": [],
+  "reportPath": "<scratch>/native-64-priced/store/project/reports/report.md"
+}

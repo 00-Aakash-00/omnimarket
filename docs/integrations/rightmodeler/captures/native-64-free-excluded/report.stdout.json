@@ -1,0 +1,210 @@
+{
+  "verdicts": [
+    {
+      "abstainReason": {
+        "observed": 0,
+        "reason": "selection_missing_shortlist_verdicts",
+        "required": 1
+      },
+      "assessmentAbsent": 0,
+      "assessmentAbsentReasons": [],
+      "availability": {
+        "availableExecutions": 0,
+        "executions": 0,
+        "lowerBound": 0,
+        "rate": 0
+      },
+      "candidateCostUsd": 0,
+      "candidateFamily": "unknown",
+      "candidateId": "unavailable",
+      "caseIds": [],
+      "corpusSplit": "shortlist",
+      "coveredEvidenceCases": 0,
+      "decision": "abstain",
+      "evaluatorKinds": [],
+      "evidenceQuestionId": "3b79cfd0b0994f9389682da53d8e72a92cfb2f40119e492364ae37df7f2fef0e",
+      "excludedExecutions": 0,
+      "excludedFraction": 0,
+      "familyId": "model_swap_validation",
+      "gatePolicyVersion": "phase-a-v3-e8116997225d",
+      "nDistinctSteps": 0,
+      "nExecutions": 0,
+      "nReviewTrials": 0,
+      "nTrajectories": 0,
+      "referenceCeilingMultiplier": 1,
+      "requiredAbstentions": 0,
+      "satisfiedRequiredAbstentions": 0,
+      "unsafeSubstitutions": 0,
+      "weakestEvaluatorKind": "none",
+      "worstCaseBound": 0
+    }
+  ],
+  "families": [
+    {
+      "familyId": "model_swap_validation",
+      "verdict": {
+        "abstainReason": {
+          "observed": 0,
+          "reason": "selection_missing_shortlist_verdicts",
+          "required": 1
+        },
+        "assessmentAbsent": 0,
+        "assessmentAbsentReasons": [],
+        "availability": {
+          "availableExecutions": 0,
+          "executions": 0,
+          "lowerBound": 0,
+          "rate": 0
+        },
+        "candidateCostUsd": 0,
+        "candidateFamily": "unknown",
+        "candidateId": "unavailable",
+        "caseIds": [],
+        "corpusSplit": "shortlist",
+        "coveredEvidenceCases": 0,
+        "decision": "abstain",
+        "evaluatorKinds": [],
+        "evidenceQuestionId": "3b79cfd0b0994f9389682da53d8e72a92cfb2f40119e492364ae37df7f2fef0e",
+        "excludedExecutions": 0,
+        "excludedFraction": 0,
+        "familyId": "model_swap_validation",
+        "gatePolicyVersion": "phase-a-v3-e8116997225d",
+        "nDistinctSteps": 0,
+        "nExecutions": 0,
+        "nReviewTrials": 0,
+        "nTrajectories": 0,
+        "referenceCeilingMultiplier": 1,
+        "requiredAbstentions": 0,
+        "satisfiedRequiredAbstentions": 0,
+        "unsafeSubstitutions": 0,
+        "weakestEvaluatorKind": "none",
+        "worstCaseBound": 0
+      },
+      "referenceCeiling": {
+        "family": "model_swap_validation",
+        "multiplier": 1,
+        "baseMultiplier": 1,
+        "baseSource": "default",
+        "referenceCount": 64,
+        "verifiedCuratedReferences": 0
+      },
+      "selection": {
+        "status": "no_shortlist_passer",
+        "shortlistedCandidateIds": [],
+        "holdoutRequired": false
+      },
+      "gates": [
+        {
+          "id": "zero-unsafe-substitutions",
+          "pass": true,
+          "reason": "No unsafe substitutions were observed."
+        },
+        {
+          "id": "quality",
+          "pass": false,
+          "reason": "1 verdict(s) have no evaluator evidence for the quality gate."
+        },
+        {
+          "id": "evidence-coverage",
+          "pass": false,
+          "reason": "No executions were available for the evidence-coverage gate."
+        },
+        {
+          "id": "required-abstention",
+          "pass": true,
+          "reason": "All 0 required abstention(s) were satisfied."
+        },
+        {
+          "id": "availability",
+          "pass": false,
+          "reason": "1 verdict(s) miss the 0.7 availability floor."
+        }
+      ],
+      "decisionDisplay": "abstain",
+      "effectiveRecommendation": false,
+      "confirmation": {
+        "status": "not_required",
+        "runSetsUsed": 0,
+        "culprits": [],
+        "cascadeSeedStepId": null
+      }
+    }
+  ],
+  "referenceCeilings": [
+    {
+      "family": "model_swap_validation",
+      "multiplier": 1,
+      "baseMultiplier": 1,
+      "baseSource": "default",
+      "referenceCount": 64,
+      "verifiedCuratedReferences": 0
+    }
+  ],
+  "judgeDisagreement": {
+    "disagreements": 0,
+    "assessments": 0,
+    "rate": 0
+  },
+  "spend": {
+    "events": 0,
+    "totalCostUsd": 0,
+    "byActor": {}
+  },
+  "stratumWeights": {
+    "basis": "corpus_only",
+    "weights": [
+      {
+        "family": "model_swap_validation",
+        "corpusShare": 1,
+        "trafficShare": 1
+      }
+    ]
+  },
+  "caps": [
+    {
+      "name": "top-N shortlist",
+      "value": 1
+    },
+    {
+      "name": "audit sample size",
+      "value": 20
+    },
+    {
+      "name": "replay sample size",
+      "family": "model_swap_validation",
+      "value": 64
+    },
+    {
+      "name": "droppedByTop",
+      "stepId": "65878c050acc04df247875e0cf0537bc0f477d06094d055033b19e87f09967f9",
+      "value": 0
+    },
+    {
+      "name": "droppedFreeModels",
+      "stepId": "65878c050acc04df247875e0cf0537bc0f477d06094d055033b19e87f09967f9",
+      "value": 1
+    }
+  ],
+  "candidateErrors": [],
+  "receipts": [
+    {
+      "familyId": "model_swap_validation",
+      "winnerCostPerCaseUsd": null,
+      "incumbentCostPerCaseUsd": null,
+      "costDeltaPct": null,
+      "winnerLatencyP50Ms": null
+    }
+  ],
+  "blockedFamilies": [
+    {
+      "familyId": "model_swap_validation",
+      "diagnosis": {
+        "issueClass": "insufficient-evidence",
+        "nextAction": "collect-evidence",
+        "triggerCaseIds": []
+      }
+    }
+  ],
+  "apply": [],
+  "reportPath": "<scratch>/native-64-free-excluded/store/project/reports/report.md"
+}

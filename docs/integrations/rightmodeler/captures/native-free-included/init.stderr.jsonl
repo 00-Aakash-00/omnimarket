@@ -1,0 +1,1 @@
+{"event": "warning", "code": "release_window_skipped", "message": "The provider catalog gives its priced models fewer than two distinct release dates, so the default release window (models released on or after 2026-07-31) was not applied and candidates are ranked by price. Pass --catalog-reference with a model list that publishes release dates to apply it."}

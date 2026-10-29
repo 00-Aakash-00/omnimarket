@@ -1,0 +1,377 @@
+{
+  "tool_commit": "a1fed146ed738fd50be224716ad6139e35d6d173",
+  "image_digest": "sha256:9b86ff4a48f7568fd830fda6344e33103d812904cdfc0ac33c67fdf091a3954c",
+  "monitor_image": "nicolaka/netshoot@sha256:47b907d662d139d1e2f22bfe14f4efca1e3f1feed283572f47c970c780c03b61",
+  "runtime": "actual Docker sandbox; recorded answers and explicit stub judge; no upstream model provider",
+  "request": {
+    "correlation_id": "a8bd0698-c5a7-447a-a236-6c5e469aca1d",
+    "task_type": "model_swap_validation",
+    "reference_model": "example-reference/large",
+    "candidate_model": "example-candidate/small",
+    "judge_mode": "stub",
+    "judge_backend_id": null,
+    "answer_source": "recorded",
+    "replay_set_digest": "67394b963089cc1450293b61bd3489585927e9504bc196a190e226a20f8389a8",
+    "quality_floor": 0.85,
+    "max_cost_usd": 10.0,
+    "work_unit_repository": "synthetic/integration-proof"
+  },
+  "argv": [
+    [
+      "exec",
+      "rmv-a8bd0698c5a7447aa2366c5e469aca1d",
+      "/usr/bin/env",
+      "-i",
+      "PATH=/usr/local/bin:/usr/bin:/bin",
+      "HOME=/state/home",
+      "RM_RUN_TOKEN=<run-token>",
+      "node",
+      "/opt/rightmodeler/cli.js",
+      "init",
+      "--through",
+      "report",
+      "--yes",
+      "--output",
+      "json",
+      "--repo",
+      "/synthetic",
+      "--store",
+      "/state/store",
+      "--traces",
+      "/replay/traces.jsonl",
+      "--policy",
+      "/replay/policy.json",
+      "--base-url",
+      "http://172.18.0.2:8080/v1",
+      "--api-key-env",
+      "RM_RUN_TOKEN",
+      "--max-cost-usd",
+      "10.0",
+      "--include-free"
+    ],
+    [
+      "exec",
+      "rmv-a8bd0698c5a7447aa2366c5e469aca1d",
+      "/usr/bin/env",
+      "-i",
+      "PATH=/usr/local/bin:/usr/bin:/bin",
+      "HOME=/state/home",
+      "RM_RUN_TOKEN=<run-token>",
+      "node",
+      "/opt/rightmodeler/cli.js",
+      "report",
+      "--repo",
+      "/synthetic",
+      "--store",
+      "/state/store",
+      "--output",
+      "json"
+    ]
+  ],
+  "environment": {
+    "keys": [
+      "HOME",
+      "PATH",
+      "RM_RUN_TOKEN"
+    ],
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "HOME": "/state/home",
+    "uid": 1000,
+    "platform": "linux",
+    "arch": "arm64"
+  },
+  "isolation": {
+    "ReadonlyRootfs": true,
+    "CapDrop": [
+      "ALL"
+    ],
+    "SecurityOpt": [
+      "no-new-privileges"
+    ],
+    "PidsLimit": 128,
+    "Memory": 805306368,
+    "NanoCpus": 1000000000,
+    "NetworkMode": "container:e2d0e8fd4e6c0b9d3f69245bfdbf3ed8fa0eabdf46a06b218a1af29634becd8b",
+    "Tmpfs": {
+      "/state": "rw,nosuid,nodev,mode=1777,size=256m",
+      "/tmp": "rw,nosuid,nodev,mode=1777,size=32m"
+    }
+  },
+  "mounts": [
+    {
+      "Type": "bind",
+      "Source": "<scratch>/sandbox-proof/adapter-state/model-swap-8ssy1zxo/replay",
+      "Destination": "/replay",
+      "Mode": "",
+      "RW": false,
+      "Propagation": "rprivate"
+    },
+    {
+      "Type": "bind",
+      "Source": "<scratch>/sandbox-proof/adapter-state/model-swap-8ssy1zxo/synthetic",
+      "Destination": "/synthetic",
+      "Mode": "",
+      "RW": false,
+      "Propagation": "rprivate"
+    }
+  ],
+  "network_configuration": "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000\n    inet 127.0.0.1/8 scope host lo\n       valid_lft forever preferred_lft forever\n2: eth0@if107: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default  link-netnsid 0\n    inet 172.18.0.3/16 brd 172.18.255.255 scope global eth0\n       valid_lft forever preferred_lft forever\ndefault via 172.18.0.2 dev eth0 \n172.18.0.0/16 dev eth0 proto kernel scope link src 172.18.0.3 \n1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 state UNKNOWN qlen 1000\n    inet6 ::1/128 scope host proto kernel_lo \n       valid_lft forever preferred_lft forever\n2: eth0@if107: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP \n    inet6 2001:db8::2/128 scope global nodad \n       valid_lft forever preferred_lft forever\n    inet6 fda8:bd06:98c5::3/64 scope global nodad \n       valid_lft forever preferred_lft forever\n    inet6 fe80::800:b1ff:fea3:eb6a/64 scope link tentative proto kernel_ll \n       valid_lft forever preferred_lft forever\n2001:db8::2 dev eth0 proto kernel metric 256 pref medium\nfda8:bd06:98c5::/64 dev eth0 proto kernel metric 256 pref medium\nfe80::/64 dev eth0 proto kernel metric 256 pref medium\ndefault dev eth0 metric 1024 pref medium\n",
+  "forbidden_probe": {
+    "destinations": [
+      "203.0.113.1:443",
+      "[2001:db8:ffff::7]:443"
+    ],
+    "stdout": "",
+    "stderr": "",
+    "exit_code": 0
+  },
+  "firewall_counters": "Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)\n pkts bytes target     prot opt in     out     source               destination         \n    1    60 NFLOG      all  --  *      *       0.0.0.0/0            0.0.0.0/0            owner UID match 1000 nflog-group 1\n    0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            172.18.0.2           tcp dpt:8080\n    2   148 REJECT     all  --  *      *       0.0.0.0/0            0.0.0.0/0            reject-with icmp-port-unreachable\nChain OUTPUT (policy ACCEPT 0 packets, 0 bytes)\n pkts bytes target     prot opt in     out     source               destination         \n    1    80 NFLOG      all  --  *      *       ::/0                 ::/0                 owner UID match 1000 nflog-group 1\n    8   756 REJECT     all  --  *      *       ::/0                 ::/0                 reject-with icmp6-port-unreachable\n",
+  "tool_run": {
+    "exit_code": 0,
+    "stdout": "{\"stages\":[{\"stage\":\"scan\",\"state\":\"complete\"},{\"stage\":\"ingest\",\"state\":\"complete\"},{\"stage\":\"reconcile\",\"state\":\"complete\"},{\"stage\":\"scrub\",\"state\":\"complete\"},{\"stage\":\"corpus\",\"state\":\"complete\"},{\"stage\":\"audit-sample\",\"state\":\"complete\"},{\"stage\":\"shortlist\",\"state\":\"complete\"},{\"stage\":\"replay\",\"state\":\"complete\"},{\"stage\":\"aggregate\",\"state\":\"complete\"},{\"stage\":\"confirm\",\"state\":\"complete\"},{\"stage\":\"report\",\"state\":\"complete\"}],\"executedStages\":[\"scan\",\"ingest\",\"reconcile\",\"scrub\",\"corpus\",\"audit-sample\",\"shortlist\",\"replay\",\"aggregate\",\"confirm\",\"report\"],\"verdicts\":[{\"evidenceQuestionId\":\"4aace0bcfcfa1b1ec5bf6f2d9ad09d4ef5a1a9d02d5601c75b83f08bd17e67b5\",\"corpusSplit\":\"shortlist\",\"familyId\":\"model_swap_validation\",\"candidateId\":\"unavailable\",\"candidateFamily\":\"unknown\",\"caseIds\":[],\"candidateCostUsd\":0,\"gatePolicyVersion\":\"phase-a-v3-e8116997225d\",\"referenceCeilingMultiplier\":1,\"evaluatorKinds\":[],\"weakestEvaluatorKind\":\"none\",\"nExecutions\":0,\"nReviewTrials\":0,\"nTrajectories\":0,\"nDistinctSteps\":0,\"excludedExecutions\":0,\"excludedFraction\":0,\"assessmentAbsent\":0,\"assessmentAbsentReasons\":[],\"worstCaseBound\":0,\"availability\":{\"availableExecutions\":0,\"executions\":0,\"rate\":0,\"lowerBound\":0},\"unsafeSubstitutions\":0,\"coveredEvidenceCases\":0,\"requiredAbstentions\":0,\"satisfiedRequiredAbstentions\":0,\"decision\":\"abstain\",\"abstainReason\":{\"reason\":\"holdout_below_floor_minimum\",\"observed\":6,\"required\":22}}],\"familyOutcomes\":[{\"familyId\":\"model_swap_validation\",\"verdict\":{\"abstainReason\":{\"observed\":6,\"reason\":\"holdout_below_floor_minimum\",\"required\":22},\"assessmentAbsent\":0,\"assessmentAbsentReasons\":[],\"availability\":{\"availableExecutions\":0,\"executions\":0,\"lowerBound\":0,\"rate\":0},\"candidateCostUsd\":0,\"candidateFamily\":\"unknown\",\"candidateId\":\"unavailable\",\"caseIds\":[],\"corpusSplit\":\"shortlist\",\"coveredEvidenceCases\":0,\"decision\":\"abstain\",\"evaluatorKinds\":[],\"evidenceQuestionId\":\"4aace0bcfcfa1b1ec5bf6f2d9ad09d4ef5a1a9d02d5601c75b83f08bd17e67b5\",\"excludedExecutions\":0,\"excludedFraction\":0,\"familyId\":\"model_swap_validation\",\"gatePolicyVersion\":\"phase-a-v3-e8116997225d\",\"nDistinctSteps\":0,\"nExecutions\":0,\"nReviewTrials\":0,\"nTrajectories\":0,\"referenceCeilingMultiplier\":1,\"requiredAbstentions\":0,\"satisfiedRequiredAbstentions\":0,\"unsafeSubstitutions\":0,\"weakestEvaluatorKind\":\"none\",\"worstCaseBound\":0},\"referenceCeiling\":{\"family\":\"model_swap_validation\",\"multiplier\":1,\"baseMultiplier\":1,\"baseSource\":\"default\",\"referenceCount\":0,\"verifiedCuratedReferences\":0},\"selection\":{\"status\":\"no_shortlist_passer\",\"shortlistedCandidateIds\":[],\"holdoutRequired\":false},\"gates\":[{\"id\":\"zero-unsafe-substitutions\",\"pass\":true,\"reason\":\"No unsafe substitutions were observed.\"},{\"id\":\"quality\",\"pass\":false,\"reason\":\"1 verdict(s) have no evaluator evidence for the quality gate.\"},{\"id\":\"evidence-coverage\",\"pass\":false,\"reason\":\"No executions were available for the evidence-coverage gate.\"},{\"id\":\"required-abstention\",\"pass\":true,\"reason\":\"All 0 required abstention(s) were satisfied.\"},{\"id\":\"availability\",\"pass\":false,\"reason\":\"1 verdict(s) miss the 0.7 availability floor.\"}],\"decisionDisplay\":\"abstain\",\"effectiveRecommendation\":false,\"confirmation\":{\"status\":\"not_required\",\"runSetsUsed\":0,\"culprits\":[],\"cascadeSeedStepId\":null}}],\"reportPath\":\"/state/store/project/reports/report.md\",\"recommendationExists\":false}\n",
+    "stderr": "{\"event\":\"warning\",\"code\":\"release_window_skipped\",\"message\":\"The provider catalog gives its priced models fewer than two distinct release dates, so the default release window (models released on or after 2026-07-31) was not applied and candidates are ranked by price. Pass --catalog-reference with a model list that publishes release dates to apply it.\"}\n",
+    "report": {
+      "verdicts": [
+        {
+          "abstainReason": {
+            "observed": 6,
+            "reason": "holdout_below_floor_minimum",
+            "required": 22
+          },
+          "assessmentAbsent": 0,
+          "assessmentAbsentReasons": [],
+          "availability": {
+            "availableExecutions": 0,
+            "executions": 0,
+            "lowerBound": 0,
+            "rate": 0
+          },
+          "candidateCostUsd": 0,
+          "candidateFamily": "unknown",
+          "candidateId": "unavailable",
+          "caseIds": [],
+          "corpusSplit": "shortlist",
+          "coveredEvidenceCases": 0,
+          "decision": "abstain",
+          "evaluatorKinds": [],
+          "evidenceQuestionId": "4aace0bcfcfa1b1ec5bf6f2d9ad09d4ef5a1a9d02d5601c75b83f08bd17e67b5",
+          "excludedExecutions": 0,
+          "excludedFraction": 0,
+          "familyId": "model_swap_validation",
+          "gatePolicyVersion": "phase-a-v3-e8116997225d",
+          "nDistinctSteps": 0,
+          "nExecutions": 0,
+          "nReviewTrials": 0,
+          "nTrajectories": 0,
+          "referenceCeilingMultiplier": 1,
+          "requiredAbstentions": 0,
+          "satisfiedRequiredAbstentions": 0,
+          "unsafeSubstitutions": 0,
+          "weakestEvaluatorKind": "none",
+          "worstCaseBound": 0
+        }
+      ],
+      "families": [
+        {
+          "familyId": "model_swap_validation",
+          "verdict": {
+            "abstainReason": {
+              "observed": 6,
+              "reason": "holdout_below_floor_minimum",
+              "required": 22
+            },
+            "assessmentAbsent": 0,
+            "assessmentAbsentReasons": [],
+            "availability": {
+              "availableExecutions": 0,
+              "executions": 0,
+              "lowerBound": 0,
+              "rate": 0
+            },
+            "candidateCostUsd": 0,
+            "candidateFamily": "unknown",
+            "candidateId": "unavailable",
+            "caseIds": [],
+            "corpusSplit": "shortlist",
+            "coveredEvidenceCases": 0,
+            "decision": "abstain",
+            "evaluatorKinds": [],
+            "evidenceQuestionId": "4aace0bcfcfa1b1ec5bf6f2d9ad09d4ef5a1a9d02d5601c75b83f08bd17e67b5",
+            "excludedExecutions": 0,
+            "excludedFraction": 0,
+            "familyId": "model_swap_validation",
+            "gatePolicyVersion": "phase-a-v3-e8116997225d",
+            "nDistinctSteps": 0,
+            "nExecutions": 0,
+            "nReviewTrials": 0,
+            "nTrajectories": 0,
+            "referenceCeilingMultiplier": 1,
+            "requiredAbstentions": 0,
+            "satisfiedRequiredAbstentions": 0,
+            "unsafeSubstitutions": 0,
+            "weakestEvaluatorKind": "none",
+            "worstCaseBound": 0
+          },
+          "referenceCeiling": {
+            "family": "model_swap_validation",
+            "multiplier": 1,
+            "baseMultiplier": 1,
+            "baseSource": "default",
+            "referenceCount": 0,
+            "verifiedCuratedReferences": 0
+          },
+          "selection": {
+            "status": "no_shortlist_passer",
+            "shortlistedCandidateIds": [],
+            "holdoutRequired": false
+          },
+          "gates": [
+            {
+              "id": "zero-unsafe-substitutions",
+              "pass": true,
+              "reason": "No unsafe substitutions were observed."
+            },
+            {
+              "id": "quality",
+              "pass": false,
+              "reason": "1 verdict(s) have no evaluator evidence for the quality gate."
+            },
+            {
+              "id": "evidence-coverage",
+              "pass": false,
+              "reason": "No executions were available for the evidence-coverage gate."
+            },
+            {
+              "id": "required-abstention",
+              "pass": true,
+              "reason": "All 0 required abstention(s) were satisfied."
+            },
+            {
+              "id": "availability",
+              "pass": false,
+              "reason": "1 verdict(s) miss the 0.7 availability floor."
+            }
+          ],
+          "decisionDisplay": "abstain",
+          "effectiveRecommendation": false,
+          "confirmation": {
+            "status": "not_required",
+            "runSetsUsed": 0,
+            "culprits": [],
+            "cascadeSeedStepId": null
+          }
+        }
+      ],
+      "referenceCeilings": [
+        {
+          "family": "model_swap_validation",
+          "multiplier": 1,
+          "baseMultiplier": 1,
+          "baseSource": "default",
+          "referenceCount": 0,
+          "verifiedCuratedReferences": 0
+        }
+      ],
+      "judgeDisagreement": {
+        "disagreements": 0,
+        "assessments": 0,
+        "rate": 0
+      },
+      "spend": {
+        "events": 0,
+        "totalCostUsd": 0,
+        "byActor": {}
+      },
+      "stratumWeights": {
+        "basis": "corpus_only",
+        "weights": [
+          {
+            "family": "model_swap_validation",
+            "corpusShare": 1,
+            "trafficShare": 1
+          }
+        ]
+      },
+      "caps": [
+        {
+          "name": "top-N shortlist",
+          "value": 1
+        },
+        {
+          "name": "audit sample size",
+          "value": 12
+        },
+        {
+          "name": "replay sample size",
+          "family": "model_swap_validation",
+          "value": 12
+        }
+      ],
+      "candidateErrors": [],
+      "receipts": [
+        {
+          "familyId": "model_swap_validation",
+          "winnerCostPerCaseUsd": null,
+          "incumbentCostPerCaseUsd": null,
+          "costDeltaPct": null,
+          "winnerLatencyP50Ms": null
+        }
+      ],
+      "blockedFamilies": [
+        {
+          "familyId": "model_swap_validation",
+          "diagnosis": {
+            "issueClass": "insufficient-evidence",
+            "nextAction": "collect-evidence",
+            "triggerCaseIds": []
+          }
+        }
+      ],
+      "apply": [],
+      "reportPath": "/state/store/project/reports/report.md"
+    },
+    "egress": "tcpdump: verbose output suppressed, use -v[v]... for full protocol decode\nlistening on nflog:1, link-type NFLOG (Linux netfilter log messages), snapshot length 262144 bytes\n1793237023.386555 IP 172.18.0.3.45332 > 203.0.113.1.443: Flags [S], seq 700427636, win 64240, options [mss 1460,sackOK,TS val 2704991084 ecr 0,nop,wscale 7], length 0\n1793237023.386670 IP6 2001:db8::2.57042 > 2001:db8:ffff::7.443: Flags [S], seq 2635822198, win 64800, options [mss 1440,sackOK,TS val 1701327832 ecr 0,nop,wscale 7], length 0\n2 packets captured\n2 packets received by filter\n0 packets dropped by kernel\n",
+    "forbidden_destinations": [
+      "2001:db8:ffff::7.443",
+      "203.0.113.1.443"
+    ],
+    "timed_out": false,
+    "egress_sha256": "adb708661e2eafc0d424ce7a6508b73c4496da32b0cd8ac53df7bdb8c91dc8e7",
+    "egress_capture_is_excerpt": true,
+    "observed_destinations": [
+      "2001:db8:ffff::7.443",
+      "203.0.113.1.443"
+    ]
+  },
+  "result": {
+    "correlation_id": "a8bd0698-c5a7-447a-a236-6c5e469aca1d",
+    "status": "failed",
+    "failure_reason": "egress_violation",
+    "tool_commit": "a1fed146ed738fd50be224716ad6139e35d6d173",
+    "image_digest": "sha256:9b86ff4a48f7568fd830fda6344e33103d812904cdfc0ac33c67fdf091a3954c",
+    "decision": null,
+    "reported_decision": null,
+    "recommendation_effective": null,
+    "recommended_model": null,
+    "lower_bound": null,
+    "quality_floor": 0.85,
+    "gates": [],
+    "per_case": [],
+    "judge_model": null,
+    "judge_mode": "stub",
+    "gateway_calls": [],
+    "provider_reported_cost_usd": 0.0,
+    "estimated_cost_usd": 0.0,
+    "tool_estimated_cost_usd": null,
+    "tool_cost_measurement_source": "estimated_list_price",
+    "exit_code": 0,
+    "tool_error_code": null,
+    "evidence_only": true
+  },
+  "capture_note": "Filesystem paths and run token are replaced. Packet trace retains one example per observed destination, exact capture statistics, and full original trace SHA256. Full typed result and CLI outputs retained.",
+  "capture_health_recheck": {
+    "complete_under_final_monitor_policy": true,
+    "kernel_dropped_packets": 0,
+    "full_trace_sha256": "adb708661e2eafc0d424ce7a6508b73c4496da32b0cd8ac53df7bdb8c91dc8e7"
+  }
+}

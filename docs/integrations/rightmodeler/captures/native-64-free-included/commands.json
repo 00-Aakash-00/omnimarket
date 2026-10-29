@@ -1,0 +1,54 @@
+[
+  {
+    "argv": [
+      "<node24-bin>/node",
+      "<scratch>/rightmodeler/harness/packages/rightmodeler/dist-bundle/cli.js",
+      "--repo",
+      "<scratch>/fixture",
+      "--store",
+      "<scratch>/native-64-free-included/store",
+      "--output",
+      "json",
+      "init",
+      "--through",
+      "report",
+      "--yes",
+      "--traces",
+      "<scratch>/traces-64.jsonl",
+      "--policy",
+      "<scratch>/policy.json",
+      "--base-url",
+      "http://127.0.0.1:58492/v1",
+      "--api-key-env",
+      "P0_GATEWAY_TOKEN",
+      "--max-cost-usd",
+      "1",
+      "--include-free"
+    ],
+    "env": {
+      "PATH": "<node24-bin>:/usr/bin:/bin",
+      "HOME": "<scratch>/home",
+      "P0_GATEWAY_TOKEN": "<synthetic token>"
+    },
+    "exit_code": 1
+  },
+  {
+    "argv": [
+      "<node24-bin>/node",
+      "<scratch>/rightmodeler/harness/packages/rightmodeler/dist-bundle/cli.js",
+      "--repo",
+      "<scratch>/fixture",
+      "--store",
+      "<scratch>/native-64-free-included/store",
+      "--output",
+      "json",
+      "report"
+    ],
+    "env": {
+      "PATH": "<node24-bin>:/usr/bin:/bin",
+      "HOME": "<scratch>/home",
+      "P0_GATEWAY_TOKEN": "<synthetic token>"
+    },
+    "exit_code": 1
+  }
+]
