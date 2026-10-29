@@ -313,6 +313,7 @@ Homepage = "https://github.com/OmniNode-ai/omnimarket"
 Repository = "https://github.com/OmniNode-ai/omnimarket"
 
 [project.entry-points."onex.nodes"]
+node_model_swap_validation_effect = "omnimarket.nodes.node_model_swap_validation_effect"
 node_model_work_contract_compute = "omnimarket.nodes.node_model_work_contract_compute"
 node_brief_prerequisites_compute = "omnimarket.nodes.node_brief_prerequisites_compute"
 node_codex_gitlink_compute = "omnimarket.nodes.node_codex_gitlink_compute"
