@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""Registered package -> contract -> routed handlers -> typed results (OMN-21433)."""
+"""Registered package -> contract -> routed handlers -> typed results (OMN-21493)."""
 
 from __future__ import annotations
 

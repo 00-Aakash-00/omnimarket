@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""Facts in and decision out of the release classifier (OMN-21433, T-R1).
+"""Facts in and decision out of the release classifier (OMN-21492, T-R1).
 
 Every login, branch, tag shape and identity arrives in ``policy`` (the private
 ``release_gate`` overlay); the node names none. The grant facts are T-R2's output.

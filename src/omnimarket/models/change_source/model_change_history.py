@@ -5,7 +5,7 @@
 A change source returns what happened, in order: who applied or removed which
 label, what kind of account did it, and when each head commit was pushed. A source
 that can only report the present labels has no history and cannot be used to read a
-grant (OMN-21433).
+grant (OMN-21493).
 """
 
 from __future__ import annotations

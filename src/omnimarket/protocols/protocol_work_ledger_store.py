@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 """LED: the work ledger a node appends its decision rows to.
 
-Only the append the release gate needs (OMN-21433). The remaining reads and the
+Only the append the release gate needs (OMN-21493). The remaining reads and the
 conformance suite are added by the ledger-store task (T-B3). A store raises when the
 row was not written; the caller never reports a decision it could not record as admitted.
 """

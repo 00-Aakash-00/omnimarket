@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""node_release_grant_read_effect: the release grant read and the release-gate check (OMN-21433)."""
+"""node_release_grant_read_effect: the release grant read and the release-gate check (OMN-21493)."""
 
 from __future__ import annotations
 

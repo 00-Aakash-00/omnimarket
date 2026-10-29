@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from datetime import UTC, datetime
@@ -23,6 +24,12 @@ from omnimarket.models.release_gate.model_release_grant_facts import (
     EnumGateBoundary,
     EnumGrantState,
     ModelReleaseGrantFacts,
+)
+from omnimarket.nodes.node_binding_parity_orchestrator.handlers.handler_run_local import (
+    run_local,
+)
+from omnimarket.nodes.node_binding_parity_orchestrator.models.model_run_local import (
+    ModelRunLocalConfig,
 )
 from omnimarket.nodes.node_release_action_classify_compute import (
     NodeReleaseActionClassifyCompute,
@@ -183,6 +190,176 @@ def test_each_release_kind_without_a_grant_is_refused_and_named(
 ) -> None:
     result = _classify(event=event, ref=ref)
     assert (result.kind, result.decision) == (kind, Decision.REFUSE)
+
+
+@pytest.mark.parametrize(
+    ("event", "ref", "kind"),
+    [
+        (Event.TAG_PUSH, "v1.2.3", Kind.VERSION_TAG),
+        (Event.PUBLISH_RUN, "", Kind.PACKAGE_PUBLISH),
+        (Event.RELEASE_EVENT, "", Kind.GITHUB_RELEASE),
+    ],
+)
+@pytest.mark.parametrize(
+    ("login", "role_login"),
+    [
+        ("fixture-collaborator", "fixture-collaborator"),
+        ("FIXTURE-COLLABORATOR", "fixture-collaborator"),
+        ("fixture-collaborator", "FIXTURE-COLLABORATOR"),
+    ],
+)
+def test_a_collaborator_role_person_can_cut_their_own_release(
+    event: Event, ref: str, kind: Kind, login: str, role_login: str
+) -> None:
+    policy = _policy(
+        grantor_roles=("operator", "cloud_owner", "collaborator"),
+        role_logins={**_policy().role_logins, "collaborator": (role_login,)},
+    )
+    result = _classify(
+        event=event,
+        ref=ref,
+        actor=_actor(login),
+        policy=policy,
+        pull_request=None,
+        grant=None,
+    )
+    assert (result.kind, result.decision, result.reason) == (
+        kind,
+        Decision.ADMIT,
+        "role_holder_release",
+    )
+
+
+@pytest.mark.parametrize(
+    ("event", "ref", "kind"),
+    [
+        (Event.TAG_PUSH, "v1.2.3", Kind.VERSION_TAG),
+        (Event.PUBLISH_RUN, "", Kind.PACKAGE_PUBLISH),
+        (Event.RELEASE_EVENT, "", Kind.GITHUB_RELEASE),
+    ],
+)
+def test_only_roles_in_the_overlays_grantor_roles_authorise_releases(
+    event: Event, ref: str, kind: Kind
+) -> None:
+    role_logins = {
+        **_policy().role_logins,
+        "collaborator": ("fixture-collaborator",),
+    }
+    facts: dict[str, Any] = {
+        "event": event,
+        "ref": ref,
+        "actor": _actor("fixture-collaborator"),
+        "pull_request": None,
+        "grant": None,
+    }
+    refused = _classify(**facts, policy=_policy(role_logins=role_logins))
+    assert (refused.kind, refused.decision) == (kind, Decision.REFUSE)
+    admitted = _classify(
+        **facts,
+        policy=_policy(
+            grantor_roles=("operator", "cloud_owner", "collaborator"),
+            role_logins=role_logins,
+        ),
+    )
+    assert (admitted.kind, admitted.decision, admitted.reason) == (
+        kind,
+        Decision.ADMIT,
+        "role_holder_release",
+    )
+
+
+@pytest.mark.parametrize(
+    ("event", "ref", "kind"),
+    [
+        (Event.TAG_PUSH, "v1.2.3", Kind.VERSION_TAG),
+        (Event.PUBLISH_RUN, "", Kind.PACKAGE_PUBLISH),
+        (Event.RELEASE_EVENT, "", Kind.GITHUB_RELEASE),
+    ],
+)
+@pytest.mark.parametrize(
+    ("actor", "agent_identities"),
+    [
+        (_actor("fixture-collaborator"), ("FIXTURE-COLLABORATOR",)),
+        (
+            _actor("fixture-collaborator", "FIXTURE-AGENT"),
+            ("fixture-agent",),
+        ),
+        (
+            _actor("fixture-collaborator", account_type=EnumAccountType.BOT),
+            (),
+        ),
+    ],
+)
+def test_a_role_holder_that_is_an_agent_or_bot_cannot_cut_releases(
+    event: Event,
+    ref: str,
+    kind: Kind,
+    actor: ModelReleaseActor,
+    agent_identities: tuple[str, ...],
+) -> None:
+    result = _classify(
+        event=event,
+        ref=ref,
+        actor=actor,
+        policy=_policy(
+            grantor_roles=("operator", "cloud_owner", "collaborator"),
+            role_logins={
+                **_policy().role_logins,
+                "collaborator": ("fixture-collaborator",),
+            },
+            agent_identities=agent_identities,
+        ),
+        pull_request=None,
+        grant=None,
+    )
+    assert (result.kind, result.decision) == (kind, Decision.REFUSE)
+
+
+def test_a_role_holders_release_pull_request_still_needs_a_grant() -> None:
+    result = _classify(
+        actor=_actor("fixture-collaborator"),
+        policy=_policy(
+            grantor_roles=("operator", "cloud_owner", "collaborator"),
+            role_logins={
+                **_policy().role_logins,
+                "collaborator": ("fixture-collaborator",),
+            },
+        ),
+        grant=_grant(EnumGrantState.NOT_GRANTED),
+    )
+    assert (result.kind, result.decision, result.reason) == (
+        Kind.RELEASE_PR,
+        Decision.REFUSE,
+        "release_pr_without_grant",
+    )
+
+
+@pytest.mark.parametrize(
+    ("event", "ref"),
+    [
+        (Event.TAG_PUSH, "v1.2.3"),
+        (Event.PUBLISH_RUN, ""),
+        (Event.RELEASE_EVENT, ""),
+    ],
+)
+def test_the_trains_non_pull_request_releases_still_pass(
+    event: Event, ref: str
+) -> None:
+    result = _classify(
+        event=event,
+        ref=ref,
+        actor=_actor("fixture-train", "fixture-train-run"),
+        policy=_policy(
+            role_logins={**_policy().role_logins, "operator": ("fixture-train",)}
+        ),
+        pull_request=None,
+        grant=None,
+    )
+    assert (result.kind, result.decision, result.reason) == (
+        Kind.TRAIN_RELEASE,
+        Decision.ADMIT,
+        "train_release",
+    )
 
 
 @pytest.mark.parametrize(
@@ -380,6 +557,50 @@ def test_results_are_byte_identical_in_process_through_the_node_and_json(
     assert node_result.model_dump_json().encode() == encoded
     restored = ModelReleaseActionRequest.model_validate_json(request.model_dump_json())
     assert handler.handle(restored).model_dump_json().encode() == encoded
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("login", "verdict"),
+    [
+        ("fixture-other", Decision.REFUSE),
+        ("fixture-collaborator", Decision.ADMIT),
+    ],
+)
+async def test_results_are_byte_identical_through_the_parity_harness_local_entry(
+    login: str, verdict: Decision
+) -> None:
+    request = _request(
+        event=Event.TAG_PUSH,
+        ref="v1.2.3",
+        actor=_actor(login),
+        policy=_policy(
+            grantor_roles=("operator", "cloud_owner", "collaborator"),
+            role_logins={
+                **_policy().role_logins,
+                "collaborator": ("fixture-collaborator",),
+            },
+        ),
+        pull_request=None,
+        grant=None,
+    )
+    contract = yaml.safe_load(
+        (NODE_DIR.parent / "node_binding_parity_orchestrator/contract.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    config = ModelRunLocalConfig.model_validate(contract["config"]["run_local"])
+    decision = HandlerReleaseActionClassify().handle(request)
+    returned = await run_local(
+        NODE_NAME,
+        "classify_release_action",
+        request.model_dump(mode="json"),
+        config,
+    )
+    assert json.dumps(decision.model_dump(mode="json"), sort_keys=True) == json.dumps(
+        returned, sort_keys=True
+    )
+    assert decision.decision is verdict
 
 
 def test_the_binding_table_checks_the_node_with_no_protocols() -> None:

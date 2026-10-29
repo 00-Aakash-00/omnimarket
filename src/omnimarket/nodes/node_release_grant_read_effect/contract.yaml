@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-# ONEX Node Contract - Release Grant Read Effect (OMN-21433, T-R2)
+# ONEX Node Contract - Release Grant Read Effect (OMN-21493, T-R2)
 #
 # Effect: reads the history of a change through the change source (CHG), decides whether the
 # grant label on it is a grant, and appends the decision as a ledger row (LED). A grant is a
@@ -106,5 +106,5 @@ externally_consumed_topics:
   - onex.evt.omnimarket.release-grant-read.v1
 
 metadata:
-  ticket: OMN-21433
+  ticket: OMN-21493
   transport_type: inmemory

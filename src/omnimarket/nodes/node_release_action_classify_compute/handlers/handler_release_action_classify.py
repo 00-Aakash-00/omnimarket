@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 
+from omnimarket.models.change_source.model_change_history import EnumAccountType
 from omnimarket.models.release_gate.model_release_gate_policy import (
     ModelReleaseActorShape,
     ModelReleaseGatePolicy,
@@ -26,6 +27,18 @@ def _is_agent(actor: ModelReleaseActor, policy: ModelReleaseGatePolicy) -> bool:
     identities = {identity.casefold() for identity in policy.agent_identities}
     return actor.login.casefold() in identities or (
         actor.run_identity is not None and actor.run_identity.casefold() in identities
+    )
+
+
+def _is_role_holder(actor: ModelReleaseActor, policy: ModelReleaseGatePolicy) -> bool:
+    return (
+        actor.account_type is EnumAccountType.USER
+        and not _is_agent(actor, policy)
+        and any(
+            actor.login.casefold() == login.casefold()
+            for role in policy.grantor_roles
+            for login in policy.role_logins[role]
+        )
     )
 
 
@@ -148,6 +161,12 @@ class HandlerReleaseActionClassify:
                         EnumReleaseDecision.ADMIT,
                         "train_release",
                     )
+                if _is_role_holder(request.actor, policy):
+                    return _decision(
+                        EnumReleaseKind.VERSION_TAG,
+                        EnumReleaseDecision.ADMIT,
+                        "role_holder_release",
+                    )
                 return _decision(
                     EnumReleaseKind.VERSION_TAG,
                     EnumReleaseDecision.REFUSE,
@@ -178,10 +197,22 @@ class HandlerReleaseActionClassify:
                     "train_release",
                 )
             if request.event is EnumReleaseEvent.PUBLISH_RUN:
+                if _is_role_holder(request.actor, policy):
+                    return _decision(
+                        EnumReleaseKind.PACKAGE_PUBLISH,
+                        EnumReleaseDecision.ADMIT,
+                        "role_holder_release",
+                    )
                 return _decision(
                     EnumReleaseKind.PACKAGE_PUBLISH,
                     EnumReleaseDecision.REFUSE,
                     "package_publish_not_train",
+                )
+            if _is_role_holder(request.actor, policy):
+                return _decision(
+                    EnumReleaseKind.GITHUB_RELEASE,
+                    EnumReleaseDecision.ADMIT,
+                    "role_holder_release",
                 )
             return _decision(
                 EnumReleaseKind.GITHUB_RELEASE,

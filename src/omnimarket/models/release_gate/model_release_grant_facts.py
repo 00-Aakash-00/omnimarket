@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""Grant facts and the authorization receipt of the release gate (OMN-21433)."""
+"""Grant facts and the authorization receipt of the release gate (OMN-21493)."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""The ``release_gate`` overlay as the nodes see it (OMN-21433).
+"""The ``release_gate`` overlay as the nodes see it (OMN-21492).
 
 Shape only. Every value (the grant label, the role lists, the agent identities, the
 train and tagger identities, the shapes that make an action a release) is the
