@@ -15,6 +15,7 @@ and a canary commit message (refused, bytes unchanged).
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
@@ -196,3 +197,56 @@ def test_trailer_check_passes_a_message_without_the_trailer(tmp_path: Path) -> N
         str(message),
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def _tree_digest(root: Path) -> dict[str, str]:
+    """Hash the canary tree, excluding git internals and generated hook config."""
+    return {
+        path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in root.rglob("*")
+        if path.is_file()
+        and ".git" not in path.relative_to(root).parts
+        and path.relative_to(root).as_posix() != "config.yaml"
+    }
+
+
+def test_canary_commit_is_refused_and_the_whole_tree_is_byte_identical(
+    tmp_path: Path,
+) -> None:
+    _git_repo(tmp_path)
+    source = tmp_path / "src" / "canary.py"
+    source.parent.mkdir()
+    source.write_bytes(CANARY_UNFORMATTED)
+    (tmp_path / "notes.txt").write_bytes(b"no final newline")
+    (tmp_path / "COMMIT_EDITMSG").write_bytes(CANARY_TRAILER)
+    before = _tree_digest(tmp_path)
+
+    hooks = _hooks()
+    ruff = shutil.which("ruff") or str(Path(sys.executable).with_name("ruff"))
+    for hook_id, subcommand in [("ruff-format", "format"), ("ruff", "check")]:
+        result = subprocess.run(
+            [
+                ruff,
+                subcommand,
+                *hooks[hook_id].get("args", []),
+                "--isolated",
+                str(source),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0, result.stdout + result.stderr
+
+    result = _run_hook(tmp_path, dict(hooks[EOF_CHECK_ID]), "--files", "notes.txt")
+    assert result.returncode != 0, result.stdout + result.stderr
+    result = _run_hook(
+        tmp_path,
+        dict(hooks[TRAILER_CHECK_ID]),
+        "--hook-stage",
+        "commit-msg",
+        "--commit-msg-filename",
+        "COMMIT_EDITMSG",
+    )
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert _tree_digest(tmp_path) == before

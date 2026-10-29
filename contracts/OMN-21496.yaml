@@ -61,6 +61,15 @@ dod_evidence:
   - check_type: test_passes
     check_value: uv run pytest tests/ci/test_check_only_hooks_omn21496.py -k "trailer or end_of_file" -q --no-cov --tb=line
     cwd: ${OMNI_HOME}/omnimarket
+- id: dod-omn21496-ac2-tree
+  description: AC2 builds a scratch git repo holding an unformatted file, a file without a final newline and a commit message with an AI co-author trailer, runs the committed ruff, end-of-file and trailer hooks on it, and checks each is refused and the sha256 of every file of the tree is the same before and after.
+  source: manual
+  binds_ac:
+  - AC2
+  checks:
+  - check_type: test_passes
+    check_value: uv run pytest tests/ci/test_check_only_hooks_omn21496.py -k whole_tree -q --no-cov --tb=line
+    cwd: ${OMNI_HOME}/omnimarket
 - id: dod-omn21496-deploy-config
   description: 'Hosted deploy check: the pre-commit config at the checked-out commit declares the check-only replacements and no longer declares the two writing hooks. Needs no account, lab host or runtime.'
   source: manual
