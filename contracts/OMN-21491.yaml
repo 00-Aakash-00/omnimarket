@@ -1,10 +1,9 @@
 schema_version: 1.0.0
-ticket_id: OMN-21433
+ticket_id: OMN-21491
 title: 'T-V2: delivery-path reducer'
 summary: 'New pure reducer node node_delivery_path_reducer. Its contract carries the plan section 7.3 (Figure 11) state machine
   and config.delivery.stale_after_minutes; the handler builds the guard context and emits stale_limit_reached from the configured
-  limit and the merge time of the expected target. Placeholder contract: the task ticket is minted later and the orchestrator
-  renames this file to it. Parent ticket OMN-21433 is cited only as the parent.'
+  limit and the merge time of the expected target.'
 is_seam_ticket: false
 interface_change: false
 interfaces_touched: []
@@ -189,6 +188,10 @@ dod_evidence:
   checks:
   - check_type: command
     check_value: grep -r -l -e 01a184a0-3963-7c91-b93f-db8b81a1d545 -e 01a184a5-f421-72a2-97c6-e4dbbc8d0664 ${OMNI_HOME}/.claude_scratch/delegation-receipts/factory-t-v2-2215
+    cwd: ${OMNI_HOME}/omnimarket
+  - check_type: command
+    check_value: grep -r -l -e 'pr:OmniNode-ai/omnimarket#4548' ${OMNI_HOME}/.claude_scratch/delegation-receipts/factory-t-v2-2215/2026-10-28T223222Z-codex-build-reducer.json
+      ${OMNI_HOME}/.claude_scratch/delegation-receipts/factory-t-v2-2215/2026-10-28T223521Z-codex-fix-tag-anchor.json
     cwd: ${OMNI_HOME}/omnimarket
   - check_type: command
     check_value: test -s ${OMNI_HOME}/.onex_state/harness-delegate/a19e70fe-3d51-43d9-9b00-8e08f02f42b7/receipt.json
