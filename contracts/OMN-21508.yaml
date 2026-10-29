@@ -81,13 +81,12 @@ dod_evidence:
         cwd: "${OMNI_HOME}/omnimarket"
   - id: "dod-omn21508-delegation-join"
     description: >-
-      The delegation runs whose output is in the pull request head each have a receipt in the run
-      directory that names this ticket (the DS-6 and DS-7 joins; the delegation_events rows are read
+      The three text runs (commit messages, harness-delegate run directories) and the Codex code thread whose output is in the pull request head each have a receipt that names this ticket or this thread (the DS-6 and DS-7 joins; the delegation_events rows are read
       by the delegation share line of queue status). Fails at the merge base, which has no such run.
     source: "manual"
     checks:
       - check_type: "command"
-        check_value: "bash -o pipefail -c 'for r in DELEGATION_RUN_IDS; do grep -q OMN-21508 \"${OMNI_HOME}/.onex_state/runs/$r/receipt.json\"; done'"
+        check_value: "bash -o pipefail -c 'for r in 99bee03c-472f-441d-98ff-1ce720d312e5 d0d16f01-fc65-480d-8c8c-df259f73468d 22b61b7a-90d9-40a3-8721-bd2ef9c1df2c; do grep -q OMN-21508 \"${OMNI_HOME}/.onex_state/harness-delegate/$r/receipt.json\"; done; grep -q 01a18526-b174-71b0-a869-b6343098dabb \"${OMNI_HOME}/.claude_scratch/delegation-receipts/t-s1b-0035/2026-10-29T005535Z-codex-impl-identities.json\"'"
   - id: "dod-omn21508-deploy-import"
     description: >-
       Hosted deploy check: the model file at the pull request head commit, read through the GitHub
