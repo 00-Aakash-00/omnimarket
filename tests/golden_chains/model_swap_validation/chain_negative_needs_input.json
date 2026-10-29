@@ -1,0 +1,27 @@
+{
+  "chain_name": "chain_negative_needs_input",
+  "request": {
+    "correlation_id": "00000000-0000-4000-8000-000000000001",
+    "task_type": "fixture_task",
+    "reference_model": "example-reference/reference-model",
+    "candidate_model": "example-candidate/candidate-model",
+    "judge_mode": "stub",
+    "answer_source": "recorded",
+    "replay_set_digest": "8d4a91618010620ecf071769f4d158fe0dfc9afdb81f1fbb8bbecd55ea651821",
+    "quality_floor": 0.85,
+    "max_cost_usd": 1.0,
+    "work_unit_repository": "example/project"
+  },
+  "stub": {
+    "exit_code": 2,
+    "tool_error_code": "no_replayable_call_sites",
+    "decision": null
+  },
+  "expected": {
+    "status": "failed",
+    "failure_reason": "needs_input",
+    "decision": null,
+    "tool_error_code": "no_replayable_call_sites",
+    "evidence_only": true
+  }
+}

@@ -1,0 +1,84 @@
+---
+# SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
+# SPDX-License-Identifier: MIT
+name: node_model_swap_validation_effect
+lifecycle: experimental
+contract_version: {major: 1, minor: 0, patch: 0}
+node_type: EFFECT_GENERIC
+node_version: {major: 1, minor: 0, patch: 0}
+description: >
+  Produces evidence about one candidate model over an operator-owned replay set.
+  It never authorizes a routing change. Durable ownership prevents a duplicate
+  command or crash recovery from starting a second validation, and a stored
+  terminal is replayed without invoking the validator again.
+input_model:
+  name: ModelModelSwapValidationRequest
+  module: omnibase_core.models.model_swap_validation
+output_model:
+  name: ModelModelSwapValidationResult
+  module: omnibase_core.models.model_swap_validation
+handler:
+  module: omnimarket.nodes.node_model_swap_validation_effect.handlers.handler_model_swap_validation
+  class: HandlerModelSwapValidation
+  input_model: omnibase_core.models.model_swap_validation.ModelModelSwapValidationRequest
+  output_model: omnibase_core.models.model_swap_validation.ModelModelSwapValidationResult
+handler_routing:
+  routing_strategy: payload_type_match
+  handlers:
+    - operation: model_swap_validation.validate
+      message_category: command
+      topic: onex.cmd.omnimarket.model-swap-validation-requested.v1
+      handler:
+        name: HandlerModelSwapValidation
+        module: omnimarket.nodes.node_model_swap_validation_effect.handlers.handler_model_swap_validation
+      event_model:
+        name: ModelModelSwapValidationRequest
+        module: omnibase_core.models.model_swap_validation
+terminal_event: onex.evt.omnimarket.model-swap-validation-completed.v1
+runtime_dispatch:
+  command_topic: onex.cmd.omnimarket.model-swap-validation-requested.v1
+  terminal_events:
+    success: onex.evt.omnimarket.model-swap-validation-completed.v1
+    failure: onex.evt.omnimarket.model-swap-validation-failed.v1
+published_events:
+  - event_type: ModelSwapValidationCompleted
+    topic: onex.evt.omnimarket.model-swap-validation-completed.v1
+  - event_type: ModelSwapValidationFailed
+    topic: onex.evt.omnimarket.model-swap-validation-failed.v1
+event_bus:
+  subscribe_topics:
+    - onex.cmd.omnimarket.model-swap-validation-requested.v1
+  publish_topics:
+    - onex.evt.omnimarket.model-swap-validation-completed.v1
+    - onex.evt.omnimarket.model-swap-validation-failed.v1
+externally_consumed_topics:
+  - onex.evt.omnimarket.model-swap-validation-completed.v1
+  - onex.evt.omnimarket.model-swap-validation-failed.v1
+descriptor:
+  node_archetype: effect
+  purity: impure
+  idempotent: true
+  timeout_ms: 300000
+  runtime_profiles: [effects]
+validator:
+  module: omnimarket.nodes.node_model_swap_validation_effect.adapters.rightmodeler.validator
+  class: ValidatorRightModeler
+state:
+  directory: "${env.ONEX_MODEL_SWAP_STATE_DIRECTORY:}"
+tool_pin:
+  commit: a1fed146ed738fd50be224716ad6139e35d6d173
+analysis_commands:
+  - init
+  - report
+analysis_flags:
+  - --through
+  - --yes
+  - --output
+  - --traces
+  - --repo
+  - --store
+  - --policy
+  - --base-url
+  - --api-key-env
+  - --max-cost-usd
+  - --include-free
