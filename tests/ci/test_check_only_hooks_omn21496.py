@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 OmniNode.ai Inc.
 # SPDX-License-Identifier: MIT
-"""OMN-21433 T2.6: no pre-commit hook of this repository writes a file.
+"""OMN-21496 T2.6: no pre-commit hook of this repository writes a file.
 
 A hook that rewrites a file or a commit message hides a defect from the author
 and breaks the rule that a hook run leaves the working tree byte-identical.

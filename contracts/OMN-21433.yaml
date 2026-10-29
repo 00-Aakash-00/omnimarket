@@ -29,23 +29,6 @@ requirements:
     statement: 'AC3: a writer that closes its pipes and lingers does not add a polling sleep to the
       recorded backoff -- falsifier: uv run pytest tests/nodes/node_ledger_reconcile_effect/test_local_adapters_ledger_reconcile_effect.py
       -k slow_to_exit fails with [0.001, 0.002, ...] when the test patches time.sleep globally'
-- id: req-t26-hooks-check-only
-  statement: T2.6 - no pre-commit hook of this repository writes a file or a commit message; each refuses
-    and leaves the bytes alone.
-  acceptance:
-  - id: AC4
-    statement: 'AC4 (T2.6): a canary commit with an unformatted file is refused and the working tree is
-      byte-identical after the hook run -- falsifier: uv run pytest tests/ci/test_check_only_hooks_omn21433.py
-      -k ruff_args fails with the ruff-format hook rewriting the canary file on the tree without the fix'
-  - id: AC5
-    statement: 'AC5 (T2.6): a canary commit message with an AI co-author trailer is refused and the message
-      file is byte-identical after the hook run, and a file without exactly one final newline is refused
-      and left alone -- falsifier: uv run pytest tests/ci/test_check_only_hooks_omn21433.py -k "trailer
-      or end_of_file" fails with KeyError on the replacement hook ids on the tree without the fix'
-  - id: AC6
-    statement: 'AC6 (T2.6): no hook in .pre-commit-config.yaml declares a writing flag or entry and the
-      end-of-file-fixer and strip-ai-coauthor-trailer ids are gone -- falsifier: uv run pytest tests/ci/test_check_only_hooks_omn21433.py
-      -k "gone or writing_flag or check_only" fails on the tree without the fix'
 evidence_requirements:
 - kind: tests
   description: Order isolation test.
@@ -135,34 +118,4 @@ dod_evidence:
     cwd: ${OMNI_HOME}/omnimarket
   - check_type: test_passes
     check_value: uv run pytest tests/nodes/node_ledger_reconcile_effect/test_local_adapters_ledger_reconcile_effect.py -q --no-cov --tb=line
-    cwd: ${OMNI_HOME}/omnimarket
-- id: dod-t26-ac4
-  description: T2.6 AC4 runs the ruff hook arguments from the committed pre-commit config against an
-    unformatted, lint-defective canary and checks the exit is non-zero and the bytes are unchanged.
-  source: manual
-  binds_ac:
-  - AC4
-  checks:
-  - check_type: test_passes
-    check_value: uv run pytest tests/ci/test_check_only_hooks_omn21433.py -k ruff -q --no-cov --tb=line
-    cwd: ${OMNI_HOME}/omnimarket
-- id: dod-t26-ac5
-  description: T2.6 AC5 runs the committed trailer and end-of-file hooks through pre-commit on a canary
-    commit message and canary files, and checks each is refused with the bytes unchanged.
-  source: manual
-  binds_ac:
-  - AC5
-  checks:
-  - check_type: test_passes
-    check_value: uv run pytest tests/ci/test_check_only_hooks_omn21433.py -k "trailer or end_of_file" -q --no-cov --tb=line
-    cwd: ${OMNI_HOME}/omnimarket
-- id: dod-t26-ac6
-  description: T2.6 AC6 reads the committed pre-commit config for writing flags and entries and for
-    the removed hook ids.
-  source: manual
-  binds_ac:
-  - AC6
-  checks:
-  - check_type: test_passes
-    check_value: uv run pytest tests/ci/test_check_only_hooks_omn21433.py -k "gone or writing_flag or check_only or replacements" -q --no-cov --tb=line
     cwd: ${OMNI_HOME}/omnimarket
