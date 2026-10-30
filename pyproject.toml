@@ -269,7 +269,7 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "httpx>=0.27.0",
     "anthropic>=0.25.0",
-    "omninode-memory==0.18.0",
+    "omninode-memory>=0.18.0,<0.19.0",
     "radon>=6.0.1",
     # OMN-16024: floor raised 8.4.0 -> 9.0.3 (CVE-2025-71176, insecure tmpdir DoS).
     "pytest>=9.0.3",
@@ -1226,6 +1226,15 @@ omnimarket = "omnimarket.nodes"
 # (harness eval identity columns) byte-identical.
 # OMN-21386: infra#5407 vendors the work-ledger 0006 first-ingest migration.
 omnibase-infra = { git = "https://github.com/OmniNode-ai/omnibase_infra.git", tag = "dev-20261027104820-3540659c6633" }
+# OMN-21478, RULINGs 2026-10-16T07:34:18Z and 2026-10-16T09:35:49Z: core, spi and
+# memory are read from their dev merge tags too, as infra is, and the
+# Internal Sibling Pins check (internal-sibling-pins.yml) refuses any other form.
+# The core tag carries omnibase_core#2103 (the FSM executor evaluates every
+# operator the condition model accepts). The version ranges in [project] stay
+# for external installs.
+omnibase-core = { git = "https://github.com/OmniNode-ai/omnibase_core.git", tag = "dev-20261028111658-97c5d1c2802a" }
+omnibase-spi = { git = "https://github.com/OmniNode-ai/omnibase_spi.git", tag = "dev-20261028101803-7955bf0dff0f" }
+omninode-memory = { git = "https://github.com/OmniNode-ai/omnimemory.git", tag = "dev-20261028085302-971553debfa3" }
 # OMN-13878: omnibase-core and omnibase-compat now resolve from PyPI (removed
 # their git-source overrides). The version-range overrides below already target
 # the released artifacts: core>=0.46.7,<0.47.0 and
